@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import { supabase, supabaseEnabled } from "./supabaseClient.js";
 
 // Routage des appels IA : relais serveur en production (clé API protégée côté serveur),
 // appel direct proxifié dans l'aperçu Claude. Le jeton Clerk est joint pour que le relais l'authentifie.
@@ -365,6 +366,10 @@ function seedTickets() {
 }
 const SETTINGS = { myEmail: "matthis-anael@penup3d.com", tva: 20, theme: "light", coefTarget: 2.2, coefMax: 2.4, coefBasisTTC: true, fxSpot: 0.89, fxMargin: 7, fxDate: "", fxSource: "défaut" };
 function buildSeed() { return { products: seedProducts(), accounts: seedAccounts(), contacts: seedContacts(), interactions: seedInteractions(), deals: seedDeals(), tickets: seedTickets(), sites: seedSites(), attachments: {}, events: [], rotations: {}, settings: { ...SETTINGS }, _imported: "Seed initial (export WMS du 28/05/2026)" }; }
+// Etat de depart REEL : tout vide, et toutes les migrations de demo neutralisees
+// (drapeaux a true) pour ne jamais reinjecter de donnees fictives. Le seed n'est
+// charge que volontairement via le bouton "Demo".
+function emptyData() { return { products: [], accounts: [], contacts: [], interactions: [], deals: [], tickets: [], sites: [], prospects: [], attachments: {}, events: [], rotations: {}, savedCalcs: [], claudeUsage: { calls: 0, inputTokens: 0, outputTokens: 0 }, settings: { ...SETTINGS, coefBasisTTC: true, _tarif2026: true, _kind: true, _pdvMono: true, _migrated_sourire: true, _migrated_jer: true, _fresh: true }, _imported: "" }; }
 function normalize(d) {
   const __secured = securedFrom({ ...SETTINGS, ...(d.settings || {}) });
   d.products = (d.products || seedProducts()).map((p) => { const o = { cout: null, ...p }; if (o.vendable === undefined) { const unitaire = /^PU3D-FIL-/.test(o.code) && !/^lot/i.test(o.designation || ""); const kit = (o.code || "").includes("-KIT-"); o.vendable = !(unitaire || kit); } if (o.poidsG === undefined || o.poidsG === null) { if (o.poidsKg != null) { o.poidsG = Math.round(o.poidsKg * 1000); } else { o.poidsG = Math.round(poidsProvisoire(o.code, o.designation) * 1000); o.poidsEstime = true; } } delete o.poidsKg; if (o.coutInit === undefined) { const parts = coutRevientParts(o.code, o.designation); if (parts) { o.coutUsd = parts.usd; o.coutEurFixe = parts.eur; } o.coutInit = true; } if (o.coutUsd != null) o.cout = deriveCout(o, __secured); return o; });
@@ -378,7 +383,7 @@ function normalize(d) {
   d.interactions = d.interactions || seedInteractions();
   d.deals = (d.deals || seedDeals()).map((x) => ({ tva: 20, lines: [], qte: 0, prestoStatus: "", prestoRef: "", prestoDate: "", converti: false, livraisonSiteId: "", datePaiement: "", ...x, montant: x.lines && x.lines.length ? dealMontant(x.lines) : (x.montant || 0) }));
   d.tickets = d.tickets || []; d.rotations = d.rotations || {}; d.savedCalcs = d.savedCalcs || []; d.prospects = (d.prospects || seedProspects()).map((p) => ({ enseigne: "", type: "autre", format: "", adresse: "", ville: "", cp: "", departement: "", region: "", telephone: "", site: "", email: "", statut: "a_qualifier", potentiel: "", notes: "", source: "", accountId: null, createdAt: TODAY(), siren: "", siret: "", raisonSociale: "", formeJuridique: "", contactPrenom: "", contactNom: "", contactFonction: "", contactEmail: "", contactTel: "", contactSource: "", ...p }));
-  { const sm = {}; seedProspects().forEach((s) => { sm[s.id] = s; }); d.prospects = d.prospects.map((p) => { if (p.id === "p_jc_mtb" && p.siren === "918164757") { const s = sm["p_jc_mtb"] || {}; p = { ...p, siren: "", raisonSociale: "", formeJuridique: "", contactPrenom: "", contactNom: "", contactFonction: "", contactSource: "", notes: s.notes || p.notes }; } const s = sm[p.id]; if (s && !p.siren && (s.siren || s.contactNom)) p = { ...p, siren: p.siren || s.siren, raisonSociale: p.raisonSociale || s.raisonSociale, formeJuridique: p.formeJuridique || s.formeJuridique, contactPrenom: p.contactPrenom || s.contactPrenom, contactNom: p.contactNom || s.contactNom, contactFonction: p.contactFonction || s.contactFonction, contactTel: p.contactTel || s.contactTel, contactSource: p.contactSource || s.contactSource }; if (s && s.siret && !p.siret) p = { ...p, siret: s.siret }; return p; }); } d.sites = (d.sites && d.sites.length) ? d.sites.map((s) => ({ accountId: null, type: "pdv", adresse: "", lat: null, lng: null, notes: "", contactPrenom: "", contactNom: "", contactTel: "", contactMail: "", contactId: "", typeSurface: "", siret: "", adresseLivraison: "", livraisonIdentique: true, ...s })) : seedSites();
+  { const sm = {}; seedProspects().forEach((s) => { sm[s.id] = s; }); d.prospects = d.prospects.map((p) => { if (p.id === "p_jc_mtb" && p.siren === "918164757") { const s = sm["p_jc_mtb"] || {}; p = { ...p, siren: "", raisonSociale: "", formeJuridique: "", contactPrenom: "", contactNom: "", contactFonction: "", contactSource: "", notes: s.notes || p.notes }; } const s = sm[p.id]; if (s && !p.siren && (s.siren || s.contactNom)) p = { ...p, siren: p.siren || s.siren, raisonSociale: p.raisonSociale || s.raisonSociale, formeJuridique: p.formeJuridique || s.formeJuridique, contactPrenom: p.contactPrenom || s.contactPrenom, contactNom: p.contactNom || s.contactNom, contactFonction: p.contactFonction || s.contactFonction, contactTel: p.contactTel || s.contactTel, contactSource: p.contactSource || s.contactSource }; if (s && s.siret && !p.siret) p = { ...p, siret: s.siret }; return p; }); } d.sites = Array.isArray(d.sites) ? d.sites.map((s) => ({ accountId: null, type: "pdv", adresse: "", lat: null, lng: null, notes: "", contactPrenom: "", contactNom: "", contactTel: "", contactMail: "", contactId: "", typeSurface: "", siret: "", adresseLivraison: "", livraisonIdentique: true, ...s })) : seedSites();
   { const sim = {}; seedSites().forEach((s) => { sim[s.id] = s; }); d.sites = d.sites.map((s) => { const o = sim[s.id]; return (o && !s.siret && o.siret) ? { ...s, siret: o.siret } : s; }); }
   d.attachments = d.attachments || {};
   d.claudeUsage = d.claudeUsage || { calls: 0, inputTokens: 0, outputTokens: 0 };
@@ -2722,9 +2727,9 @@ function Connexions({ data, persist }) {
     <div style={{ marginTop: 16 }}><div className="sec-h"><h3 className="pu-display">Stockage et évolutions</h3></div>
       <div className="card">
         <div style={{ fontSize: 13, lineHeight: 1.55, color: "var(--muted)" }}>
-          <strong style={{ color: "var(--ink)" }}>Stockage actuel.</strong> Toutes vos données (enseignes, contacts, deals, sites, pièces jointes) sont enregistrées dans le navigateur de cet appareil uniquement. Aucun envoi vers un serveur externe. Faites des sauvegardes JSON régulières via le bouton « Sauvegarde » en haut, et conservez-les dans Google Drive ou sur disque externe.
+          <strong style={{ color: "var(--ink)" }}>Stockage.</strong> Les données sont mises en cache dans ce navigateur (localStorage) et, quand la base Supabase est configurée, synchronisées dans une base PostgreSQL partagée (hébergement européen) accessible à toute l'équipe authentifiée via Clerk. Si Supabase est indisponible, l'app continue de fonctionner en local. Faites tout de même des sauvegardes JSON régulières via le bouton « Sauvegarde » en haut.
           <br /><br />
-          <strong style={{ color: "var(--ink)" }}>Pour passer à plusieurs utilisateurs.</strong> Le mode actuel ne permet pas la synchronisation entre vous et Matthis-Anaël. Une évolution naturelle serait Supabase (hébergement européen, base PostgreSQL, gestion d'authentification) ou Firebase. Ce passage demande de remplacer le `window.storage` actuel par des appels API, d'ajouter une page de connexion et des règles d'accès par utilisateur. C'est un chantier de quelques jours mais qui débloque l'usage en équipe et la sauvegarde automatique. Cabinet DRB Montauban garde l'accès Shopify direct pour la facturation comme aujourd'hui.
+          <strong style={{ color: "var(--ink)" }}>Synchronisation multi-utilisateurs.</strong> Quand Supabase est configuré (variables VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY côté Vercel), vous et Matthis-Anaël partagez les mêmes données, synchronisées entre appareils, avec authentification Clerk et règles d'accès appliquées côté base (RLS). Limite assumée de cette v1 : en cas d'édition simultanée, c'est la dernière sauvegarde qui prime. La découpe en tables relationnelles (édition par enregistrement, sans écrasement) est l'étape suivante.
           <br /><br />
           <strong style={{ color: "var(--ink)" }}>Limites du stockage local.</strong> Les pièces jointes occupent de l'espace en base64 dans le navigateur, plafond pratique ≈ 5 Mo total. Au-delà, basculez vers un vrai stockage objet (Supabase Storage ou DigitalOcean Spaces que vous utilisez déjà côté Shopify).
         </div>
@@ -3146,13 +3151,39 @@ function ConfirmHost() {
   </div>);
 }
 export default function App() {
-  const [data, setData] = useState(() => normalize(buildSeed()));
+  const [data, setData] = useState(() => normalize(emptyData()));
   const [tab, setTab] = useState("dash"); const [focus, setFocus] = useState(null); const [navKey, setNavKey] = useState(0);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [importMsg, setImportMsg] = useState(null);
   const fileImportRef = useRef(null);
-  useEffect(() => { (async () => { try { if (typeof window !== "undefined" && window.storage) { let r = await window.storage.get(KEY).catch(() => null); if (!r) { for (const k of KEY_OLD) { const o = await window.storage.get(k).catch(() => null); if (o) { r = o; break; } } } if (r && r.value) setData(normalize(JSON.parse(r.value))); } } catch (e) { } })(); }, []);
-  const persist = useCallback((updater) => { setData((prev) => { const next = normalize(typeof updater === "function" ? updater(clone(prev)) : updater); try { if (typeof window !== "undefined" && window.storage) window.storage.set(KEY, JSON.stringify(next)).catch(() => { }); } catch (e) { } return next; }); }, []);
+  // Chargement : cache localStorage immediat, puis source partagee Supabase si configuree.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try { const c = localStorage.getItem(KEY); if (c && !cancelled) setData(normalize(JSON.parse(c))); } catch (e) { }
+      if (supabaseEnabled && supabase) {
+        try {
+          const { data: row, error } = await supabase.from("cockpit_state").select("data").eq("id", "shared").maybeSingle();
+          if (!error && row && row.data && !cancelled) { const next = normalize(row.data); setData(next); try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) { } }
+        } catch (e) { }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const saveTimer = useRef(null);
+  // Persistance : ecrit le cache localStorage immediatement, puis pousse vers Supabase (anti-rebond 800 ms).
+  const persist = useCallback((updater) => {
+    setData((prev) => {
+      const next = normalize(typeof updater === "function" ? updater(clone(prev)) : updater);
+      try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) { }
+      if (supabaseEnabled && supabase) {
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => { supabase.from("cockpit_state").upsert({ id: "shared", data: next, updated_at: new Date().toISOString() }, { onConflict: "id" }).then(() => { }, () => { }); }, 800);
+      }
+      return next;
+    });
+  }, []);
+  const loadDemo = useCallback(() => { appConfirm("Charger un jeu de donnees de demonstration ? Cela remplace les donnees actuelles.", { title: "Charger la demo ?", confirmLabel: "Charger" }).then((ok) => { if (ok) persist(() => normalize(buildSeed())); }); }, [persist]);
   const go = useCallback((t, id, site) => { setFocus({ tab: t, id, n: Date.now(), site: site || null }); setTab(t); }, []);
   const fc = (t) => (focus && focus.tab === t) ? focus : null;
   const theme = data.settings.theme || "light";
@@ -3204,6 +3235,7 @@ export default function App() {
           <button className="btn btn-ghost btn-s" onClick={exportAll} title="Exporter toutes les données"><Download size={15} /> Sauvegarde</button>
           <input ref={fileImportRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) importAll(f); e.target.value = ""; }} />
           <button className="btn btn-ghost btn-s" onClick={() => fileImportRef.current && fileImportRef.current.click()} title="Restaurer depuis une sauvegarde"><Upload size={15} /> Restaurer</button>
+          {(!data.accounts || data.accounts.length === 0) && <button className="btn btn-ghost btn-s" onClick={loadDemo} title="Charger un jeu de donnees de demonstration"><Sparkles size={15} /> Démo</button>}
           <button className="btn btn-ghost btn-s" onClick={() => window.print()} title="Imprimer / PDF de la vue courante"><Printer size={15} /></button>
           <button className="btn btn-ghost btn-s" onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>{theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}</button>
         </div>
