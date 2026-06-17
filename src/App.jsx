@@ -1754,7 +1754,7 @@ function DevisPreview({ deal, account, settings, products = [], onClose }) {
         {titre === "DEVIS" && <div>Devis valable 30 jours.</div>}
         <div>Franco de port dès {FRANCO_SEUIL_HT} € HT de commande.</div>
         <div>En deçà, participation forfaitaire de {FRANCO_PART_HT} € HT aux frais de port.</div>
-        <div>PEN'UP 3D, SAS. Président : P'TIT BUNCH SARL, représentée par M. Dimitri DESSEAUX. RCS Montauban 978 651 891.</div>
+        <div>PEN'UP 3D, SAS au capital de 1 000 €. Président : P'TIT BUNCH SARL, représentée par M. Dimitri DESSEAUX. RCS Montauban 978 651 891.</div>
       </div>
     </div>
   </div></div>, document.body);
