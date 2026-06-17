@@ -845,6 +845,8 @@ const CSS = `
 .pu-root.dark .tbl tr:hover td{background:#1d2945;}
 /* Accessibilité : anneau de focus clavier visible (sans gêner la souris). */
 .nav button:focus-visible,.btn:focus-visible,.btn-save:focus-visible,.chip:focus-visible,.chip-all:focus-visible,.iconbtn:focus-visible,.zbtn:focus-visible,.star:focus-visible,.back:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px;}
+/* Accessibilité : respecte « réduire les animations » du système. */
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important;}}
 
 @media(max-width:880px){.sb{width:100%;flex:none;height:auto;position:static;flex-direction:column;overflow:visible;}.nav{flex-direction:row;flex-wrap:wrap;}.nav button{width:auto;}.sb-foot{display:none;}.kan{grid-template-columns:1fr;}.kan-deals{grid-template-columns:1fr;}.cal-grid{grid-template-columns:1fr;}.cal-cell{min-height:50px;}.main{padding:20px 16px 50px;}.row2{flex-direction:column;}.lineRow{grid-template-columns:1fr;}}
 @media print{
