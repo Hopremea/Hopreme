@@ -1724,8 +1724,15 @@ function DealForm({ deal, accounts, products, sites, onSave, onPreview }) {
   </>);
 }
 function DevisPreview({ deal, account, settings, products = [], onClose }) {
-  // Marque <body> tant que le document est affiché : la feuille d'impression isole alors le seul document.
-  useEffect(() => { document.body.classList.add("doc-print"); return () => document.body.classList.remove("doc-print"); }, []);
+  // Marque <body> tant que le document est affiché (isolation à l'impression) et nomme l'onglet/PDF
+  // par la référence du document (et non « MITMIT · Cockpit… ») : c'est ce nom que le navigateur donne au PDF.
+  useEffect(() => {
+    document.body.classList.add("doc-print");
+    const prevTitle = document.title;
+    const t = deal.type === "Facture" ? "Facture" : deal.type === "Commande" ? "Bon de commande" : "Devis";
+    document.title = (t + " " + docRef(deal, account)).trim();
+    return () => { document.body.classList.remove("doc-print"); document.title = prevTitle; };
+  }, []);
   const ht = dealMontant(deal.lines); const port = fraisPortHT(ht); const baseHt = ht + port; const tva = baseHt * (deal.tva || 0) / 100; const ttc = baseHt + tva;
   const titre = deal.type === "Facture" ? "FACTURE" : deal.type === "Commande" ? "BON DE COMMANDE" : "DEVIS";
   return createPortal(<div className="ov print-doc-overlay" onClick={onClose}><div className="doc" onClick={(e) => e.stopPropagation()}>
