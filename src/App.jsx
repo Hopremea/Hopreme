@@ -328,9 +328,9 @@ function seedAccounts() {
 }
 function seedContacts() {
   return [
-    { id: "c_cult1", accountId: "acc_cultura", prenom: "", nom: "RESPONSABLE DE CATÉGORIE", fonction: "Responsable de catégorie", role: "acheteur", email: "", telephone: "", mobile: "", linkedin: "", ville: "Bordeaux", departement: "33 Gironde", adresse: "", principal: true, notes: "Rencontré au siège. À renseigner avec le vrai contact.", createdAt: "2026-05-10" },
-    { id: "c_king1", accountId: "acc_kingjouet", prenom: "", nom: "DIRECTRICE MAGASIN", fonction: "Directeur(rice) d'établissement", role: "decideur", email: "", telephone: "", mobile: "", linkedin: "", ville: "Voiron", departement: "38 Isère", adresse: "", principal: true, notes: "Pilote sur 1 établissement.", createdAt: "2026-05-12" },
-    { id: "c_sourire1", accountId: "acc_sourire", prenom: "Carine", nom: "BOIS", fonction: "Président(e)", role: "decideur", email: "", telephone: "", mobile: "", linkedin: "", ville: "", departement: "", adresse: "", principal: true, notes: "Présidente de l'association Un sourire en plus (en cours de création, prévue septembre 2026).", createdAt: "2026-05-29" },
+    { id: "c_cult1", accountId: "acc_cultura", prenom: "", nom: "RESPONSABLE DE CATÉGORIE", fonction: "Responsable de catégorie", role: "acheteur", email: "", mobile: "", fixe: "", linkedin: "", ville: "Bordeaux", departement: "33 Gironde", adresse: "", principal: true, notes: "Rencontré au siège. À renseigner avec le vrai contact.", createdAt: "2026-05-10" },
+    { id: "c_king1", accountId: "acc_kingjouet", prenom: "", nom: "DIRECTRICE MAGASIN", fonction: "Directeur(rice) d'établissement", role: "decideur", email: "", mobile: "", fixe: "", linkedin: "", ville: "Voiron", departement: "38 Isère", adresse: "", principal: true, notes: "Pilote sur 1 établissement.", createdAt: "2026-05-12" },
+    { id: "c_sourire1", accountId: "acc_sourire", prenom: "Carine", nom: "BOIS", fonction: "Président(e)", role: "decideur", email: "", mobile: "", fixe: "", linkedin: "", ville: "", departement: "", adresse: "", principal: true, notes: "Présidente de l'association Un sourire en plus (en cours de création, prévue septembre 2026).", createdAt: "2026-05-29" },
   ];
 }
 function seedInteractions() {
@@ -388,7 +388,9 @@ function normalize(d) {
   d.accounts = assignClientCodes(d.accounts);
   d.accounts = d.accounts.map((a) => { let n = a.nature, c = a.code; if (n === "FR") n = "FC"; if (typeof c === "string" && /^FR-/.test(c)) c = "FC-" + c.slice(3); return (n !== a.nature || c !== a.code) ? { ...a, nature: n, code: c } : a; });
   { const am = {}; seedAccounts().forEach((s) => { am[s.id] = s; }); d.accounts = d.accounts.map((a) => { const s = am[a.id]; if (!s) return a; const patch = {}; if (!a.siren && s.siren) patch.siren = s.siren; if (!a.formeJuridique && s.formeJuridique) patch.formeJuridique = s.formeJuridique; return Object.keys(patch).length ? { ...a, ...patch } : a; }); }
-  d.contacts = (d.contacts || seedContacts()).map((c) => ({ departement: "", ...c }));
+  // Migration téléphones : l'ancien champ « telephone » portait le mobile, l'ancien « mobile » portait le fixe.
+  // On renomme proprement en « mobile » (mobile) et « fixe » (ligne fixe). Idempotent : ne s'exécute qu'une fois par contact.
+  d.contacts = (d.contacts || seedContacts()).map((c) => { const n = { departement: "", ...c }; if (n.fixe === undefined) { n.fixe = n.mobile || ""; n.mobile = n.telephone || ""; } delete n.telephone; return n; });
   d.interactions = d.interactions || seedInteractions();
   d.deals = (d.deals || seedDeals()).map((x) => ({ tva: 20, lines: [], qte: 0, prestoStatus: "", prestoRef: "", prestoDate: "", converti: false, livraisonSiteId: "", datePaiement: "", ...x, montant: x.lines && x.lines.length ? dealMontant(x.lines) : (x.montant || 0) }));
   d.tickets = d.tickets || []; d.rotations = d.rotations || {}; d.savedCalcs = d.savedCalcs || []; d.prospects = (d.prospects || seedProspects()).map((p) => ({ enseigne: "", type: "autre", format: "", adresse: "", ville: "", cp: "", departement: "", region: "", telephone: "", site: "", email: "", statut: "a_qualifier", potentiel: "", notes: "", source: "", accountId: null, createdAt: TODAY(), siren: "", siret: "", raisonSociale: "", formeJuridique: "", contactPrenom: "", contactNom: "", contactFonction: "", contactEmail: "", contactTel: "", contactSource: "", ...p }));
@@ -420,7 +422,7 @@ function normalize(d) {
       d.accounts.push({ id: "acc_sourire", enseigne: "Un sourire en plus", stage: "contact", magasins: 0, typeSurface: "Association", ville: "", lat: null, lng: null, pipeline: 0, prochaineAction: "Caler les modalités d'un partenariat dès création de l'asso", dateAction: "2026-09-01", notes: "Association en cours de création, prévue septembre 2026. Présidente : Carine Bois. Cible enfance, à articuler avec gamme PEN'UP 3D (ateliers, dons matériels, événements).", adresseLivraison: "" });
     }
     if (!d.contacts.find((c) => c.id === "c_sourire1")) {
-      d.contacts.push({ id: "c_sourire1", accountId: "acc_sourire", prenom: "Carine", nom: "BOIS", fonction: "Président(e)", role: "decideur", email: "", telephone: "", mobile: "", linkedin: "", ville: "", departement: "", adresse: "", principal: true, notes: "Présidente de l'association Un sourire en plus (en cours de création, prévue septembre 2026).", createdAt: "2026-05-29" });
+      d.contacts.push({ id: "c_sourire1", accountId: "acc_sourire", prenom: "Carine", nom: "BOIS", fonction: "Président(e)", role: "decideur", email: "", mobile: "", fixe: "", linkedin: "", ville: "", departement: "", adresse: "", principal: true, notes: "Présidente de l'association Un sourire en plus (en cours de création, prévue septembre 2026).", createdAt: "2026-05-29" });
     }
     d.settings._migrated_sourire = true;
   }
@@ -479,13 +481,21 @@ const formatBytes = (b) => b < 1024 ? b + " o" : b < 1048576 ? Math.round(b / 10
 
 // Détection de doublons sur nom (similarité simple, casse + accents normalisés)
 const normStr = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+// Département depuis un code postal : gère DOM-TOM (97x/98x sur 3 chiffres) et Corse (2A/2B).
+function depFromCP(cp) {
+  if (!cp) return "";
+  if (cp.startsWith("97") || cp.startsWith("98")) return cp.slice(0, 3);
+  if (cp.startsWith("20")) return parseInt(cp, 10) < 20200 ? "2A" : "2B";
+  return cp.slice(0, 2);
+}
 function parseLocality(adresse) {
-  const s = adresse || ""; const m = s.match(/\b(\d{5})\b/);
-  if (!m) return { cp: "", ville: "", departement: "" };
-  const cp = m[1]; const after = s.slice(s.indexOf(cp) + 5).replace(/^[\s,;-]+/, "");
+  const s = adresse || ""; const all = s.match(/\b\d{5}\b/g);
+  if (!all) return { cp: "", ville: "", departement: "" };
+  // On retient le dernier code postal de la chaîne (évite de confondre un n° de rue à 5 chiffres avec le CP).
+  const cp = all[all.length - 1];
+  const after = s.slice(s.lastIndexOf(cp) + 5).replace(/^[\s,;-]+/, "");
   const ville = (after.split(/[,\n;]/)[0] || "").trim();
-  let dep = cp.slice(0, 2); if (cp.startsWith("97") || cp.startsWith("98")) dep = cp.slice(0, 3);
-  return { cp, ville, departement: dep };
+  return { cp, ville, departement: depFromCP(cp) };
 }
 function contactSite(c, data) { return c && c.siteId ? ((data && data.sites) || []).find((s) => s.id === c.siteId) || null : null; }
 function contactLocality(c, data) {
@@ -927,7 +937,7 @@ function ActivityChart({ deals }) {
   const metrics = [{ id: "ca", label: "Chiffre d'affaires" }, { id: "qte", label: "Quantités" }, { id: "cmd", label: "Commandes" }];
   const presets = [3, 6, 12, 24, 36];
   const periodLabel = periodMode === "custom"
-    ? `du ${new Date(dateFrom).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })} au ${new Date(dateTo).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}`
+    ? `du ${new Date(dateFrom + "T00:00:00").toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })} au ${new Date(dateTo + "T00:00:00").toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}`
     : `cumul sur ${months} mois`;
   // raccourcis pratiques
   const setRange = (fromISO, toISO) => { setPeriodMode("custom"); setDateFrom(fromISO); setDateTo(toISO); };
@@ -1101,7 +1111,7 @@ function Accounts({ data, persist, go, focus }) {
   }
   if (detailId) { const acc = accounts.find((a) => a.id === detailId); if (!acc) { setDetailId(null); return null; }
     if (!isGroupe(acc)) { const pdv = (data.sites || []).find((s) => s.accountId === acc.id && s.type === "pdv"); if (pdv) { setSiteDetailId(pdv.id); setDetailId(null); return null; } }
-    return (<><AccountDetail account={acc} data={data} persist={persist} go={go} openSiteId={openSite} onOpenSite={(sid) => { setSiteDetailId(sid); setDetailId(null); }} onDelete={() => delAccount(acc)} onBack={() => { setDetailId(null); setOpenSite(null); }} onEdit={() => setEdit(acc)} onAddContact={() => setAddC({ id: "c_" + Date.now(), accountId: acc.id, prenom: "", nom: "", fonction: "", role: "autre", email: "", telephone: "", mobile: "", linkedin: "", ville: acc.ville || "", departement: "", adresse: "", principal: contacts.filter((c) => c.accountId === acc.id).length === 0, notes: "", createdAt: TODAY() })} />
+    return (<><AccountDetail account={acc} data={data} persist={persist} go={go} openSiteId={openSite} onOpenSite={(sid) => { setSiteDetailId(sid); setDetailId(null); }} onDelete={() => delAccount(acc)} onBack={() => { setDetailId(null); setOpenSite(null); }} onEdit={() => setEdit(acc)} onAddContact={() => setAddC({ id: "c_" + Date.now(), accountId: acc.id, prenom: "", nom: "", fonction: "", role: "autre", email: "", mobile: "", fixe: "", linkedin: "", ville: acc.ville || "", departement: "", adresse: "", principal: contacts.filter((c) => c.accountId === acc.id).length === 0, notes: "", createdAt: TODAY() })} />
       {edit && <Modal title={"Modifier " + (edit.enseigne || "")} onClose={() => setEdit(null)} wide><AccountForm acc={edit} accounts={accounts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} known={collectKnownAddresses(data)} onSave={(a) => { saveAcc(a); setEdit(null); }} /></Modal>}
       {addC && <Modal title="Nouveau contact" onClose={() => setAddC(null)} wide><ContactForm contact={addC} accounts={accounts} contacts={contacts} sites={data.sites} known={collectKnownAddresses(data)} onSave={(x) => { saveContact(x); setAddC(null); }} /></Modal>}</>);
   }
@@ -1193,8 +1203,8 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
     </div>
     {diffLiv && <div className="card" style={{ marginBottom: 16 }}><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MapPin size={15} />Adresse de livraison</h3></div><div style={{ fontSize: 13, color: "var(--muted)" }}>{s.adresseLivraison}</div></div>}
     <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "start" }}>
-      <div className="card"><div className="sec-h"><h3 className="pu-display">Contacts sur place</h3><button className="btn btn-y btn-s" onClick={() => setAddC({ id: "c_" + Date.now(), accountId: s.accountId, siteId: s.id, prenom: "", nom: "", fonction: "", role: "autre", email: "", telephone: "", mobile: "", linkedin: "", principal: data.contacts.filter((c) => c.accountId === s.accountId).length === 0, notes: "", createdAt: TODAY() })}><Plus size={14} /> Ajouter</button></div>
-        {siteContacts.length === 0 ? <div className="empty">Aucun contact rattaché à cet établissement. Ajoutez l'interlocuteur sur place, il apparaîtra aussi dans le répertoire.</div> : siteContacts.map((c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; return (<div className="crow" key={c.id} onClick={() => go("repertoire", c.id)}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>{fullName(c)}{c.principal && <Star size={12} fill="var(--yellow)" color="var(--yellow)" />}</div><div style={{ color: "var(--muted)", fontSize: 12 }}>{c.fonction || "—"}{c.telephone || c.mobile ? " · " + (c.telephone || c.mobile) : ""}</div></div><Badge color={rm.color}>{rm.label}</Badge></div>); })}
+      <div className="card"><div className="sec-h"><h3 className="pu-display">Contacts sur place</h3><button className="btn btn-y btn-s" onClick={() => setAddC({ id: "c_" + Date.now(), accountId: s.accountId, siteId: s.id, prenom: "", nom: "", fonction: "", role: "autre", email: "", mobile: "", fixe: "", linkedin: "", principal: data.contacts.filter((c) => c.accountId === s.accountId).length === 0, notes: "", createdAt: TODAY() })}><Plus size={14} /> Ajouter</button></div>
+        {siteContacts.length === 0 ? <div className="empty">Aucun contact rattaché à cet établissement. Ajoutez l'interlocuteur sur place, il apparaîtra aussi dans le répertoire.</div> : siteContacts.map((c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; return (<div className="crow" key={c.id} onClick={() => go("repertoire", c.id)}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>{fullName(c)}{c.principal && <Star size={12} fill="var(--yellow)" color="var(--yellow)" />}</div><div style={{ color: "var(--muted)", fontSize: 12 }}>{c.fonction || "—"}{c.mobile || c.fixe ? " · " + (c.mobile || c.fixe) : ""}</div></div><Badge color={rm.color}>{rm.label}</Badge></div>); })}
         {s.notes && <div style={{ marginTop: 12, fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, borderTop: "1px solid var(--line)", paddingTop: 12 }}>{s.notes}</div>}
       </div>
       <div className="card"><div className="sec-h"><h3 className="pu-display">Devis, commandes & factures</h3><div style={{ display: "flex", gap: 6 }}><button className="btn btn-y btn-s" onClick={() => setDealEdit(newDeal("Devis"))}><Plus size={14} /> Devis</button><button className="btn btn-g btn-s" onClick={() => go("deals", null)}><FileText size={14} /> Tous</button></div></div>
@@ -1246,7 +1256,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   const delFile = (fid) => persist((p) => ({ ...p, attachments: { ...p.attachments, [a.id]: (p.attachments[a.id] || []).filter((x) => x.id !== fid) } }));
   const downloadFile = (f) => { const a2 = document.createElement("a"); a2.href = f.dataUrl; a2.download = f.name; document.body.appendChild(a2); a2.click(); document.body.removeChild(a2); };
   const exportContactsCSV = () => {
-    const rows = conts.map((c) => ({ Prenom: c.prenom, Nom: c.nom, Fonction: c.fonction, Role: (ROLE_META[c.role] || { label: c.role }).label, Email: c.email, Telephone: c.telephone, Mobile: c.mobile, Ville: c.ville, LinkedIn: c.linkedin, Principal: c.principal ? "oui" : "" }));
+    const rows = conts.map((c) => ({ Prenom: c.prenom, Nom: c.nom, Fonction: c.fonction, Role: (ROLE_META[c.role] || { label: c.role }).label, Email: c.email, Mobile: c.mobile, Fixe: c.fixe, Ville: c.ville, LinkedIn: c.linkedin, Principal: c.principal ? "oui" : "" }));
     downloadCSV(rows, "contacts-" + (a.enseigne || "enseigne").replace(/\s/g, "_") + ".csv");
   };
   return (<div className="fade">
@@ -1263,7 +1273,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
     </div>
     <div ref={sitesRef} className="card" style={{ marginBottom: 16 }}>
       <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MapPin size={15} />Établissements & sites rattachés</h3><div style={{ display: "flex", gap: 6 }}><button className="btn btn-g btn-s" onClick={() => setSiteEdit(newSite("decision"))} title="Ajouter le siège décisionnaire"><Plus size={14} /> Siège</button><button className="btn btn-y btn-s" onClick={() => setSiteEdit(newSite("pdv"))}><Plus size={14} /> Établissement</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit({ ...newSite("pdv"), adresse: a.adressePostale || a.adresseLivraison || "", adresseLivraison: a.adresseLivraison || "", livraisonIdentique: a.livraisonIdentique !== false, lat: a.lat ?? null, lng: a.lng ?? null, typeSurface: a.typeSurface || "" })} title="Créer un établissement reprenant l'adresse postale et les coordonnées du compte"><Plus size={14} /> Depuis l'adresse</button></div></div>
-      {accSites.length === 0 ? <div className="empty">Aucun site rattaché. Ajoutez le siège décisionnaire et/ou les établissements de ce groupe. Pour un indépendant ou une association, un seul site suffit : le siège et le local sont au même endroit.</div> : (<div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{accSites.slice().sort((x, y) => (x.type === "decision" ? 0 : 1) - (y.type === "decision" ? 0 : 1)).map((s) => { const tm = SITE_TYPES[s.type]; const col = siteColor(s, a); return (<div key={s.id} onClick={() => onOpenSite && onOpenSite(s.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid " + (s.id === hlSite ? "var(--blue)" : "var(--line)"), borderRadius: 11, background: s.id === hlSite ? "var(--blue-l)" : "#fff", boxShadow: s.id === hlSite ? "0 0 0 3px rgba(63,96,170,.15)" : "none", transition: "background .3s, border-color .3s, box-shadow .3s" }}><svg width="20" height="20" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(tm.shape)} fill={col} stroke="#fff" strokeWidth={1.5} /></svg><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{s.label}<Badge color={s.type === "decision" ? "#7c5cf0" : "#F8B133"}>{s.type === "decision" ? "Siège" : "Établissement"}</Badge>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{!s.lat && <span style={{ fontSize: 11, color: "var(--red)" }}>à géolocaliser</span>}</div>{s.adresse && <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.adresse}</div>}{s.siret && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 1 }} className="tnum">SIRET {s.siret}</div>}{(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.telephone || lc.mobile || "") : (s.contactTel || ""); if (!nm && !tel) return null; return <div style={{ fontSize: 11.5, color: "var(--blue)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}><Phone size={11} />{lc ? <span className="lnk" onClick={(e) => { e.stopPropagation(); go("repertoire", lc.id); }}>{nm}</span> : nm}{tel ? " · " + tel : ""}{lc ? <span style={{ color: "var(--muted)", fontWeight: 600 }}> · lié</span> : null}</div>; })()}</div><div style={{ display: "flex", gap: 4, flexShrink: 0 }}>{s.lat != null && <button className="iconbtn" title="Voir sur la carte" onClick={(e) => { e.stopPropagation(); go("carte", s.id); }}><MapIcon size={15} /></button>}<a className="iconbtn" href={siteGmaps(s)} target="_blank" rel="noreferrer" title="Google Maps" onClick={(e) => e.stopPropagation()}><ExternalLink size={15} /></a><button className="iconbtn" title="Modifier" onClick={(e) => { e.stopPropagation(); setSiteEdit(s); }}><Pencil size={15} /></button><button className="iconbtn" title="Supprimer" onClick={(e) => { e.stopPropagation(); appConfirm("Supprimer l'établissement « " + s.label + " » ?", { title: "Supprimer cet établissement ?" }).then((ok) => { if (ok) delSite(s.id); }); }}><Trash2 size={15} /></button></div></div>); })}</div>)}
+      {accSites.length === 0 ? <div className="empty">Aucun site rattaché. Ajoutez le siège décisionnaire et/ou les établissements de ce groupe. Pour un indépendant ou une association, un seul site suffit : le siège et le local sont au même endroit.</div> : (<div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{accSites.slice().sort((x, y) => (x.type === "decision" ? 0 : 1) - (y.type === "decision" ? 0 : 1)).map((s) => { const tm = SITE_TYPES[s.type]; const col = siteColor(s, a); return (<div key={s.id} onClick={() => onOpenSite && onOpenSite(s.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid " + (s.id === hlSite ? "var(--blue)" : "var(--line)"), borderRadius: 11, background: s.id === hlSite ? "var(--blue-l)" : "#fff", boxShadow: s.id === hlSite ? "0 0 0 3px rgba(63,96,170,.15)" : "none", transition: "background .3s, border-color .3s, box-shadow .3s" }}><svg width="20" height="20" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(tm.shape)} fill={col} stroke="#fff" strokeWidth={1.5} /></svg><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{s.label}<Badge color={s.type === "decision" ? "#7c5cf0" : "#F8B133"}>{s.type === "decision" ? "Siège" : "Établissement"}</Badge>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{!s.lat && <span style={{ fontSize: 11, color: "var(--red)" }}>à géolocaliser</span>}</div>{s.adresse && <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.adresse}</div>}{s.siret && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 1 }} className="tnum">SIRET {s.siret}</div>}{(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.mobile || lc.fixe || "") : (s.contactTel || ""); if (!nm && !tel) return null; return <div style={{ fontSize: 11.5, color: "var(--blue)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}><Phone size={11} />{lc ? <span className="lnk" onClick={(e) => { e.stopPropagation(); go("repertoire", lc.id); }}>{nm}</span> : nm}{tel ? " · " + tel : ""}{lc ? <span style={{ color: "var(--muted)", fontWeight: 600 }}> · lié</span> : null}</div>; })()}</div><div style={{ display: "flex", gap: 4, flexShrink: 0 }}>{s.lat != null && <button className="iconbtn" title="Voir sur la carte" onClick={(e) => { e.stopPropagation(); go("carte", s.id); }}><MapIcon size={15} /></button>}<a className="iconbtn" href={siteGmaps(s)} target="_blank" rel="noreferrer" title="Google Maps" onClick={(e) => e.stopPropagation()}><ExternalLink size={15} /></a><button className="iconbtn" title="Modifier" onClick={(e) => { e.stopPropagation(); setSiteEdit(s); }}><Pencil size={15} /></button><button className="iconbtn" title="Supprimer" onClick={(e) => { e.stopPropagation(); appConfirm("Supprimer l'établissement « " + s.label + " » ?", { title: "Supprimer cet établissement ?" }).then((ok) => { if (ok) delSite(s.id); }); }}><Trash2 size={15} /></button></div></div>); })}</div>)}
     </div>
     <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "start" }}>
       <div className="card"><div className="sec-h"><h3 className="pu-display">Contacts rattachés</h3><div style={{ display: "flex", gap: 6 }}>{conts.length > 0 && <button className="btn btn-ghost btn-s" onClick={exportContactsCSV} title="Exporter en CSV"><FileDown size={14} /></button>}<button className="btn btn-y btn-s" onClick={onAddContact}><Plus size={14} /> Ajouter</button></div></div>
@@ -1359,8 +1369,8 @@ function Repertoire({ data, persist, go, focus }) {
     <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ position: "relative", flex: 1, minWidth: 200 }}><Search size={15} style={{ position: "absolute", left: 11, top: 11, color: "var(--muted)" }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un contact, une fonction, un courriel…" style={{ width: "100%", padding: "9px 11px 9px 32px", border: "1px solid var(--line)", borderRadius: 11, fontFamily: "inherit", fontSize: 13.5 }} /></div>
       <GroupBar value={grp} onChange={setGrp} dir={dir} onToggleDir={() => setDir((d) => d === "asc" ? "desc" : "asc")} options={[{ id: "alpha", label: "A → Z" }, { id: "enseigne", label: "groupe / établissement" }, { id: "role", label: "rôle" }, { id: "ville", label: "ville" }, { id: "departement", label: "département" }]} />
-      <button className="btn btn-ghost" onClick={() => downloadCSV(contacts.map((c) => { const acc = accounts.find((a) => a.id === c.accountId); return { Prenom: c.prenom, Nom: c.nom, Fonction: c.fonction, Role: (ROLE_META[c.role] || { label: c.role }).label, Email: c.email, Telephone: c.telephone, Mobile: c.mobile, Ville: contactLocality(c, data).ville, Departement: contactLocality(c, data).departement, LinkedIn: c.linkedin, Enseigne: acc ? acc.enseigne : "", Principal: c.principal ? "oui" : "" }; }), "contacts-penup3d-" + new Date().toISOString().slice(0, 10) + ".csv")} title="Exporter en CSV"><FileDown size={15} /> CSV</button>
-      <button className="btn btn-p" onClick={() => setEditC({ id: "c_" + Date.now(), accountId: accounts[0]?.id || "", prenom: "", nom: "", fonction: "", role: "autre", email: "", telephone: "", mobile: "", linkedin: "", ville: "", departement: "", adresse: "", principal: false, notes: "", createdAt: TODAY() })}><Plus size={16} /> Nouveau contact</button>
+      <button className="btn btn-ghost" onClick={() => downloadCSV(contacts.map((c) => { const acc = accounts.find((a) => a.id === c.accountId); return { Prenom: c.prenom, Nom: c.nom, Fonction: c.fonction, Role: (ROLE_META[c.role] || { label: c.role }).label, Email: c.email, Mobile: c.mobile, Fixe: c.fixe, Ville: contactLocality(c, data).ville, Departement: contactLocality(c, data).departement, LinkedIn: c.linkedin, Enseigne: acc ? acc.enseigne : "", Principal: c.principal ? "oui" : "" }; }), "contacts-penup3d-" + new Date().toISOString().slice(0, 10) + ".csv")} title="Exporter en CSV"><FileDown size={15} /> CSV</button>
+      <button className="btn btn-p" onClick={() => setEditC({ id: "c_" + Date.now(), accountId: accounts[0]?.id || "", prenom: "", nom: "", fonction: "", role: "autre", email: "", mobile: "", fixe: "", linkedin: "", ville: "", departement: "", adresse: "", principal: false, notes: "", createdAt: TODAY() })}><Plus size={16} /> Nouveau contact</button>
     </div>
     <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}><AllChip active={filt === "tous"} onClick={() => setFilt("tous")}>Tous ({contacts.length})</AllChip>{accounts.map((a) => { const n = contacts.filter((c) => c.accountId === a.id).length; return <button key={a.id} className={cx("chip", filt === a.id && "on")} onClick={() => setFilt(a.id)}>{a.enseigne} ({n})</button>; })}</div>
     {(() => {
@@ -1394,7 +1404,7 @@ function ContactForm({ contact, accounts, contacts, onSave, known = [], sites = 
     {apercu && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: -4, marginBottom: 2, display: "inline-flex", alignItems: "center", gap: 5 }}><MapPin size={12} />{apercu}{selSite && selSite.adresse ? " · " + selSite.adresse : ""}</div>}
     <div className="row2"><div className="fld"><label>Rôle</label><select value={f.role} onChange={(e) => up("role", e.target.value)}>{Object.entries(ROLE_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="fld"><label>Fonction</label><Combo value={f.fonction} onChange={(v) => up("fonction", v)} options={FONCTIONS} placeholder="Chef(fe) de produit, Dirigeant(e)…" /></div></div>
     <div className="fld"><label>Courriel</label><input value={f.email} onChange={(e) => up("email", e.target.value)} placeholder="prenom.nom@exemple.fr" /></div>
-    <div className="row2"><div className="fld"><label>Mobile</label><PhoneInput value={f.telephone} onChange={(v) => up("telephone", v)} /></div><div className="fld"><label>Fixe</label><PhoneInput value={f.mobile} onChange={(v) => up("mobile", v)} /></div></div>
+    <div className="row2"><div className="fld"><label>Mobile</label><PhoneInput value={f.mobile} onChange={(v) => up("mobile", v)} /></div><div className="fld"><label>Fixe</label><PhoneInput value={f.fixe} onChange={(v) => up("fixe", v)} /></div></div>
     <div className="fld"><label>LinkedIn</label><div style={{ display: "flex", gap: 6 }}><input value={f.linkedin} onChange={(e) => up("linkedin", e.target.value)} placeholder="URL du profil" /><a className="btn btn-g btn-s" href={linkedinSearch(f, ens)} target="_blank" rel="noreferrer" title="Rechercher sur LinkedIn"><Search size={14} /></a></div></div>
     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}><input type="checkbox" checked={!!f.principal} onChange={(e) => up("principal", e.target.checked)} style={{ width: 16, height: 16 }} /> Contact principal du compte</label>
     <div className="fld"><label>Notes</label><textarea rows={3} value={f.notes} onChange={(e) => up("notes", e.target.value)} /></div>
@@ -1445,7 +1455,7 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
     </div>
     <div className="grid" style={{ gridTemplateColumns: "1fr 1.25fr", alignItems: "start" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div className="card"><div className="sec-h"><h3 className="pu-display">Coordonnées</h3></div><KV icon={<Mail size={13} />} k="Courriel" v={c.email} /><KV icon={<Phone size={13} />} k="Mobile" v={c.telephone} /><KV icon={<Phone size={13} />} k="Fixe" v={c.mobile} />{(() => { const loc = contactLocality(c, data); const hasLoc = !!(loc.site || loc.ville || loc.adresse); return (<><KV icon={<Linkedin size={13} />} k="LinkedIn" v={c.linkedin} last={!hasLoc} />{hasLoc && <><KV icon={<Store size={13} />} k="Site rattaché" v={loc.site ? <span className="lnk" onClick={() => onGoSite && onGoSite(loc.site.id)} title="Ouvrir cet établissement dans l'onglet Groupes & établissements">{loc.site.label || loc.site.adresse}</span> : "Localité du compte"} /><KV icon={<MapPin size={13} />} k="Ville" v={loc.ville} /><KV icon={<MapPin size={13} />} k="Département" v={loc.departement} /><KV icon={<Building2 size={13} />} k="Adresse" v={loc.adresse} last /></>}</>); })()}</div>
+        <div className="card"><div className="sec-h"><h3 className="pu-display">Coordonnées</h3></div><KV icon={<Mail size={13} />} k="Courriel" v={c.email} /><KV icon={<Phone size={13} />} k="Mobile" v={c.mobile} /><KV icon={<Phone size={13} />} k="Fixe" v={c.fixe} />{(() => { const loc = contactLocality(c, data); const hasLoc = !!(loc.site || loc.ville || loc.adresse); return (<><KV icon={<Linkedin size={13} />} k="LinkedIn" v={c.linkedin} last={!hasLoc} />{hasLoc && <><KV icon={<Store size={13} />} k="Site rattaché" v={loc.site ? <span className="lnk" onClick={() => onGoSite && onGoSite(loc.site.id)} title="Ouvrir cet établissement dans l'onglet Groupes & établissements">{loc.site.label || loc.site.adresse}</span> : "Localité du compte"} /><KV icon={<MapPin size={13} />} k="Ville" v={loc.ville} /><KV icon={<MapPin size={13} />} k="Département" v={loc.departement} /><KV icon={<Building2 size={13} />} k="Adresse" v={loc.adresse} last /></>}</>); })()}</div>
         {c.notes && <div className="card"><div className="sec-h"><h3 className="pu-display">Notes</h3></div><div style={{ fontSize: 13, lineHeight: 1.55 }}>{c.notes}</div></div>}
         <div className="card"><div className="sec-h"><h3 className="pu-display">Devis & commandes</h3><span className="lnk" onClick={onGoEnseigne}>{ens}</span></div>{deals.length === 0 ? <div className="empty">Aucun document.</div> : [...deals].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map((d) => { const st = DEAL_STATUS[d.statut] || DEAL_STATUS.brouillon; return (<div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #f0f3f9", cursor: "pointer" }} onClick={() => setPreview(d)}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13 }}>{docRef(d, account)} <span style={{ fontWeight: 500, color: "var(--muted)" }}>· {d.type}</span></div><div style={{ color: "var(--muted)", fontSize: 11.5 }}>{d.date}</div></div><Badge color={st.color}>{st.label}</Badge><span style={{ fontWeight: 700, fontSize: 13 }} className="tnum">{eur(d.montant)}</span><Eye size={14} style={{ color: "var(--muted)" }} /></div>); })}</div>
       </div>
@@ -2107,7 +2117,7 @@ function Carte({ data, persist, go, focus }) {
           <KV icon={<MapPin size={13} />} k="Adresse" v={s.adresse} />{s.siret && <KV icon={<Building2 size={13} />} k="SIRET" v={s.siret} />}<KV icon={<Navigation size={13} />} k="Coord." v={s.lat ? s.lat.toFixed(4) + ", " + s.lng.toFixed(4) : ""} />
           {(() => { const martelet = sites.find((x) => x.type === "entrepot"); if (!martelet || !s.lat || !martelet.lat || s.type === "entrepot" || s.type === "penup") return null; const dk = distanceKm(martelet.lat, martelet.lng, s.lat, s.lng); return dk == null ? null : <KV icon={<Truck size={13} />} k="Distance depuis l'entrepôt" v={num(dk) + " km à vol d'oiseau"} last />; })()}
           {!(s.lat && sites.find((x) => x.type === "entrepot")) && <div style={{ height: 1 }} />}
-          {(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.telephone || lc.mobile || "") : (s.contactTel || ""); const mail = lc ? (lc.email || "") : (s.contactMail || ""); if (!nm && !tel && !mail) return null; return <div style={{ marginTop: 4, padding: "9px 11px", background: "var(--bg)", borderRadius: 10 }}><div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 5 }}>Interlocuteur sur place{lc ? " · lié au répertoire" : ""}</div>{nm && <div style={{ fontWeight: 700, fontSize: 13.5 }}>{lc ? <span className="lnk" onClick={() => go("repertoire", lc.id)}>{nm}</span> : nm}{lc && lc.fonction ? <span style={{ fontWeight: 500, color: "var(--muted)" }}> · {lc.fonction}</span> : null}</div>}{tel && <div style={{ fontSize: 12.5, color: "var(--muted)", display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}><Phone size={12} /><a href={"tel:" + tel} style={{ color: "inherit" }}>{tel}</a></div>}{mail && <div style={{ fontSize: 12.5, color: "var(--muted)", display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}><Mail size={12} /><a href={"mailto:" + mail} style={{ color: "inherit" }}>{mail}</a></div>}</div>; })()}
+          {(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.mobile || lc.fixe || "") : (s.contactTel || ""); const mail = lc ? (lc.email || "") : (s.contactMail || ""); if (!nm && !tel && !mail) return null; return <div style={{ marginTop: 4, padding: "9px 11px", background: "var(--bg)", borderRadius: 10 }}><div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 5 }}>Interlocuteur sur place{lc ? " · lié au répertoire" : ""}</div>{nm && <div style={{ fontWeight: 700, fontSize: 13.5 }}>{lc ? <span className="lnk" onClick={() => go("repertoire", lc.id)}>{nm}</span> : nm}{lc && lc.fonction ? <span style={{ fontWeight: 500, color: "var(--muted)" }}> · {lc.fonction}</span> : null}</div>}{tel && <div style={{ fontSize: 12.5, color: "var(--muted)", display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}><Phone size={12} /><a href={"tel:" + tel} style={{ color: "inherit" }}>{tel}</a></div>}{mail && <div style={{ fontSize: 12.5, color: "var(--muted)", display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}><Mail size={12} /><a href={"mailto:" + mail} style={{ color: "inherit" }}>{mail}</a></div>}</div>; })()}
           {s.notes && <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, borderTop: "1px solid var(--line)", paddingTop: 10 }}>{s.notes}</div>}
           <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}><a className="btn btn-y btn-s" href={siteGmaps(s)} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Fiche Google</a>{sAcc && <button className="btn btn-g btn-s" onClick={() => go("accounts", sAcc.id)}><Building2 size={14} /> Ouvrir le compte</button>}<button className="iconbtn" onClick={() => setEdit(s)}><Pencil size={15} /></button><button className="iconbtn" onClick={() => appConfirm("Supprimer ce site « " + (s.label || "") + " » ?", { title: "Supprimer ce site ?" }).then((ok) => { if (ok) delSite(s.id); })}><Trash2 size={15} /></button></div></>)}</div>
         <div className="card"><div className="sec-h"><h3 className="pu-display">Tous les sites</h3><span>{sites.length}</span></div>{sites.map((x) => { const xa = accOf(x.accountId); return (<div key={x.id} onClick={() => selectSite(x)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 6px", borderBottom: "1px solid #f0f3f9", cursor: "pointer", borderRadius: 8, background: x.id === sel ? "var(--blue-l)" : "transparent" }}><svg width="18" height="18" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(SITE_TYPES[x.type].shape)} fill={siteColor(x, xa)} stroke="#fff" strokeWidth={1.5} /></svg><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13 }}>{x.label}</div><div style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{SITE_TYPES[x.type].label}{!x.lat && " · à géolocaliser"}</div></div></div>); })}</div>
@@ -2153,7 +2163,7 @@ function SiteForm({ site, accounts, onSave, known = [], contacts = [], onOpenCon
     const prenom = (f.contactPrenom || "").trim(); const nom = (f.contactNom || "").trim();
     if (!prenom && !nom) { setCMsg({ ok: false, t: "Renseignez au moins le nom du contact avant de le créer." }); return; }
     const id = "c_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5);
-    const contact = { id, accountId: f.accountId, siteId: f.id, prenom, nom: nom.toUpperCase(), fonction: "", role: "autre", email: (f.contactMail || "").trim(), telephone: (f.contactTel || "").trim(), mobile: "", linkedin: "", principal: enseigneContacts.length === 0, notes: "Contact créé depuis la fiche établissement « " + (f.label || "établissement") + " ».", createdAt: TODAY() };
+    const contact = { id, accountId: f.accountId, siteId: f.id, prenom, nom: nom.toUpperCase(), fonction: "", role: "autre", email: (f.contactMail || "").trim(), mobile: (f.contactTel || "").trim(), fixe: "", linkedin: "", principal: enseigneContacts.length === 0, notes: "Contact créé depuis la fiche établissement « " + (f.label || "établissement") + " ».", createdAt: TODAY() };
     if (onCreateContact) onCreateContact(contact);
     setF((p) => ({ ...p, contactId: id, contactPrenom: "", contactNom: "", contactTel: "", contactMail: "" }));
     setCMsg({ ok: true, t: "Contact créé dans le répertoire et lié à cet établissement. Enregistrez l'établissement pour conserver le rattachement." });
@@ -2177,7 +2187,7 @@ function SiteForm({ site, accounts, onSave, known = [], contacts = [], onOpenCon
     {lié ? (
       <div style={{ padding: "10px 12px", background: "var(--blue-l)", border: "1px solid var(--line)", borderRadius: 12 }}>
         <div style={{ fontWeight: 700, fontSize: 13.5 }}>{onOpenContact ? <span className="lnk" onClick={() => onOpenContact(lié.id)} title="Ouvrir la fiche contact">{fullName(lié)}</span> : fullName(lié)}{lié.fonction ? <span style={{ fontWeight: 500, color: "var(--muted)" }}> · {lié.fonction}</span> : null}</div>
-        {(lié.telephone || lié.mobile) && <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}><Phone size={12} style={{ verticalAlign: -2 }} /> {lié.telephone || lié.mobile}</div>}
+        {(lié.mobile || lié.fixe) && <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}><Phone size={12} style={{ verticalAlign: -2 }} /> {lié.mobile || lié.fixe}</div>}
         {lié.email && <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}><Mail size={12} style={{ verticalAlign: -2 }} /> {lié.email}</div>}
         <div style={{ fontSize: 11, color: "var(--blue)", marginTop: 6, fontWeight: 600 }}>Lien vivant : ces coordonnées suivent la fiche contact. Modifiez-les dans le Répertoire, l'établissement se met à jour.</div>
       </div>
@@ -2290,7 +2300,7 @@ function Prospection({ data, persist, go }) {
       if (hasContact) {
         const fon = (p.contactFonction || "").toLowerCase();
         const role = /acheteur|achat/.test(fon) ? "acheteur" : /g[ée]rant|dirigeant|pr[ée]sident|fondat|propri[ée]taire/.test(fon) ? "decideur" : "autre";
-        out.contacts = [...d.contacts, { id: cid, accountId: accId, siteId: sid, prenom: p.contactPrenom || "", nom: (p.contactNom || "").toUpperCase(), fonction: p.contactFonction || "", role, email: p.contactEmail || p.email || "", telephone: p.contactTel || "", mobile: "", linkedin: "", ville: p.ville || "", departement: p.departement || "", adresse: p.adresse || "", principal: true, notes: p.contactSource ? ("Identité issue de : " + p.contactSource + " · à vérifier") : "", createdAt: TODAY() }];
+        out.contacts = [...d.contacts, { id: cid, accountId: accId, siteId: sid, prenom: p.contactPrenom || "", nom: (p.contactNom || "").toUpperCase(), fonction: p.contactFonction || "", role, email: p.contactEmail || p.email || "", mobile: p.contactTel || "", fixe: "", linkedin: "", ville: p.ville || "", departement: p.departement || "", adresse: p.adresse || "", principal: true, notes: p.contactSource ? ("Identité issue de : " + p.contactSource + " · à vérifier") : "", createdAt: TODAY() }];
       }
       return out;
     });
@@ -3123,7 +3133,7 @@ function assistantAnswer(qRaw, data) {
   const contactHit = data.contacts.find((c) => { const full = normStr((c.prenom || "") + " " + (c.nom || "")); return full.trim() && (q.includes(normStr(c.nom || "")) && (c.nom || "").length > 2 || q.includes(normStr(c.prenom || "")) && (c.prenom || "").length > 2); });
   if (contactHit && has("contact", "qui est", "joindre", "telephone", "téléphone", "mail", "appel", "cherche")) {
     const a = data.accounts.find((x) => x.id === contactHit.accountId);
-    return { text: `${[contactHit.prenom, contactHit.nom].filter(Boolean).join(" ")}${contactHit.fonction ? " — " + contactHit.fonction : ""}${a ? " (" + a.enseigne + ")" : ""}.${contactHit.email ? "\nCourriel : " + contactHit.email : ""}${contactHit.telephone || contactHit.mobile ? "\nTél : " + (contactHit.telephone || contactHit.mobile) : ""}`, actions: [{ label: "Ouvrir la fiche", tab: "repertoire", id: contactHit.id }] };
+    return { text: `${[contactHit.prenom, contactHit.nom].filter(Boolean).join(" ")}${contactHit.fonction ? " — " + contactHit.fonction : ""}${a ? " (" + a.enseigne + ")" : ""}.${contactHit.email ? "\nCourriel : " + contactHit.email : ""}${contactHit.mobile || contactHit.fixe ? "\nTél : " + (contactHit.mobile || contactHit.fixe) : ""}`, actions: [{ label: "Ouvrir la fiche", tab: "repertoire", id: contactHit.id }] };
   }
   // Recherche d'une enseigne nommée
   const accHit = data.accounts.find((a) => a.enseigne && q.includes(normStr(a.enseigne)) && a.enseigne.length > 2);
@@ -3285,6 +3295,9 @@ export default function App() {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [importMsg, setImportMsg] = useState(null);
   const fileImportRef = useRef(null);
+  const saveTimer = useRef(null);
+  const lastSyncAt = useRef(null);    // updated_at de la dernière version appliquée/écrite : ignore nos propres échos.
+  const pendingWrite = useRef(false); // une écriture locale est en attente : ne pas l'écraser avec une version distante.
   // Chargement : cache localStorage, puis Supabase. Restauration unique de la vraie base (export CSV) si pas encore appliquee.
   useEffect(() => {
     let cancelled = false;
@@ -3293,8 +3306,8 @@ export default function App() {
       try { const c = localStorage.getItem(KEY); if (c) { current = normalize(JSON.parse(c)); if (!cancelled) setData(current); } } catch (e) { }
       if (supabaseEnabled && supabase) {
         try {
-          const { data: row, error } = await supabase.from("cockpit_state").select("data").eq("id", "shared").maybeSingle();
-          if (!error && row && row.data) { current = normalize(row.data); if (!cancelled) { setData(current); try { localStorage.setItem(KEY, JSON.stringify(current)); } catch (e) { } } }
+          const { data: row, error } = await supabase.from("cockpit_state").select("data, updated_at").eq("id", "shared").maybeSingle();
+          if (!error && row && row.data) { current = normalize(row.data); lastSyncAt.current = row.updated_at || null; if (!cancelled) { setData(current); try { localStorage.setItem(KEY, JSON.stringify(current)); } catch (e) { } } }
         } catch (e) { }
       }
       // Sécurité données : on n'injecte les données de secours QUE s'il n'existe
@@ -3310,7 +3323,6 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, []);
-  const saveTimer = useRef(null);
   // Persistance : ecrit le cache localStorage immediatement, puis pousse vers Supabase (anti-rebond 800 ms).
   const persist = useCallback((updater) => {
     setData((prev) => {
@@ -3318,10 +3330,33 @@ export default function App() {
       try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) { }
       if (supabaseEnabled && supabase) {
         if (saveTimer.current) clearTimeout(saveTimer.current);
-        saveTimer.current = setTimeout(() => { supabase.from("cockpit_state").upsert({ id: "shared", data: next, updated_at: new Date().toISOString() }, { onConflict: "id" }).then(() => { }, () => { }); }, 800);
+        pendingWrite.current = true;
+        saveTimer.current = setTimeout(() => {
+          const ts = new Date().toISOString();
+          supabase.from("cockpit_state").upsert({ id: "shared", data: next, updated_at: ts }, { onConflict: "id" })
+            .then(() => { lastSyncAt.current = ts; pendingWrite.current = false; saveTimer.current = null; }, () => { pendingWrite.current = false; saveTimer.current = null; });
+        }, 800);
       }
       return next;
     });
+  }, []);
+  // Synchronisation temps réel : applique les modifications enregistrées par d'autres sessions
+  // (autre utilisateur, autre onglet), sauf si une écriture locale est en attente (on ne perd jamais une saisie en cours).
+  useEffect(() => {
+    if (!supabaseEnabled || !supabase) return;
+    const ch = supabase.channel("cockpit_state_sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "cockpit_state", filter: "id=eq.shared" }, (payload) => {
+        const row = payload && payload.new;
+        if (!row || !row.data) return;
+        if (row.updated_at && lastSyncAt.current && row.updated_at <= lastSyncAt.current) return; // notre propre écho ou plus ancien
+        if (pendingWrite.current) return; // une saisie locale non encore poussée a priorité
+        lastSyncAt.current = row.updated_at || lastSyncAt.current;
+        const merged = normalize(row.data);
+        setData(merged);
+        try { localStorage.setItem(KEY, JSON.stringify(merged)); } catch (e) { }
+      })
+      .subscribe();
+    return () => { try { supabase.removeChannel(ch); } catch (e) { } };
   }, []);
   const loadDemo = useCallback(() => { appConfirm("Charger un jeu de données de démonstration ? Cela remplace les données actuelles.", { title: "Charger la démo ?", confirmLabel: "Charger" }).then((ok) => { if (ok) persist(() => normalize(buildSeed())); }); }, [persist]);
   const go = useCallback((t, id, site) => { setFocus({ tab: t, id, n: Date.now(), site: site || null }); setTab(t); }, []);
