@@ -1677,6 +1677,8 @@ label{display:block;font-size:12px;font-weight:800;color:var(--muted);text-trans
 .req::after{content:" *";color:var(--orange);}
 input,textarea{width:100%;font-family:inherit;font-size:14.5px;color:var(--ink);border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;background:#fff;transition:.15s;}
 input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(63,96,170,.12);}
+input[type=checkbox],input[type=radio]{width:auto;padding:0;border:0;border-radius:0;background:none;box-shadow:none;accent-color:var(--blue);cursor:pointer;}
+input[type=checkbox]:focus,input[type=radio]:focus{box-shadow:none;}
 textarea{resize:vertical;min-height:62px;}
 .grp{margin:26px 0 4px;}
 .grp-h{display:flex;align-items:baseline;gap:10px;font-family:'Bricolage Grotesque';font-weight:700;font-size:16px;padding-bottom:9px;border-bottom:2px solid var(--soft);margin-bottom:4px;}
