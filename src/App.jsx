@@ -340,6 +340,8 @@ function seedInteractions() {
 const L = (code, designation, qte, pu) => ({ id: "l_" + code + "_" + Math.random().toString(36).slice(2, 6), code, designation, qte, pu });
 const dealMontant = (lines) => (lines || []).reduce((s, l) => s + (l.qte || 0) * (l.pu || 0), 0);
 const FRANCO_SEUIL_HT = 300; const FRANCO_PART_HT = 15;
+// Coordonnées bancaires PEN'UP 3D (affichées sur les factures pour le règlement par virement).
+const BANK = { iban: "FR76 1695 8000 0146 8870 1131 251", bic: "QNTOFRP1XXX", titulaire: "PEN'UP 3D", adresse: "20 Place Prax Paris, 82000 Montauban" };
 // Franco de port dès 300 € HT de marchandise, sinon participation forfaitaire de 15 € HT
 const fraisPortHT = (htMarchandise) => (htMarchandise > 0 && htMarchandise < FRANCO_SEUIL_HT) ? FRANCO_PART_HT : 0;
 const dealQte = (lines) => (lines || []).reduce((s, l) => s + (l.qte || 0), 0);
@@ -1481,6 +1483,11 @@ async function aiQualifyCommande(text, products) {
   const res = await fetch(CLAUDE_URL, { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1500, system: sys, messages: [{ role: "user", content: user }] }) });
   if (!res.ok) throw new Error("API " + res.status);
   const data = await res.json();
+  const { lines, ignore } = mapAiCommande(data, products);
+  return { lines, ignore, usage: data.usage || null };
+}
+// Transforme la réponse JSON de l'IA en lignes rattachées au catalogue (codes exacts uniquement).
+function mapAiCommande(data, products) {
   const txt = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
   const m = txt.match(/\{[\s\S]*\}/); if (!m) throw new Error("réponse illisible");
   const o = JSON.parse(m[0]);
@@ -1495,24 +1502,48 @@ async function aiQualifyCommande(text, products) {
   });
   const ignore = (o.ignore || []).filter(Boolean).map((s) => ({ text: String(s), reason: "non rattaché à un produit" }));
   if (rejected.length) ignore.push({ text: rejected.join(" ; "), reason: "code proposé hors catalogue, rejeté" });
-  return { lines, ignore, usage: data.usage || null };
+  const header = {
+    client: (o.client || "").trim(), contact: (o.contact || "").trim(), email: (o.email || "").trim(),
+    tel: (o.tel || "").trim(), siret: (o.siret || "").trim(), adresse: (o.adresse || "").trim(), note: (o.note || "").trim(),
+  };
+  return { lines, ignore, header };
+}
+// Import d'un PDF (bon de commande, devis, facture) : l'IA lit le document et propose les lignes.
+async function aiQualifyCommandePdf(base64, products) {
+  const cat = (products || []).map((p) => p.code + " | " + p.designation).join("\n");
+  const sys = "Tu lis un bon de commande, un devis ou une facture fourni au format PDF et tu en extrais la commande de produits. Tu ne mappes QUE sur les produits du catalogue fourni et tu renvoies leur code EXACT. Tu peux déduire une quantité quand le document est ambigu et proposer le produit le plus proche quand il est nommé approximativement, MAIS tu signales toujours ton incertitude via le champ confiance, et tu n'inventes JAMAIS un code absent du catalogue.";
+  const user = "Catalogue (CODE | désignation), seules valeurs autorisées pour \"code\" :\n" + cat + "\n\nLis le PDF joint et extrais les lignes de commande ainsi que les coordonnées du client si elles figurent dans le document. Renvoie UNIQUEMENT un objet JSON valide, sans texte ni balise autour :\n{\"client\":\"<nom de l'établissement/client>\",\"contact\":\"<personne>\",\"email\":\"\",\"tel\":\"\",\"siret\":\"\",\"adresse\":\"<adresse de livraison>\",\"note\":\"<remarque utile>\",\"lignes\":[{\"code\":\"<CODE exact du catalogue>\",\"qte\":<entier>,\"confiance\":\"haute|moyenne|faible\",\"source\":\"<extrait du document qui justifie cette ligne>\"}],\"ignore\":[\"<fragments non rattachables à un produit>\"]}\nLaisse une chaîne vide pour les coordonnées absentes. Règles de confiance : \"haute\" = produit identifié sans ambiguïté ET quantité explicite ; \"moyenne\" = quantité déduite OU produit proposé par approximation ; \"faible\" = forte incertitude. Tout passage non rattachable à un produit du catalogue va dans \"ignore\", jamais inventé.";
+  const res = await fetch(CLAUDE_URL, { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1500, system: sys, messages: [{ role: "user", content: [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } }, { type: "text", text: user }] }] }) });
+  if (!res.ok) throw new Error("API " + res.status);
+  const data = await res.json();
+  const { lines, ignore, header } = mapAiCommande(data, products);
+  return { lines, ignore, header, usage: data.usage || null };
 }
 function ImportCommande({ accounts, products, onCreate, onUsage }) {
   const [text, setText] = useState(""); const [accountId, setAccountId] = useState(accounts[0]?.id || ""); const [parsed, setParsed] = useState(null); const fileRef = useRef(null); const [fileName, setFileName] = useState(""); const [aiBusy, setAiBusy] = useState(false); const [aiErr, setAiErr] = useState("");
   const analyse = (src) => setParsed(parseCommande(src != null ? src : text, products));
-  const onFile = (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setFileName(f.name); const r = new FileReader(); r.onload = () => { const c = String(r.result || ""); setText(c); runAI(c); }; r.readAsText(f); };
+  const onFile = (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return; setFileName(f.name);
+    if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) {
+      const r = new FileReader(); r.onload = () => { const b64 = String(r.result || "").split(",")[1] || ""; setText(""); runAIPdf(b64); }; r.readAsDataURL(f);
+    } else {
+      const r = new FileReader(); r.onload = () => { const c = String(r.result || ""); setText(c); runAI(c); }; r.readAsText(f);
+    }
+  };
   const runAI = async (src) => { const t = src != null ? src : text; setAiBusy(true); setAiErr(""); try { const r = await aiQualifyCommande(t, products); if (r.usage && onUsage) onUsage(r.usage); setParsed({ header: parseCommande(t, products).header, lines: r.lines, unknown: r.ignore, ai: true }); } catch (e) { setAiErr("Import indisponible ici (" + (e.message || e) + "). Il fonctionne dans l'aperçu Claude ; l'application exportée nécessite le serveur relais."); } finally { setAiBusy(false); } };
+  const runAIPdf = async (b64) => { setAiBusy(true); setAiErr(""); try { const r = await aiQualifyCommandePdf(b64, products); if (r.usage && onUsage) onUsage(r.usage); setParsed({ header: r.header || {}, lines: r.lines, unknown: r.ignore, ai: true }); } catch (e) { setAiErr("Import PDF indisponible ici (" + (e.message || e) + "). Il fonctionne dans l'aperçu Claude ; l'application exportée nécessite le serveur relais."); } finally { setAiBusy(false); } };
   const verify = (l) => l.assumed || (l.confiance && l.confiance !== "haute");
   const tag = (l) => l.confiance ? ("IA, confiance " + l.confiance + (l.source ? " · « " + l.source + " »" : "")) : (l.assumed ? "quantité supposée" : "");
   const note = parsed ? ["Commande importée.", parsed.header.client && ("Client déclaré : " + parsed.header.client), parsed.header.contact && ("Contact : " + parsed.header.contact + (parsed.header.email ? " · " + parsed.header.email : "") + (parsed.header.tel ? " · " + parsed.header.tel : "")), parsed.header.siret && ("SIRET : " + parsed.header.siret), parsed.header.adresse && ("Livraison : " + parsed.header.adresse), parsed.header.note && ("Message : " + parsed.header.note)].filter(Boolean).join(" · ") : "";
   const verifyCount = parsed ? parsed.lines.filter(verify).length : 0;
   return (<>
-    <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Collez le texte de la commande (extrait de mail, liste, copier-coller Excel, bloc PEN'UP) ou déposez un fichier CSV. L'IA propose les lignes en s'appuyant sur votre catalogue ; vous vérifiez les lignes signalées « à vérifier », puis vous créez le brouillon. Rien n'est émis sans votre validation, et aucun produit hors catalogue n'est inventé.</div>
+    <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.55 }}>Collez le texte de la commande (extrait de mail, liste, copier-coller Excel, bloc PEN'UP), ou déposez un fichier CSV/texte ou un <strong>PDF</strong> (bon de commande, devis, facture) : l'IA lit le document et propose les lignes. Elle s'appuie sur votre catalogue ; vous vérifiez les lignes signalées « à vérifier », puis vous créez le brouillon. Rien n'est émis sans votre validation, et aucun produit hors catalogue n'est inventé.</div>
     <div className="fld"><label>Coller le texte de la commande</label><textarea rows={7} value={text} onChange={(e) => { setText(e.target.value); setParsed(null); }} placeholder={"Exemples reconnus :\nPU3D-PACK-COMPLET;2\n3 x Lot de 12 bobines Fil'Up\nPack Découverte 5"} style={{ fontFamily: "ui-monospace,Menlo,monospace", fontSize: 12.5 }} /></div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-      <input ref={fileRef} type="file" accept=".csv,.txt,text/csv,text/plain" onChange={onFile} style={{ display: "none" }} />
-      <button className="btn btn-g btn-s" type="button" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={14} /> Déposer un fichier CSV / texte</button>
+      <input ref={fileRef} type="file" accept=".csv,.txt,.pdf,text/csv,text/plain,application/pdf" onChange={onFile} style={{ display: "none" }} />
+      <button className="btn btn-g btn-s" type="button" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={14} /> Déposer un fichier CSV / texte / PDF</button>
       {fileName && <span style={{ fontSize: 12, color: "var(--muted)" }}>{fileName}</span>}
+      {aiBusy && <span style={{ fontSize: 12, color: "var(--blue)", display: "inline-flex", alignItems: "center", gap: 6 }}><Sparkles size={13} className="spin" /> Lecture du document en cours…</span>}
     </div>
     <div className="fld"><label>Rattacher à l'enseigne</label><select value={accountId} onChange={(e) => setAccountId(e.target.value)}>{accounts.map((a) => <option key={a.id} value={a.id}>{a.enseigne}{a.code ? " · " + a.code : ""}</option>)}</select></div>
     {aiErr && <div className="dup-warn" style={{ marginBottom: 10 }}><AlertTriangle size={15} /> {aiErr}</div>}
@@ -1641,6 +1672,15 @@ function DevisPreview({ deal, account, settings, products = [], onClose }) {
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><div style={{ width: 280 }}><div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", fontSize: 13 }}><span style={{ color: "#6b7589" }}>Total marchandise HT</span><strong className="tnum">{eur2(ht)}</strong></div><div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", fontSize: 13 }}><span style={{ color: "#6b7589" }}>{port > 0 ? "Participation frais de port HT" : "Frais de port"}</span><strong className="tnum" style={{ color: port > 0 ? "#a06a06" : "#2bb673" }}>{port > 0 ? eur2(port) : "Franco (offert)"}</strong></div><div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", fontSize: 13 }}><span style={{ color: "#6b7589" }}>TVA {deal.tva}%</span><strong className="tnum">{eur2(tva)}</strong></div><div style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", marginTop: 4, background: "#3F60AA", color: "#fff", borderRadius: 9, fontSize: 15 }}><span>Total TTC</span><strong className="tnum">{eur2(ttc)}</strong></div></div></div>
       {(() => { const cp = ((account?.adresseLivraison || account?.adressePostale || "").match(/\b(\d{5})\b/) || [])[1]; const dpt = cp ? cp.slice(0, 2) : ""; const wmap = {}; (products || []).forEach((p) => { wmap[p.code] = p; }); const kg = Math.round((deal.lines || []).reduce((s, l) => s + ((wmap[l.code] || {}).poidsG || 0) * (l.qte || 0), 0)) / 1000; const est = dpt && kg > 0 ? shippingCost(dpt, kg) : null; const estime = (deal.lines || []).some((l) => (wmap[l.code] || {}).poidsEstime); return (<div className="no-print" style={{ marginTop: 14, background: "#fff8ef", border: "1px dashed #e6b87a", borderRadius: 10, padding: "10px 13px", fontSize: 11.5, color: "#8a6326" }}><strong>Estimation interne (non imprimée) · coût transport Régis Martelet</strong><div style={{ marginTop: 3 }}>{est ? (dpt + " " + est.zone + " · " + kg + " kg · tranche " + est.trancheLabel + " → " + eur2(est.total) + " (base " + eur2(est.base) + " + gazole + contributions fixes ; hors saisonnier et Région Parisienne)" + (estime ? " · poids partiellement provisoires" : "")) : (!dpt ? "Renseignez une adresse de livraison avec code postal pour estimer le transport." : "Poids produits manquants pour estimer.")}</div><div style={{ marginTop: 3, color: "#a98b5e" }}>À comparer à la participation port facturée ci-dessus. Ce bloc n'apparaît pas à l'impression du devis.</div></div>); })()}
       {deal.note && <div style={{ marginTop: 18, fontSize: 12, color: "#6b7589" }}><strong>Note :</strong> {deal.note}</div>}
+      {titre === "FACTURE" && <div style={{ marginTop: 18, background: "#f4f6fb", borderRadius: 10, padding: 14 }}>
+        <div style={{ fontSize: 10, textTransform: "uppercase", color: "#6b7589", fontWeight: 700, marginBottom: 6 }}>Coordonnées bancaires</div>
+        <div style={{ fontSize: 12, color: "#1E2533", lineHeight: 1.6 }}>
+          <div><span style={{ color: "#6b7589" }}>Titulaire :</span> <strong>{BANK.titulaire}</strong> · {BANK.adresse}</div>
+          <div><span style={{ color: "#6b7589" }}>IBAN :</span> <strong className="tnum">{BANK.iban}</strong></div>
+          <div><span style={{ color: "#6b7589" }}>BIC :</span> <strong className="tnum">{BANK.bic}</strong></div>
+        </div>
+        <div style={{ fontSize: 11.5, color: "#6b7589", marginTop: 7 }}>Merci d'indiquer la référence {docRef(deal, account)} lors de votre virement.</div>
+      </div>}
       <div style={{ marginTop: 26, fontSize: 10.5, color: "#9aa6bd", borderTop: "1px solid #eef1f7", paddingTop: 10 }}>{titre === "DEVIS" ? "Devis valable 30 jours. " : ""}Franco de port dès {FRANCO_SEUIL_HT} € HT de commande ; en deçà, participation forfaitaire de {FRANCO_PART_HT} € HT aux frais de port. PEN'UP 3D, SAS au capital social. Président : P'TIT BUNCH SARL, représentée par M. Dimitri DESSEAUX. RCS Montauban 978 651 891.</div>
     </div>
   </div></div>);
