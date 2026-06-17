@@ -19,6 +19,8 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { supabase, supabaseEnabled } from "./supabaseClient.js";
 import RESTORE_DATA from "./restoreData.json";
+import { UserButton } from "@clerk/clerk-react";
+const CLERK_PK = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 // Routage des appels IA : relais serveur en production (clé API protégée côté serveur),
 // appel direct proxifié dans l'aperçu Claude. Le jeton Clerk est joint pour que le relais l'authentifie.
@@ -3369,6 +3371,7 @@ export default function App() {
           {(!data.accounts || data.accounts.length === 0) && <button className="btn btn-ghost btn-s" onClick={loadDemo} title="Charger un jeu de données de démonstration"><Sparkles size={15} /> Démo</button>}
           <button className="btn btn-ghost btn-s" onClick={() => window.print()} title="Imprimer / PDF de la vue courante"><Printer size={15} /></button>
           <button className="btn btn-ghost btn-s" onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>{theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}</button>
+          {CLERK_PK && <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 4, paddingLeft: 8, borderLeft: "1px solid var(--line)" }}><UserButton afterSignOutUrl="/" /></span>}
         </div>
       </div>
       {importMsg && <div className="card" style={{ borderLeft: "4px solid var(--blue)", marginBottom: 14, fontSize: 13 }}>{importMsg}</div>}
