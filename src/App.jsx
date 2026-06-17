@@ -547,7 +547,7 @@ const coverage = (p) => (!p.ventesMois || p.ventesMois <= 0) ? null : Math.round
 const statusOf = (p) => p.dispo <= 0 ? "rupture" : p.dispo <= p.seuil ? "bas" : "ok";
 function nextRef(type, deals) { const pre = type === "Facture" ? "FA" : type === "Commande" ? "CMD" : "DV"; const y = new Date().getFullYear(); const n = (deals || []).filter((d) => (d.ref || "").startsWith(pre + "-" + y)).length + 1; return `${pre}-${y}-${String(n).padStart(3, "0")}`; }
 // Nom affiché d'un document : code client (si connu) + référence. Calculé au rendu, n'altère pas la référence stockée.
-function docRef(d, account) { const c = account && account.code ? account.code + " · " : ""; return c + ((d && d.ref) || ""); }
+function docRef(d, account) { const c = account && account.code ? account.code + " - " : ""; return c + ((d && d.ref) || ""); }
 function pdvForecast(data) {
   const map = {};
   (data.deals || []).filter((d) => d.type === "Commande" && (d.statut === "livre" || d.statut === "accepte")).forEach((d) => { (d.lines || []).forEach((l) => { const k = d.accountId + "|" + l.code; if (!map[k]) map[k] = { accountId: d.accountId, code: l.code, designation: l.designation, qte: 0, last: "" }; map[k].qte += l.qte || 0; if ((d.date || "") > map[k].last) map[k].last = d.date; }); });
