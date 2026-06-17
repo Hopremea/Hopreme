@@ -1378,13 +1378,15 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
     if (!c.email) { setSyncMsg("Renseignez d'abord le courriel du contact (Modifier)."); return; }
     setSyncing(true); setSyncMsg(null);
     try {
-      const text = await callClaude({ model: "claude-sonnet-4-6", max_tokens: 1200, messages: [{ role: "user", content: "Dans la boite Gmail " + myEmail + ", cherche les fils echanges avec " + c.email + ". Renvoie UNIQUEMENT un tableau JSON (8 max, recents), sans texte ni Markdown. Chaque element: {\"date\":\"AAAA-MM-JJ\",\"sujet\":\"objet\",\"direction\":\"entrant ou sortant\",\"resume\":\"une phrase\"}. Si rien: []." }], mcp_servers: [{ type: "url", url: "https://gmailmcp.googleapis.com/mcp/v1", name: "gmail" }] });
-      const m = text.match(/\[[\s\S]*\]/); const arr = m ? JSON.parse(m[0]) : [];
+      const res = await fetch("/api/gmail", { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ email: c.email }) });
+      const dt = await res.json();
+      if (!res.ok) throw new Error(dt && dt.error ? dt.error : "Erreur " + res.status);
+      const arr = Array.isArray(dt.messages) ? dt.messages : [];
       const existing = new Set(interactions.map((i) => (i.date || "") + "|" + i.sujet));
-      const toAdd = (Array.isArray(arr) ? arr : []).filter((x) => x && x.sujet && !existing.has((x.date || "") + "|" + x.sujet)).map((x, i) => ({ id: "g_" + Date.now() + "_" + i, accountId: c.accountId, contactId: c.id, type: "email", direction: x.direction === "entrant" ? "entrant" : "sortant", date: x.date || TODAY(), sujet: x.sujet, resume: x.resume || "", source: "gmail" }));
+      const toAdd = arr.filter((x) => x && x.sujet && !existing.has((x.date || "") + "|" + x.sujet)).map((x, i) => ({ id: "g_" + Date.now() + "_" + i, accountId: c.accountId, contactId: c.id, type: "email", direction: x.direction === "entrant" ? "entrant" : "sortant", date: x.date || TODAY(), sujet: x.sujet, resume: x.resume || "", source: "gmail" }));
       if (toAdd.length) persist((p) => ({ ...p, interactions: [...p.interactions, ...toAdd] }));
-      setSyncMsg(toAdd.length ? (toAdd.length + " courriel(s) importe(s).") : "Aucun nouveau courriel pour cette adresse.");
-    } catch (e) { setSyncMsg("Synchro indisponible ici. Elle fonctionne dans l'app Claude avec la boite " + myEmail + " connectee."); }
+      setSyncMsg(toAdd.length ? (toAdd.length + " courriel(s) importé(s).") : "Aucun nouveau courriel pour cette adresse.");
+    } catch (e) { setSyncMsg("Synchro Gmail indisponible : " + (e && e.message ? e.message : "erreur") + " — vérifiez que vous êtes connecté avec Google (autorisation Gmail)."); }
     finally { setSyncing(false); }
   }
   async function enrichir() {
@@ -2743,7 +2745,7 @@ function Connexions({ data, persist }) {
     <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
       <div className="card"><div className="sec-h"><h3 className="pu-display">Boîte courriel de suivi</h3></div><p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4 }}>Adresse Gmail interrogée pour rapprocher les échanges avec vos contacts.</p>
         <div style={{ display: "flex", gap: 8 }}><input value={email} onChange={(e) => setEmail(e.target.value)} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontFamily: "inherit", fontSize: 13.5 }} /><button className="btn btn-p" onClick={saveEmail}>Enregistrer</button></div>
-        <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10 }}>La synchronisation Gmail et l'enrichissement web fonctionnent dans l'app Claude avec le compte Google connecté. Sur un hébergement externe (Vercel), il faudra rebrancher ces accès.</p>
+        <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10 }}>La synchronisation Gmail utilise votre connexion Google (via Clerk) : elle lit en lecture seule les échanges avec l'adresse de chaque contact. Si elle échoue, déconnectez-vous puis reconnectez-vous avec Google pour accorder l'autorisation Gmail.</p>
       </div>
       <div className="card"><div className="sec-h"><h3 className="pu-display">Import de stock (entrepôt)</h3></div><p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4 }}>Glissez un export WMS (.xlsx ou .csv). Rapprochement automatique sur le code article.</p>
         <label className="drop"><input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={(e) => onFile(e.target.files[0])} /><Upload size={22} /><div style={{ marginTop: 6, fontWeight: 600 }}>Déposer ou choisir un fichier</div></label>
