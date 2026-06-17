@@ -815,17 +815,19 @@ const CSS = `
 
 @media(max-width:880px){.sb{width:100%;flex:none;height:auto;position:static;flex-direction:column;overflow:visible;}.nav{flex-direction:row;flex-wrap:wrap;}.nav button{width:auto;}.sb-foot{display:none;}.kan{grid-template-columns:1fr;}.kan-deals{grid-template-columns:1fr;}.cal-grid{grid-template-columns:1fr;}.cal-cell{min-height:50px;}.main{padding:20px 16px 50px;}.row2{flex-direction:column;}.lineRow{grid-template-columns:1fr;}}
 @media print{
-/* Impression d'un document (devis / commande / facture) : on imprime UNIQUEMENT le document, isolé via un portail sur <body>. */
+/* Impression d'un document (devis / commande / facture) : on imprime UNIQUEMENT le document. */
 @page{margin:0;}
-body:has(.print-doc-overlay) > *:not(.print-doc-overlay){display:none!important;}
-.print-doc-overlay{position:static!important;inset:auto!important;display:block!important;background:#fff!important;backdrop-filter:none!important;padding:0!important;z-index:auto!important;}
-.print-doc-overlay .doc{position:static!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0!important;width:100%!important;}
-.print-doc-overlay .devis-doc{position:static!important;width:auto!important;padding:14mm!important;}
-.print-doc-overlay .no-print{display:none!important;}
-/* Impression d'un écran de rapport (tableau de bord, etc.) hors document. */
-body:not(:has(.print-doc-overlay)) *{visibility:hidden!important;}
-body:not(:has(.print-doc-overlay)) .print-area,body:not(:has(.print-doc-overlay)) .print-area *{visibility:visible!important;}
-body:not(:has(.print-doc-overlay)) .print-area{position:absolute!important;left:0;top:0;width:100%;padding:0;}
+/* Cas 1 — un document est ouvert : <body> porte la classe « doc-print » (posée par DevisPreview).
+   On masque tout le reste (l'app) plutôt que de dépendre du sélecteur :has(), inégalement supporté à l'impression. */
+body.doc-print > *:not(.print-doc-overlay){display:none!important;}
+body.doc-print .print-doc-overlay{position:static!important;inset:auto!important;display:block!important;background:#fff!important;backdrop-filter:none!important;padding:0!important;z-index:auto!important;}
+body.doc-print .print-doc-overlay .doc{position:static!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0!important;width:100%!important;}
+body.doc-print .print-doc-overlay .devis-doc{position:static!important;width:auto!important;padding:12mm 14mm!important;}
+body.doc-print .no-print{display:none!important;}
+/* Cas 2 — impression d'un écran de rapport (aucun document ouvert). */
+body:not(.doc-print) *{visibility:hidden!important;}
+body:not(.doc-print) .print-area,body:not(.doc-print) .print-area *{visibility:visible!important;}
+body:not(.doc-print) .print-area{position:absolute!important;left:0;top:0;width:100%;padding:0;}
 .no-print{display:none!important;}
 }
 `;
@@ -1690,6 +1692,8 @@ function DealForm({ deal, accounts, products, sites, onSave, onPreview }) {
   </>);
 }
 function DevisPreview({ deal, account, settings, products = [], onClose }) {
+  // Marque <body> tant que le document est affiché : la feuille d'impression isole alors le seul document.
+  useEffect(() => { document.body.classList.add("doc-print"); return () => document.body.classList.remove("doc-print"); }, []);
   const ht = dealMontant(deal.lines); const port = fraisPortHT(ht); const baseHt = ht + port; const tva = baseHt * (deal.tva || 0) / 100; const ttc = baseHt + tva;
   const titre = deal.type === "Facture" ? "FACTURE" : deal.type === "Commande" ? "BON DE COMMANDE" : "DEVIS";
   return createPortal(<div className="ov print-doc-overlay" onClick={onClose}><div className="doc" onClick={(e) => e.stopPropagation()}>
@@ -1716,7 +1720,8 @@ function DevisPreview({ deal, account, settings, products = [], onClose }) {
       </div>}
       <div style={{ marginTop: 26, fontSize: 10.5, color: "#6b7589", borderTop: "1px solid #eef1f7", paddingTop: 10, lineHeight: 1.7 }}>
         {titre === "DEVIS" && <div>Devis valable 30 jours.</div>}
-        <div>Franco de port dès {FRANCO_SEUIL_HT} € HT de commande ; en deçà, participation forfaitaire de {FRANCO_PART_HT} € HT aux frais de port.</div>
+        <div>Franco de port dès {FRANCO_SEUIL_HT} € HT de commande.</div>
+        <div>En deçà, participation forfaitaire de {FRANCO_PART_HT} € HT aux frais de port.</div>
         <div>PEN'UP 3D, SAS. Président : P'TIT BUNCH SARL, représentée par M. Dimitri DESSEAUX. RCS Montauban 978 651 891.</div>
       </div>
     </div>
