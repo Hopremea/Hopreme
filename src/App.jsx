@@ -844,6 +844,8 @@ const CSS = `
 .pu-root.dark .btn-g,.pu-root.dark .conn,.pu-root.dark .crow,.pu-root.dark .zbtn,.pu-root.dark .pin-pop,.pu-root.dark .iconbtn{background:var(--card);color:var(--ink);}
 .pu-root.dark .iconbtn{background:#1d2945;}
 .pu-root.dark .tbl tr:hover td{background:#1d2945;}
+/* Accessibilité : anneau de focus clavier visible (sans gêner la souris). */
+.nav button:focus-visible,.btn:focus-visible,.btn-save:focus-visible,.chip:focus-visible,.chip-all:focus-visible,.iconbtn:focus-visible,.zbtn:focus-visible,.star:focus-visible,.back:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px;}
 
 @media(max-width:880px){.sb{width:100%;flex:none;height:auto;position:static;flex-direction:column;overflow:visible;}.nav{flex-direction:row;flex-wrap:wrap;}.nav button{width:auto;}.sb-foot{display:none;}.kan{grid-template-columns:1fr;}.kan-deals{grid-template-columns:1fr;}.cal-grid{grid-template-columns:1fr;}.cal-cell{min-height:50px;}.main{padding:20px 16px 50px;}.row2{flex-direction:column;}.lineRow{grid-template-columns:1fr;}}
 @media print{
@@ -869,7 +871,15 @@ body:not(.doc-print) .print-area{position:absolute!important;left:0;top:0;width:
 const Badge = ({ color, children }) => (<span className="badge" style={{ background: color + "18", color: darkenHex(color) }}><i className="dot" style={{ background: color }} />{children}</span>);
 function Modal({ title, onClose, children, wide, xl }) {
   const w = xl ? "min(820px,100%)" : wide ? "min(640px,100%)" : "min(560px,100%)";
-  return (<div className="ov no-print" onClick={onClose}><div className="modal" style={{ width: w }} onClick={(e) => e.stopPropagation()}><div className="modal-h"><h3 className="pu-display">{title}</h3><button className="iconbtn" onClick={onClose}><X size={18} /></button></div><div className="modal-b">{children}</div></div></div>);
+  const ref = useRef(null);
+  // Accessibilité : Échap pour fermer, focus initial sur la fenêtre.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    window.addEventListener("keydown", onKey);
+    const t = setTimeout(() => { try { ref.current && ref.current.focus(); } catch (e) { } }, 0);
+    return () => { window.removeEventListener("keydown", onKey); clearTimeout(t); };
+  }, [onClose]);
+  return (<div className="ov no-print" onClick={onClose}><div className="modal" ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined} style={{ width: w, outline: "none" }} onClick={(e) => e.stopPropagation()}><div className="modal-h"><h3 className="pu-display">{title}</h3><button className="iconbtn" onClick={onClose} aria-label="Fermer"><X size={18} /></button></div><div className="modal-b">{children}</div></div></div>);
 }
 const Avatar = ({ c, lg }) => (<div className={cx("av", lg && "lg")} style={{ background: avColor(fullName(c)) }}>{initials(c) || <User size={lg ? 26 : 18} />}</div>);
 const Stat = ({ label, value }) => (<div><div style={{ color: "var(--muted)", fontSize: 11.5, fontWeight: 600 }}>{label}</div><div className="pu-display tnum" style={{ fontSize: 18, marginTop: 2 }}>{value}</div></div>);
@@ -3344,20 +3354,20 @@ function Assistant({ data, persist, go }) {
     <button onClick={() => setOpen((v) => !v)} title="Assistant PEN'UP" style={{ position: "fixed", bottom: 22, right: 22, width: 58, height: 58, borderRadius: "50%", border: "3px solid #fff", boxShadow: "0 6px 22px rgba(22,32,58,.28)", cursor: "pointer", padding: 0, overflow: "hidden", background: "#fff", zIndex: 60 }}>
       {open ? <span style={{ fontSize: 24, color: "#16203a", display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>✕</span> : <img src={MASCOT_URI} alt="Assistant" style={{ width: "100%", height: "100%", objectFit: "contain", padding: 3 }} />}
     </button>
-    {open && (<div style={{ position: "fixed", bottom: 92, right: 22, width: 370, maxWidth: "calc(100vw - 32px)", height: 520, maxHeight: "calc(100vh - 130px)", background: "#fff", borderRadius: 18, boxShadow: "0 16px 48px rgba(22,32,58,.3)", display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 60, border: "1px solid var(--line)" }}>
+    {open && (<div style={{ position: "fixed", bottom: 92, right: 22, width: 370, maxWidth: "calc(100vw - 32px)", height: 520, maxHeight: "calc(100vh - 130px)", background: "var(--card)", borderRadius: 18, boxShadow: "0 16px 48px rgba(22,32,58,.3)", display: "flex", flexDirection: "column", overflow: "hidden", zIndex: 60, border: "1px solid var(--line)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: "linear-gradient(135deg,#3F60AA,#5b8def)", color: "#fff" }}>
         <span style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", background: "#fff", flexShrink: 0, border: "2px solid #fff" }}><img src={MASCOT_URI} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", padding: 1 }} /></span>
         <div style={{ lineHeight: 1.2 }}><div style={{ fontWeight: 800, fontSize: 14.5 }}>Assistant PEN'UP 3D</div><div style={{ fontSize: 11, opacity: .85 }}>Lit vos données du cockpit</div></div>
       </div>
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "12px 12px 6px", display: "flex", flexDirection: "column", gap: 8, background: "var(--bg)" }}>
         {msgs.map((m, i) => (<div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%" }}>
-          <div style={{ padding: "8px 11px", borderRadius: 13, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", background: m.role === "user" ? "#3F60AA" : "#fff", color: m.role === "user" ? "#fff" : "var(--ink)", border: m.role === "user" ? "none" : "1px solid var(--line)" }}>{m.text}</div>
-          {m.actions && m.actions.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>{m.actions.map((act, j) => { const key = i + "-" + j; if (act.type === "navigate") return <button key={j} onClick={() => { go(act.tab, act.id || null); setOpen(false); }} style={{ alignSelf: "flex-start", fontSize: 11.5, fontWeight: 700, color: "#3F60AA", background: "#fff", border: "1px solid #3F60AA55", borderRadius: 20, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}>{act.label || ("Aller à " + act.tab)} →</button>; const done = applied[key]; return (<div key={j} style={{ border: "1px solid var(--line)", borderRadius: 11, padding: "8px 10px", background: "#fff", fontSize: 12 }}><div style={{ marginBottom: 6, lineHeight: 1.4 }}>{actionDesc(act)}</div>{done === true ? <span style={{ fontSize: 11.5, color: "var(--green)", fontWeight: 700 }}>✓ Appliqué</span> : (done && done.error) ? <span style={{ fontSize: 11.5, color: "var(--red)", fontWeight: 700 }}>⚠ Refusé (garde-fou IA) : {done.error}</span> : <button onClick={() => applyAction(act, key)} style={{ fontSize: 11.5, fontWeight: 800, color: "#fff", background: "var(--green)", border: "none", borderRadius: 9, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit" }}>Appliquer</button>}</div>); })}</div>}
+          <div style={{ padding: "8px 11px", borderRadius: 13, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", background: m.role === "user" ? "#3F60AA" : "var(--card)", color: m.role === "user" ? "#fff" : "var(--ink)", border: m.role === "user" ? "none" : "1px solid var(--line)" }}>{m.text}</div>
+          {m.actions && m.actions.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>{m.actions.map((act, j) => { const key = i + "-" + j; if (act.type === "navigate") return <button key={j} onClick={() => { go(act.tab, act.id || null); setOpen(false); }} style={{ alignSelf: "flex-start", fontSize: 11.5, fontWeight: 700, color: "var(--blue)", background: "var(--card)", border: "1px solid #3F60AA55", borderRadius: 20, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}>{act.label || ("Aller à " + act.tab)} →</button>; const done = applied[key]; return (<div key={j} style={{ border: "1px solid var(--line)", borderRadius: 11, padding: "8px 10px", background: "var(--card)", fontSize: 12 }}><div style={{ marginBottom: 6, lineHeight: 1.4 }}>{actionDesc(act)}</div>{done === true ? <span style={{ fontSize: 11.5, color: "var(--green)", fontWeight: 700 }}>✓ Appliqué</span> : (done && done.error) ? <span style={{ fontSize: 11.5, color: "var(--red)", fontWeight: 700 }}>⚠ Refusé (garde-fou IA) : {done.error}</span> : <button onClick={() => applyAction(act, key)} style={{ fontSize: 11.5, fontWeight: 800, color: "#fff", background: "var(--green)", border: "none", borderRadius: 9, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit" }}>Appliquer</button>}</div>); })}</div>}
         </div>))}
-        {busy && <div style={{ alignSelf: "flex-start", padding: "8px 11px", borderRadius: 13, fontSize: 13, background: "#fff", border: "1px solid var(--line)", color: "var(--muted)" }}>L'assistant réfléchit…</div>}
+        {busy && <div style={{ alignSelf: "flex-start", padding: "8px 11px", borderRadius: 13, fontSize: 13, background: "var(--card)", border: "1px solid var(--line)", color: "var(--muted)" }}>L'assistant réfléchit…</div>}
       </div>
-      <div style={{ padding: "6px 10px", display: "flex", gap: 5, flexWrap: "wrap", borderTop: "1px solid var(--line)", background: "#fff" }}>{quick.map((qq) => <button key={qq} onClick={() => send(qq)} style={{ fontSize: 11, color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 20, padding: "3px 9px", cursor: "pointer", fontFamily: "inherit" }}>{qq}</button>)}</div>
-      <div style={{ display: "flex", gap: 7, padding: "8px 10px 10px", background: "#fff", borderTop: "1px solid var(--line)" }}>
+      <div style={{ padding: "6px 10px", display: "flex", gap: 5, flexWrap: "wrap", borderTop: "1px solid var(--line)", background: "var(--card)" }}>{quick.map((qq) => <button key={qq} onClick={() => send(qq)} style={{ fontSize: 11, color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 20, padding: "3px 9px", cursor: "pointer", fontFamily: "inherit" }}>{qq}</button>)}</div>
+      <div style={{ display: "flex", gap: 7, padding: "8px 10px 10px", background: "var(--card)", borderTop: "1px solid var(--line)" }}>
         <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} disabled={busy} placeholder={busy ? "…" : "Posez une question ou demandez une action…"} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 11, padding: "9px 11px", fontFamily: "inherit", fontSize: 13, opacity: busy ? 0.6 : 1 }} />
         <button onClick={() => send()} disabled={busy} className="btn btn-p" style={{ padding: "0 12px", opacity: busy ? 0.6 : 1 }}><Send size={16} /></button>
       </div>
@@ -3370,11 +3380,12 @@ function appConfirm(message, opts = {}) { return new Promise((resolve) => { if (
 function ConfirmHost() {
   const [req, setReq] = useState(null);
   useEffect(() => { _confirmHandler = (r) => setReq(r); return () => { _confirmHandler = null; }; }, []);
+  const close = (v) => { try { req && req.resolve(v); } catch (e) {} setReq(null); };
+  useEffect(() => { if (!req) return; const onKey = (e) => { if (e.key === "Escape") close(false); if (e.key === "Enter") close(true); }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, [req]);
   if (!req) return null;
-  const close = (v) => { try { req.resolve(v); } catch (e) {} setReq(null); };
-  return (<div onClick={() => close(false)} style={{ position: "fixed", inset: 0, background: "rgba(20,22,30,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999, padding: 16 }}>
-    <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, padding: "22px 22px 18px", maxWidth: 430, width: "100%", boxShadow: "0 24px 70px rgba(0,0,0,.35)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 11 }}><div style={{ width: 38, height: 38, borderRadius: 10, background: "#fbeaea", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><AlertTriangle size={20} color="var(--red)" /></div><h3 className="pu-display" style={{ margin: 0, fontSize: 17 }}>{req.title}</h3></div>
+  return (<div onClick={() => close(false)} role="alertdialog" aria-modal="true" aria-label={req.title} style={{ position: "fixed", inset: 0, background: "rgba(20,22,30,.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999, padding: 16 }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--card)", borderRadius: 16, padding: "22px 22px 18px", maxWidth: 430, width: "100%", boxShadow: "0 24px 70px rgba(0,0,0,.35)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 11 }}><div style={{ width: 38, height: 38, borderRadius: 10, background: "var(--red-l)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><AlertTriangle size={20} color="var(--red)" /></div><h3 className="pu-display" style={{ margin: 0, fontSize: 17 }}>{req.title}</h3></div>
       <div style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.55, marginBottom: 18 }}>{req.message}</div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><button className="btn btn-g" onClick={() => close(false)}>Annuler</button><button className="btn btn-p" style={{ background: "var(--red)", borderColor: "var(--red)" }} onClick={() => close(true)}>{req.confirmLabel}</button></div>
     </div>
