@@ -3212,7 +3212,12 @@ export default function App() {
           if (!error && row && row.data) { current = normalize(row.data); if (!cancelled) { setData(current); try { localStorage.setItem(KEY, JSON.stringify(current)); } catch (e) { } } }
         } catch (e) { }
       }
-      if (!cancelled && !(current && current.settings && current.settings._restored_csv_v1)) {
+      // Sécurité données : on n'injecte les données de secours QUE s'il n'existe
+      // aucune donnée enregistrée (tout premier lancement). Dès qu'un cache local ou
+      // une ligne Supabase contient des comptes, ces données sont sacrées et ne sont
+      // JAMAIS écrasées — y compris après une restauration manuelle ou un déploiement.
+      const hasRealData = current && Array.isArray(current.accounts) && current.accounts.length > 0;
+      if (!cancelled && !hasRealData) {
         const restored = normalize(JSON.parse(JSON.stringify(RESTORE_DATA)));
         if (!cancelled) { setData(restored); try { localStorage.setItem(KEY, JSON.stringify(restored)); } catch (e) { } }
         if (supabaseEnabled && supabase) { try { await supabase.from("cockpit_state").upsert({ id: "shared", data: restored, updated_at: new Date().toISOString() }, { onConflict: "id" }); } catch (e) { } }
@@ -3245,7 +3250,7 @@ export default function App() {
       const payload = obj.data || obj;
       if (!payload.accounts || !payload.products) throw new Error("Format non reconnu");
       if (!(await appConfirm("Cet import REMPLACE toutes les données actuelles. Continuer ?", { title: "Remplacer toutes les données ?", confirmLabel: "Remplacer" }))) return;
-      persist(() => normalize(payload));
+      persist(() => normalize({ ...payload, settings: { ...(payload.settings || {}), _restored_csv_v1: true } }));
       setImportMsg("Import réussi.");
       setTimeout(() => setImportMsg(null), 4000);
     } catch (e) { setImportMsg("Échec de l'import : " + (e.message || "fichier invalide")); setTimeout(() => setImportMsg(null), 5000); }
