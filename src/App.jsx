@@ -340,7 +340,7 @@ function seedInteractions() {
     { id: "i3", accountId: "acc_kingjouet", contactId: "c_king1", type: "appel", direction: "sortant", date: "2026-05-15", sujet: "Cadrage du pilote", resume: "Modalités du test établissement, volumes initiaux." },
   ];
 }
-const L = (code, designation, qte, pu) => ({ id: "l_" + code + "_" + Math.random().toString(36).slice(2, 6), code, designation, qte, pu });
+const L = (code, designation, qte, pu) => ({ id: "l_" + code + "_" + Math.random().toString(36).slice(2, 11), code, designation, qte, pu });
 const dealMontant = (lines) => (lines || []).reduce((s, l) => s + (l.qte || 0) * (l.pu || 0), 0);
 const FRANCO_SEUIL_HT = 300; const FRANCO_PART_HT = 15;
 // Coordonnées bancaires PEN'UP 3D (affichées sur les factures pour le règlement par virement).
@@ -382,6 +382,9 @@ function normalize(d) {
   d.accounts = (d.accounts || seedAccounts()).map((a) => ({ adresseLivraison: "", adressePostale: "", livraisonIdentique: true, ville: "", typeSurface: "", lat: null, lng: null, stageLog: [], nature: "", code: "", siren: "", formeJuridique: "", ...a }));
   d.accounts = d.accounts.map((a) => (!a.adressePostale && a.adresseLivraison) ? { ...a, adressePostale: a.adresseLivraison, livraisonIdentique: true } : a);
   d.accounts = d.accounts.map((a) => ({ ...a, nature: a.nature || guessNature(a) }));
+  // Auto-réparation idempotente du champ « kind » (groupe / établissement) : couvre les comptes
+  // issus de la conversion de prospects et l'ancienne valeur « magasin », sans dépendre d'un drapeau ponctuel.
+  d.accounts = d.accounts.map((a) => { const k = (a.kind === "groupe" || a.kind === "établissement") ? a.kind : (a.kind === "magasin" ? "établissement" : (isCentraleOuChaine(a) ? "groupe" : "établissement")); return k === a.kind ? a : { ...a, kind: k }; });
   d.accounts = assignClientCodes(d.accounts);
   d.accounts = d.accounts.map((a) => { let n = a.nature, c = a.code; if (n === "FR") n = "FC"; if (typeof c === "string" && /^FR-/.test(c)) c = "FC-" + c.slice(3); return (n !== a.nature || c !== a.code) ? { ...a, nature: n, code: c } : a; });
   { const am = {}; seedAccounts().forEach((s) => { am[s.id] = s; }); d.accounts = d.accounts.map((a) => { const s = am[a.id]; if (!s) return a; const patch = {}; if (!a.siren && s.siren) patch.siren = s.siren; if (!a.formeJuridique && s.formeJuridique) patch.formeJuridique = s.formeJuridique; return Object.keys(patch).length ? { ...a, ...patch } : a; }); }
@@ -536,6 +539,14 @@ function groupList(list, gd, dir) {
 }
 const num = (n) => new Intl.NumberFormat("fr-FR").format(Number(n) || 0);
 const cx = (...a) => a.filter(Boolean).join(" ");
+// Identifiant unique (horodatage + aléa) : évite les collisions d'ID créés dans la même milliseconde.
+const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+// Luminance relative sRGB (WCAG) d'une couleur hex #rrggbb.
+const relLum = (hex) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return 1; const n = parseInt(m[1], 16); const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]; };
+// Texte lisible (blanc ou encre) sur un fond coloré : choisit le meilleur contraste WCAG.
+const onColor = (hex) => { const L = relLum(hex); return (1.05 / (L + 0.05)) >= ((L + 0.05) / 0.064) ? "#fff" : "#1a2233"; };
+// Variante assombrie d'une couleur (pour du texte lisible sur une pastille teintée claire).
+const darkenHex = (hex, f = 0.55) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return hex; const n = parseInt(m[1], 16); return "#" + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x) => Math.round(x * f).toString(16).padStart(2, "0")).join(""); };
 // Puce neutre « Tout afficher » : forme, couleur et icône distinctes des catégories
 function AllChip({ active, onClick, children, title }) {
   return <button className={cx("chip-all", active && "on")} onClick={onClick} title={title || "Tout afficher (réinitialiser ce filtre)"}><Layers size={13} style={{ flexShrink: 0 }} />{children}</button>;
@@ -545,20 +556,20 @@ const fullName = (c) => `${c.prenom || ""} ${c.nom || ""}`.trim() || c.fonction 
 const initials = (c) => (((c.prenom || c.nom || "?")[0] || "") + ((c.nom && c.prenom ? c.nom[0] : "") || "")).toUpperCase();
 const AVC = ["#3F60AA", "#7c5cf0", "#2bb673", "#F8B133", "#5b8def", "#FF5A45"];
 const avColor = (s) => AVC[((s || "").split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % AVC.length];
-const coverage = (p) => (!p.ventesMois || p.ventesMois <= 0) ? null : Math.round(p.dispo / (p.ventesMois / 30));
+const coverage = (p) => (!p.ventesMois || p.ventesMois <= 0) ? null : Math.round(p.dispo / (p.ventesMois / 30.44));
 const statusOf = (p) => p.dispo <= 0 ? "rupture" : p.dispo <= p.seuil ? "bas" : "ok";
-function nextRef(type, deals) { const pre = type === "Facture" ? "FA" : type === "Commande" ? "CMD" : "DV"; const y = new Date().getFullYear(); const n = (deals || []).filter((d) => (d.ref || "").startsWith(pre + "-" + y)).length + 1; return `${pre}-${y}-${String(n).padStart(3, "0")}`; }
+function nextRef(type, deals) { const pre = type === "Facture" ? "FA" : type === "Commande" ? "CMD" : "DV"; const y = new Date().getFullYear(); const rx = new RegExp("^" + pre + "-" + y + "-(\\d+)$"); const mx = (deals || []).reduce((m, d) => { const mt = rx.exec(d.ref || ""); return mt ? Math.max(m, parseInt(mt[1], 10)) : m; }, 0); return `${pre}-${y}-${String(mx + 1).padStart(3, "0")}`; }
 // Nom affiché d'un document : code client (si connu) + référence. Calculé au rendu, n'altère pas la référence stockée.
 function docRef(d, account) { const c = account && account.code ? account.code + " - " : ""; return c + ((d && d.ref) || ""); }
 function pdvForecast(data) {
   const map = {};
-  (data.deals || []).filter((d) => d.type === "Commande" && (d.statut === "livre" || d.statut === "accepte")).forEach((d) => { (d.lines || []).forEach((l) => { const k = d.accountId + "|" + l.code; if (!map[k]) map[k] = { accountId: d.accountId, code: l.code, designation: l.designation, qte: 0, last: "" }; map[k].qte += l.qte || 0; if ((d.date || "") > map[k].last) map[k].last = d.date; }); });
+  (data.deals || []).filter((d) => d.type === "Commande" && (d.statut === "livre" || d.statut === "accepte" || d.statut === "expediee")).forEach((d) => { (d.lines || []).forEach((l) => { const k = d.accountId + "|" + l.code; if (!map[k]) map[k] = { accountId: d.accountId, code: l.code, designation: l.designation, qte: 0, last: "" }; map[k].qte += l.qte || 0; if ((d.date || "") > map[k].last) map[k].last = d.date; }); });
   const today = new Date();
   return Object.values(map).map((m) => { const rotKey = m.accountId + ":" + m.code; const rot = (data.rotations && data.rotations[rotKey] != null) ? data.rotations[rotKey] : Math.max(1, Math.round(m.qte / 2)); const monthsElapsed = m.last ? Math.max(0, (today - new Date(m.last)) / (1000 * 60 * 60 * 24 * 30.44)) : 0; const stockEst = Math.max(0, m.qte - rot * monthsElapsed); const daysLeft = rot > 0 ? Math.round(stockEst / (rot / 30.44)) : null; return { ...m, rotKey, rot, stockEst: Math.round(stockEst), daysLeft }; });
 }
 // Moteur des indicateurs de pilotage du modèle rasoir/lame. Chaque KPI porte un état: "ok" (calculable), "partiel" (calcul dégradé, donnée manquante), "todo" (plomberie en place, à activer).
 function computeKPIs(data) {
-  const ventes = (data.deals || []).filter((d) => (d.type === "Commande") && (d.statut === "livre" || d.statut === "accepte"));
+  const ventes = (data.deals || []).filter((d) => (d.type === "Commande") && (d.statut === "livre" || d.statut === "accepte" || d.statut === "expediee"));
   const prodByCode = {}; (data.products || []).forEach((p) => { prodByCode[p.code] = p; });
   // Volumes et CA par catégorie
   let uStylo = 0, uConso = 0, caStylo = 0, caConso = 0, caAutre = 0, margeStylo = 0, margeConso = 0, coutsConnus = true;
@@ -628,7 +639,7 @@ function useCountUp(value, duration = 850) {
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-:root{--blue:#3F60AA;--blue-d:#2f4c86;--blue-l:#eef2fb;--yellow:#FFD212;--yellow-d:#F8B133;--orange:#F8B133;--red:#FF5A45;--red-mid:#E94D44;--red-d:#CD2A24;--red-l:#ffe9e5;--cream:#FFF8EA;--green:#2bb673;--amber:#F8B133;--ink:#16203a;--muted:#6b7589;--bg:#fff8ea;--card:#fff;--line:#ece3d2;}
+:root{--blue:#3F60AA;--blue-d:#2f4c86;--blue-l:#eef2fb;--yellow:#FFD212;--yellow-d:#F8B133;--orange:#F8B133;--red:#FF5A45;--red-mid:#E94D44;--red-d:#CD2A24;--red-l:#ffe9e5;--cream:#FFF8EA;--green:#2bb673;--amber:#F8B133;--ink:#16203a;--muted:#5b6478;--bg:#fff8ea;--card:#fff;--line:#ece3d2;}
 *{box-sizing:border-box;}
 .pu-root{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);min-height:100vh;display:flex;font-size:14px;background:radial-gradient(1100px 560px at 100% -8%,rgba(63,96,170,.10),transparent 55%),radial-gradient(900px 520px at -8% 6%,rgba(255,210,18,.22),transparent 55%),radial-gradient(820px 520px at 112% 116%,rgba(255,90,69,.14),transparent 55%),var(--bg);}
 .pu-display{font-family:'Bricolage Grotesque','Plus Jakarta Sans',sans-serif;letter-spacing:-.01em;}
@@ -706,7 +717,7 @@ const CSS = `
 .back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-weight:600;font-size:13px;cursor:pointer;background:none;border:0;font-family:inherit;margin-bottom:14px;}.back:hover{color:var(--blue);}
 .calc-out{display:flex;flex-direction:column;gap:2px;padding:14px;border-radius:13px;background:var(--blue-l);}.calc-out .l{font-size:11.5px;color:var(--muted);font-weight:600;}.calc-out .b{font-size:22px;}
 .spin{animation:spin 1s linear infinite;}@keyframes spin{to{transform:rotate(360deg);}}
-.gtag{font-size:10px;font-weight:700;color:#EA4335;background:#fdecea;padding:1px 6px;border-radius:6px;}
+.gtag{font-size:10px;font-weight:700;color:#C5221A;background:#fdecea;padding:1px 6px;border-radius:6px;}
 .lineRow{display:grid;grid-template-columns:1fr 70px 90px 90px 32px;gap:8px;align-items:center;margin-bottom:8px;}
 .lineRow select,.lineRow input{border:1px solid var(--line);border-radius:9px;padding:8px;font-family:inherit;font-size:13px;width:100%;}
 .doc{background:#fff;width:min(800px,100%);max-height:92vh;overflow:auto;border-radius:14px;box-shadow:0 30px 80px rgba(20,32,58,.35);}
@@ -797,6 +808,10 @@ const CSS = `
 .pu-root.dark .cal-ev{background:#1d2945;color:var(--ink);}
 .pu-root.dark .attach-row{background:#10172a;}
 .pu-root.dark .dup-warn{background:#3a2f12;color:#f8d68b;}
+.pu-root.dark .modal-h{background:var(--card);}
+.pu-root.dark .btn-g,.pu-root.dark .conn,.pu-root.dark .crow,.pu-root.dark .zbtn,.pu-root.dark .pin-pop,.pu-root.dark .iconbtn{background:var(--card);color:var(--ink);}
+.pu-root.dark .iconbtn{background:#1d2945;}
+.pu-root.dark .tbl tr:hover td{background:#1d2945;}
 
 @media(max-width:880px){.sb{width:100%;flex:none;height:auto;position:static;flex-direction:column;overflow:visible;}.nav{flex-direction:row;flex-wrap:wrap;}.nav button{width:auto;}.sb-foot{display:none;}.kan{grid-template-columns:1fr;}.kan-deals{grid-template-columns:1fr;}.cal-grid{grid-template-columns:1fr;}.cal-cell{min-height:50px;}.main{padding:20px 16px 50px;}.row2{flex-direction:column;}.lineRow{grid-template-columns:1fr;}}
 @media print{
@@ -815,7 +830,7 @@ body:not(:has(.print-doc-overlay)) .print-area{position:absolute!important;left:
 }
 `;
 
-const Badge = ({ color, children }) => (<span className="badge" style={{ background: color + "18", color }}><i className="dot" style={{ background: color }} />{children}</span>);
+const Badge = ({ color, children }) => (<span className="badge" style={{ background: color + "18", color: darkenHex(color) }}><i className="dot" style={{ background: color }} />{children}</span>);
 function Modal({ title, onClose, children, wide, xl }) {
   const w = xl ? "min(820px,100%)" : wide ? "min(640px,100%)" : "min(560px,100%)";
   return (<div className="ov no-print" onClick={onClose}><div className="modal" style={{ width: w }} onClick={(e) => e.stopPropagation()}><div className="modal-h"><h3 className="pu-display">{title}</h3><button className="iconbtn" onClick={onClose}><X size={18} /></button></div><div className="modal-b">{children}</div></div></div>);
@@ -936,7 +951,7 @@ function ActivityChart({ deals }) {
               { l: "T3", f: `${y}-07-01`, t: `${y}-09-30` },
               { l: "T4", f: `${y}-10-01`, t: `${y}-12-31` },
             ];
-            return ranges.map((r) => <button key={r.l} className={cx("chip", periodMode === "custom" && dateFrom === r.f && dateTo === r.t && "on")} onClick={() => setRange(r.f, r.t)} style={periodMode === "custom" && dateFrom === r.f && dateTo === r.t ? { background: "#F8B133", borderColor: "#F8B133", color: "#fff" } : {}}>{r.l}</button>);
+            return ranges.map((r) => <button key={r.l} className={cx("chip", periodMode === "custom" && dateFrom === r.f && dateTo === r.t && "on")} onClick={() => setRange(r.f, r.t)} style={periodMode === "custom" && dateFrom === r.f && dateTo === r.t ? { background: "#F8B133", borderColor: "#F8B133", color: onColor("#F8B133") } : {}}>{r.l}</button>);
           })()}
         </div>
       </div>
@@ -1078,7 +1093,7 @@ function Accounts({ data, persist, go, focus }) {
   const saveAcc = (acc) => persist((p) => { const prev = p.accounts.find((a) => a.id === acc.id); const ex = !!prev; const today = new Date().toISOString().slice(0, 10); let log = acc.stageLog || (prev && prev.stageLog) || []; if (!ex && (!log || !log.length)) log = [{ stage: acc.stage, date: today }]; else if (ex && prev.stage !== acc.stage) log = [...log, { stage: acc.stage, date: today }]; const nature = NATURE_META[acc.nature] ? acc.nature : "DV"; const code = isClientCode(acc.code) ? acc.code : (prev && isClientCode(prev.code) ? prev.code : buildClientCode(p.accounts, nature)); const next = { ...acc, nature, stageLog: log, code, kind: acc.kind || (isCentraleOuChaine(acc) ? "groupe" : "établissement") }; let sites = p.sites; if (!ex && !isGroupe(next)) { const dejaLie = (p.sites || []).some((s) => s.accountId === next.id && s.type === "pdv"); if (!dejaLie) { sites = [...p.sites, { id: "s_acc_" + next.id, accountId: next.id, label: next.enseigne || "Établissement", type: "pdv", typeSurface: next.typeSurface || "", adresse: next.adressePostale || "", adresseLivraison: next.adresseLivraison || "", livraisonIdentique: next.livraisonIdentique !== false, lat: next.lat ?? null, lng: next.lng ?? null, siret: "", notes: "Établissement créé automatiquement à la création d'un compte établissement (point de vente unique).", contactPrenom: "", contactNom: "", contactTel: "", contactMail: "", contactId: "" }]; } } return { ...p, accounts: ex ? p.accounts.map((a) => a.id === acc.id ? next : a) : [...p.accounts, next], sites }; });
   const saveContact = (c) => persist((p) => { const ex = p.contacts.some((x) => x.id === c.id); let cs = ex ? p.contacts.map((x) => x.id === c.id ? c : x) : [...p.contacts, c]; if (c.principal) cs = cs.map((x) => x.accountId === c.accountId && x.id !== c.id ? { ...x, principal: false } : x); return { ...p, contacts: cs }; });
   const saveSite = (site) => persist((p) => { const ex = p.sites.some((x) => x.id === site.id); return { ...p, sites: ex ? p.sites.map((x) => x.id === site.id ? site : x) : [...p.sites, site] }; });
-  const delAccount = (acc) => { appConfirm("Cela supprimera « " + (acc.enseigne || "ce compte") + " » et tout ce qui y est rattaché : établissements, contacts, devis et échanges. Action irréversible.", { title: "Supprimer ce groupe ou établissement ?" }).then((ok) => { if (!ok) return; persist((p) => { const sids = (p.sites || []).filter((s) => s.accountId === acc.id).map((s) => s.id); const atts = { ...(p.attachments || {}) }; delete atts[acc.id]; sids.forEach((id) => delete atts[id]); return { ...p, accounts: p.accounts.filter((a) => a.id !== acc.id), sites: (p.sites || []).filter((s) => s.accountId !== acc.id), contacts: (p.contacts || []).filter((c) => c.accountId !== acc.id), deals: (p.deals || []).filter((d) => d.accountId !== acc.id), interactions: (p.interactions || []).filter((i) => i.accountId !== acc.id), attachments: atts }; }); setDetailId(null); setSiteDetailId(null); }); };
+  const delAccount = (acc) => { appConfirm("Cela supprimera « " + (acc.enseigne || "ce compte") + " » et tout ce qui y est rattaché : établissements, contacts, devis et échanges. Action irréversible.", { title: "Supprimer ce groupe ou établissement ?" }).then((ok) => { if (!ok) return; persist((p) => { const sids = (p.sites || []).filter((s) => s.accountId === acc.id).map((s) => s.id); const atts = { ...(p.attachments || {}) }; delete atts[acc.id]; sids.forEach((id) => delete atts[id]); return { ...p, accounts: p.accounts.filter((a) => a.id !== acc.id), sites: (p.sites || []).filter((s) => s.accountId !== acc.id), contacts: (p.contacts || []).filter((c) => c.accountId !== acc.id), deals: (p.deals || []).filter((d) => d.accountId !== acc.id), interactions: (p.interactions || []).filter((i) => i.accountId !== acc.id), tickets: (p.tickets || []).filter((t) => t.accountId !== acc.id), attachments: atts }; }); setDetailId(null); setSiteDetailId(null); }); };
   if (siteDetailId) { const sd = (data.sites || []).find((s) => s.id === siteDetailId); if (!sd) { setSiteDetailId(null); return null; }
     return (<SiteDetail site={sd} data={data} persist={persist} go={go} onBack={() => setSiteDetailId(null)} onGoAccount={(id) => { setSiteDetailId(null); setDetailId(id); }} />);
   }
@@ -1149,7 +1164,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
   const [dealEdit, setDealEdit] = useState(null);
   const fileRef = useRef(null);
   const saveSite = (s2) => persist((p) => ({ ...p, sites: p.sites.map((x) => x.id === s2.id ? s2 : x) }));
-  const delThis = () => { const msg = indep ? ("Supprimer l'établissement « " + (s.label || (acc && acc.enseigne) || "ce point de vente") + " » et tout ce qui y est rattaché (contacts, devis, échanges, pièces jointes) ? Action irréversible.") : ("Supprimer l'établissement « " + (s.label || "ce point de vente") + " » ? Ses devis et échanges repasseront au niveau du groupe, ses pièces jointes seront supprimées."); appConfirm(msg, { title: "Supprimer cet établissement ?" }).then((ok) => { if (!ok) return; persist((p) => { const att = { ...(p.attachments || {}) }; delete att[s.id]; if (indep && acc) delete att[acc.id]; if (indep && acc) return { ...p, accounts: p.accounts.filter((a) => a.id !== acc.id), sites: (p.sites || []).filter((x) => x.accountId !== acc.id), contacts: (p.contacts || []).filter((c) => c.accountId !== acc.id), deals: (p.deals || []).filter((d) => d.accountId !== acc.id), interactions: (p.interactions || []).filter((i) => i.accountId !== acc.id), attachments: att }; return { ...p, sites: (p.sites || []).filter((x) => x.id !== s.id), contacts: (p.contacts || []).map((c) => c.siteId === s.id ? { ...c, siteId: "" } : c), deals: (p.deals || []).map((d) => d.siteId === s.id ? { ...d, siteId: "" } : d), interactions: (p.interactions || []).map((i) => i.siteId === s.id ? { ...i, siteId: "" } : i), attachments: att }; }); onBack(); }); };
+  const delThis = () => { const msg = indep ? ("Supprimer l'établissement « " + (s.label || (acc && acc.enseigne) || "ce point de vente") + " » et tout ce qui y est rattaché (contacts, devis, échanges, pièces jointes) ? Action irréversible.") : ("Supprimer l'établissement « " + (s.label || "ce point de vente") + " » ? Ses devis et échanges repasseront au niveau du groupe, ses pièces jointes seront supprimées."); appConfirm(msg, { title: "Supprimer cet établissement ?" }).then((ok) => { if (!ok) return; persist((p) => { const att = { ...(p.attachments || {}) }; delete att[s.id]; if (indep && acc) delete att[acc.id]; if (indep && acc) return { ...p, accounts: p.accounts.filter((a) => a.id !== acc.id), sites: (p.sites || []).filter((x) => x.accountId !== acc.id), contacts: (p.contacts || []).filter((c) => c.accountId !== acc.id), deals: (p.deals || []).filter((d) => d.accountId !== acc.id), interactions: (p.interactions || []).filter((i) => i.accountId !== acc.id), tickets: (p.tickets || []).filter((t) => t.accountId !== acc.id), attachments: att }; return { ...p, sites: (p.sites || []).filter((x) => x.id !== s.id), contacts: (p.contacts || []).map((c) => c.siteId === s.id ? { ...c, siteId: "" } : c), deals: (p.deals || []).map((d) => { const nd = d.siteId === s.id ? { ...d, siteId: "" } : d; return nd.livraisonSiteId === s.id ? { ...nd, livraisonSiteId: "" } : nd; }), interactions: (p.interactions || []).map((i) => i.siteId === s.id ? { ...i, siteId: "" } : i), attachments: att }; }); onBack(); }); };
   const saveContact = (c) => persist((p) => { const ex = p.contacts.some((x) => x.id === c.id); let cs = ex ? p.contacts.map((x) => x.id === c.id ? c : x) : [...p.contacts, c]; if (c.principal) cs = cs.map((x) => x.accountId === c.accountId && x.id !== c.id ? { ...x, principal: false } : x); return { ...p, contacts: cs }; });
   const saveDeal = (d) => persist((p) => { const x = { ...d, montant: dealMontant(d.lines), qte: dealQte(d.lines) }; const ex = p.deals.some((y) => y.id === d.id); return { ...p, deals: ex ? p.deals.map((y) => y.id === d.id ? x : y) : [...p.deals, x] }; });
   const addInteraction = (it) => persist((p) => ({ ...p, interactions: [...p.interactions, it] }));
@@ -1157,7 +1172,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
   const uploadFile = async (file) => { if (!file) return; if (file.size > 4 * 1024 * 1024) { alert("Fichier trop volumineux (max 4 Mo). Le stockage local n'accepte que des fichiers légers."); return; } const dataUrl = await fileToBase64(file); persist((p) => ({ ...p, attachments: { ...p.attachments, [attKey]: [...(p.attachments[attKey] || []), { id: "f_" + Date.now(), name: file.name, type: file.type, size: file.size, dataUrl, addedAt: new Date().toISOString().slice(0, 10) }] } })); };
   const delFile = (fid) => persist((p) => ({ ...p, attachments: { ...p.attachments, [attKey]: (p.attachments[attKey] || []).filter((x) => x.id !== fid) } }));
   const downloadFile = (f) => { const a2 = document.createElement("a"); a2.href = f.dataUrl; a2.download = f.name; document.body.appendChild(a2); a2.click(); document.body.removeChild(a2); };
-  const newDeal = (type) => ({ id: "d_" + Date.now(), accountId: s.accountId, siteId: s.id, type, date: TODAY(), statut: "brouillon", ref: nextRef(type, data.deals), note: "", tva: (data.settings && data.settings.tva) || 20, prestoStatus: "", prestoRef: "", prestoDate: "", converti: false, lines: [] });
+  const newDeal = (type) => ({ id: uid("d_"), accountId: s.accountId, siteId: s.id, type, date: TODAY(), statut: "brouillon", ref: nextRef(type, data.deals), note: "", tva: (data.settings && data.settings.tva) || 20, prestoStatus: "", prestoRef: "", prestoDate: "", converti: false, lines: [] });
   const diffLiv = s.adresseLivraison && s.livraisonIdentique === false;
   return (<div className="fade">
     <button className="back" onClick={onBack}><ChevronLeft size={16} /> Retour aux groupes & établissements</button>
@@ -1216,7 +1231,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   useEffect(() => { if (openSiteId) { setHlSite(openSiteId); if (sitesRef.current) { try { sitesRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {} } const t = setTimeout(() => setHlSite(null), 2600); return () => clearTimeout(t); } }, [openSiteId]);
   const fileRef = useRef(null);
   const saveSite = (site) => persist((p) => { const ex = p.sites.some((x) => x.id === site.id); return { ...p, sites: ex ? p.sites.map((x) => x.id === site.id ? site : x) : [...p.sites, site] }; });
-  const delSite = (id) => persist((p) => ({ ...p, sites: p.sites.filter((x) => x.id !== id) }));
+  const delSite = (id) => persist((p) => { const att = { ...(p.attachments || {}) }; delete att[id]; return ({ ...p, sites: p.sites.filter((x) => x.id !== id), contacts: (p.contacts || []).map((c) => c.siteId === id ? { ...c, siteId: "" } : c), deals: (p.deals || []).map((d) => { const nd = d.siteId === id ? { ...d, siteId: "" } : d; return nd.livraisonSiteId === id ? { ...nd, livraisonSiteId: "" } : nd; }), interactions: (p.interactions || []).map((i) => i.siteId === id ? { ...i, siteId: "" } : i), attachments: att }); });
   const newSite = (type) => ({ id: "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5), accountId: a.id, label: a.enseigne ? a.enseigne + (type === "decision" ? ", siège" : " ") : "", type, adresse: "", lat: null, lng: null, siret: "", typeSurface: "", adresseLivraison: "", livraisonIdentique: true, contactId: "" });
   const addInteraction = (it) => persist((p) => ({ ...p, interactions: [...p.interactions, it] }));
   const delInteraction = (id) => persist((p) => ({ ...p, interactions: p.interactions.filter((i) => i.id !== id) }));
@@ -1332,7 +1347,7 @@ function Repertoire({ data, persist, go, focus }) {
   useEffect(() => { if (focus && focus.id) setOpenId(focus.id); }, [focus && focus.n]);
   const accName = (id) => accounts.find((a) => a.id === id)?.enseigne || "—";
   const saveContact = (c) => persist((p) => { const ex = p.contacts.some((x) => x.id === c.id); let cs = ex ? p.contacts.map((x) => x.id === c.id ? c : x) : [...p.contacts, c]; if (c.principal) cs = cs.map((x) => x.accountId === c.accountId && x.id !== c.id ? { ...x, principal: false } : x); return { ...p, contacts: cs }; });
-  const delContact = (id) => persist((p) => ({ ...p, contacts: p.contacts.filter((c) => c.id !== id), interactions: p.interactions.filter((i) => i.contactId !== id) }));
+  const delContact = (id) => persist((p) => ({ ...p, contacts: p.contacts.filter((c) => c.id !== id), interactions: p.interactions.filter((i) => i.contactId !== id), sites: (p.sites || []).map((s) => s.contactId === id ? { ...s, contactId: "" } : s) }));
   if (openId) {
     const c = contacts.find((x) => x.id === openId); if (!c) { setOpenId(null); return null; }
     return <Fiche c={c} account={accounts.find((a) => a.id === c.accountId)} data={data} myEmail={settings.myEmail} settings={settings} deals={deals.filter((d) => d.accountId === c.accountId)} interactions={interactions.filter((i) => i.contactId === c.id).sort((a, b) => (b.date || "").localeCompare(a.date || ""))} onBack={() => setOpenId(null)} onEdit={() => setEditC(c)} onDelete={() => { delContact(c.id); setOpenId(null); }} onTogglePrincipal={() => saveContact({ ...c, principal: !c.principal })} onSaveContact={saveContact} onGoEnseigne={() => go("accounts", c.accountId)} onGoSite={(sid) => go("accounts", c.accountId, sid)} persist={persist} editModal={editC && <Modal title="Modifier le contact" onClose={() => setEditC(null)} wide><ContactForm contact={editC} accounts={accounts} contacts={contacts} sites={data.sites} known={collectKnownAddresses(data)} onSave={(x) => { saveContact(x); setEditC(null); }} /></Modal>} />;
@@ -1599,8 +1614,8 @@ function Deals({ data, persist, go, focus }) {
     if (nq) { const acc = accOf(d.accountId); const hay = normStr((d.ref || "") + " " + (d.type || "") + " " + (acc ? acc.enseigne : "") + " " + (d.note || "") + " " + (d.lines || []).map((l) => l.designation).join(" ")); if (!hay.includes(nq)) return false; }
     return true;
   }).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  const newDeal = (type) => ({ id: "d_" + Date.now(), accountId: accounts[0]?.id || "", type, date: TODAY(), statut: "brouillon", ref: nextRef(type, deals), note: "", tva: settings.tva || 20, prestoStatus: "", prestoRef: "", prestoDate: "", converti: false, lines: [] });
-  const importToDraft = ({ accountId, lines, note }) => { const d = { id: "d_" + Date.now(), accountId, type: "Devis", date: TODAY(), statut: "brouillon", ref: nextRef("Devis", deals), note: note || "Commande importée.", tva: settings.tva || 20, prestoStatus: "", prestoRef: "", prestoDate: "", converti: false, lines: lines.map((l) => L(l.code, l.designation, l.qte, l.pu)) }; save(d); setImp(false); setEdit(d); };
+  const newDeal = (type) => ({ id: uid("d_"), accountId: accounts[0]?.id || "", type, date: TODAY(), statut: "brouillon", ref: nextRef(type, deals), note: "", tva: settings.tva || 20, prestoStatus: "", prestoRef: "", prestoDate: "", converti: false, lines: [] });
+  const importToDraft = ({ accountId, lines, note }) => { const d = { id: uid("d_"), accountId, type: "Devis", date: TODAY(), statut: "brouillon", ref: nextRef("Devis", deals), note: note || "Commande importée.", tva: settings.tva || 20, prestoStatus: "", prestoRef: "", prestoDate: "", converti: false, lines: lines.map((l) => L(l.code, l.designation, l.qte, l.pu)) }; save(d); setImp(false); setEdit(d); };
   const totalFiltered = list.reduce((s, d) => s + (d.montant || 0), 0);
   const visibleIds = list.map((d) => d.id);
   const selCount = visibleIds.filter((id) => sel.has(id)).length;
@@ -1624,7 +1639,7 @@ function Deals({ data, persist, go, focus }) {
     </div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch", marginBottom: 14 }}>
       <FilterGroup label="Type" color="#3F60AA">{[["tous", "Tous"], ["devis", "Devis"], ["commande", "Commandes"], ["facture", "Factures"]].map(([k, l]) => k === "tous" ? <AllChip key={k} active={filt === "tous"} onClick={() => setFilt("tous")}>Tous</AllChip> : <button key={k} className={cx("chip", filt === k && "on")} onClick={() => setFilt(k)} style={filt === k ? { background: "#3F60AA", borderColor: "#3F60AA", color: "#fff" } : {}}>{l}</button>)}</FilterGroup>
-      <FilterGroup label="Statut" color="#F8B133"><AllChip active={filtStatut === "tous"} onClick={() => setFiltStatut("tous")}>Tous</AllChip>{Object.entries(DEAL_STATUS).map(([k, v]) => <button key={k} className={cx("chip", filtStatut === k && "on")} onClick={() => setFiltStatut(k)} style={filtStatut === k ? { background: v.color, borderColor: v.color, color: "#fff" } : { borderLeft: `4px solid ${v.color}` }}>{v.label}</button>)}</FilterGroup>
+      <FilterGroup label="Statut" color="#F8B133"><AllChip active={filtStatut === "tous"} onClick={() => setFiltStatut("tous")}>Tous</AllChip>{Object.entries(DEAL_STATUS).map(([k, v]) => <button key={k} className={cx("chip", filtStatut === k && "on")} onClick={() => setFiltStatut(k)} style={filtStatut === k ? { background: v.color, borderColor: v.color, color: onColor(v.color) } : { borderLeft: `4px solid ${v.color}` }}>{v.label}</button>)}</FilterGroup>
       <FilterGroup label="Groupe / établissement" color="#2bb673"><select value={filtAcc} onChange={(e) => setFiltAcc(e.target.value)} style={{ border: "1px solid rgba(43,182,115,.4)", background: "#fff", borderRadius: 8, padding: "5px 9px", fontFamily: "inherit", fontSize: 12.5, minWidth: 140 }}><option value="tous">Toutes</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.enseigne}</option>)}</select></FilterGroup>
       <FilterGroup label="Période" color="#7c5cf0"><input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="Date à partir de" style={{ border: "1px solid rgba(124,92,240,.4)", background: "#fff", borderRadius: 8, padding: "5px 8px", fontFamily: "inherit", fontSize: 12 }} /><span style={{ fontSize: 12, color: "#7c5cf0", fontWeight: 700 }}>→</span><input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="Date jusqu'à" style={{ border: "1px solid rgba(124,92,240,.4)", background: "#fff", borderRadius: 8, padding: "5px 8px", fontFamily: "inherit", fontSize: 12 }} /></FilterGroup>
       {hasFilter && <div style={{ display: "flex", alignItems: "center" }}><button className="btn btn-ghost btn-s" onClick={resetFilters} title="Réinitialiser tous les filtres"><X size={13} /> Effacer</button></div>}
@@ -1699,10 +1714,10 @@ function DevisPreview({ deal, account, settings, products = [], onClose }) {
         </div>
         <div style={{ fontSize: 11.5, color: "#6b7589", marginTop: 7 }}>Merci d'indiquer la référence {docRef(deal, account)} lors de votre virement.</div>
       </div>}
-      <div style={{ marginTop: 26, fontSize: 10.5, color: "#9aa6bd", borderTop: "1px solid #eef1f7", paddingTop: 10, lineHeight: 1.7 }}>
+      <div style={{ marginTop: 26, fontSize: 10.5, color: "#6b7589", borderTop: "1px solid #eef1f7", paddingTop: 10, lineHeight: 1.7 }}>
         {titre === "DEVIS" && <div>Devis valable 30 jours.</div>}
         <div>Franco de port dès {FRANCO_SEUIL_HT} € HT de commande ; en deçà, participation forfaitaire de {FRANCO_PART_HT} € HT aux frais de port.</div>
-        <div>PEN'UP 3D, SAS au capital social. Président : P'TIT BUNCH SARL, représentée par M. Dimitri DESSEAUX. RCS Montauban 978 651 891.</div>
+        <div>PEN'UP 3D, SAS. Président : P'TIT BUNCH SARL, représentée par M. Dimitri DESSEAUX. RCS Montauban 978 651 891.</div>
       </div>
     </div>
   </div></div>, document.body);
@@ -1887,7 +1902,7 @@ function Presto({ data, persist, go }) {
   const aTransformer = deals.filter((d) => d.type === "Devis" && d.statut === "accepte" && !d.converti);
   const aTransmettre = deals.filter((d) => d.type === "Commande" && d.prestoStatus === "a_transmettre");
   const transmises = deals.filter((d) => d.type === "Commande" && d.prestoStatus === "transmis").sort((a, b) => (b.prestoDate || "").localeCompare(a.prestoDate || ""));
-  const transform = (devis) => persist((p) => { const nc = mkDeal({ id: "d_" + Date.now(), accountId: devis.accountId, type: "Commande", date: TODAY(), statut: "accepte", ref: nextRef("Commande", p.deals), note: "Issu du devis signé " + devis.ref, prestoStatus: "a_transmettre", tva: devis.tva, lines: devis.lines.map((l) => ({ ...l, id: "l_" + Math.random().toString(36).slice(2, 7) })) }); return { ...p, deals: [nc, ...p.deals.map((d) => d.id === devis.id ? { ...d, converti: true } : d)] }; });
+  const transform = (devis) => persist((p) => { const nc = mkDeal({ id: uid("d_"), accountId: devis.accountId, type: "Commande", date: TODAY(), statut: "accepte", ref: nextRef("Commande", p.deals), note: "Issu du devis signé " + devis.ref, prestoStatus: "a_transmettre", tva: devis.tva, lines: devis.lines.map((l) => ({ ...l, id: uid("l_") })) }); return { ...p, deals: [nc, ...p.deals.map((d) => d.id === devis.id ? { ...d, converti: true } : d)] }; });
   const recapText = (d) => { const a = accOf(d.accountId); const ls = (d.lines || []).map((l) => `- ${l.code}  x${l.qte}  ${l.designation}`).join("\n"); return `COMMANDE PEN'UP 3D ${d.ref}\nClient : ${a?.enseigne || "-"}\nLivraison : ${a?.adresseLivraison || "à compléter"}\nDate : ${d.date}\n\n${ls}\n\nTotal : ${d.qte} unités, ${eur2(d.montant)} HT`; };
   const copy = (d) => { const t = recapText(d); if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => { setCopied(d.id); setTimeout(() => setCopied(null), 1800); }).catch(() => { }); };
   const markTransmis = (d) => { persist((p) => ({ ...p, deals: p.deals.map((x) => x.id === d.id ? { ...x, prestoStatus: "transmis", prestoRef: ref || x.prestoRef, prestoDate: TODAY() } : x) })); setMarking(null); setRef(""); };
@@ -1973,7 +1988,7 @@ function Sav({ data, persist }) {
     </div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch", marginBottom: 14 }}>
       <FilterGroup label="Statut" color="#3F60AA">{[["actifs", "Actifs"], ["tous", "Tous"], ["resolu", "Résolus"], ["clos", "Clos"]].map(([k, l]) => k === "tous" ? <AllChip key={k} active={filt === "tous"} onClick={() => setFilt("tous")}>Tous</AllChip> : <button key={k} className={cx("chip", filt === k && "on")} onClick={() => setFilt(k)} style={filt === k ? { background: "#3F60AA", borderColor: "#3F60AA", color: "#fff" } : {}}>{l}</button>)}</FilterGroup>
-      <FilterGroup label="Gravité" color="#FF5A45"><AllChip active={filtGrav === "tous"} onClick={() => setFiltGrav("tous")}>Toutes</AllChip>{Object.entries(SAV_GRAV).map(([k, v]) => <button key={k} className={cx("chip", filtGrav === k && "on")} onClick={() => setFiltGrav(k)} style={filtGrav === k ? { background: v.color, borderColor: v.color, color: "#fff" } : { borderLeft: `4px solid ${v.color}` }}>{v.label}</button>)}</FilterGroup>
+      <FilterGroup label="Gravité" color="#FF5A45"><AllChip active={filtGrav === "tous"} onClick={() => setFiltGrav("tous")}>Toutes</AllChip>{Object.entries(SAV_GRAV).map(([k, v]) => <button key={k} className={cx("chip", filtGrav === k && "on")} onClick={() => setFiltGrav(k)} style={filtGrav === k ? { background: v.color, borderColor: v.color, color: onColor(v.color) } : { borderLeft: `4px solid ${v.color}` }}>{v.label}</button>)}</FilterGroup>
       <FilterGroup label="Groupe / établissement" color="#2bb673"><select value={filtAcc} onChange={(e) => setFiltAcc(e.target.value)} style={{ border: "1px solid rgba(43,182,115,.4)", background: "#fff", borderRadius: 8, padding: "5px 9px", fontFamily: "inherit", fontSize: 12.5, minWidth: 140 }}><option value="tous">Toutes</option>{accounts.map((a) => <option key={a.id} value={a.id}>{a.enseigne}</option>)}</select></FilterGroup>
       {hasFilter && <div style={{ display: "flex", alignItems: "center" }}><button className="btn btn-ghost btn-s" onClick={() => { setQ(""); setFiltAcc("tous"); setFiltGrav("tous"); setFilt("actifs"); }}><X size={13} /> Effacer</button></div>}
     </div>
@@ -2025,7 +2040,7 @@ function Carte({ data, persist, go, focus }) {
   const z = view.w / MAP_VBW;
   const s = sites.find((x) => x.id === sel); const sAcc = s ? accOf(s.accountId) : null; const tmeta = s ? SITE_TYPES[s.type] : null;
   const saveSite = (site) => persist((p) => { const ex = p.sites.some((x) => x.id === site.id); return { ...p, sites: ex ? p.sites.map((x) => x.id === site.id ? site : x) : [...p.sites, site] }; });
-  const delSite = (id) => { persist((p) => ({ ...p, sites: p.sites.filter((x) => x.id !== id) })); if (sel === id) setSel(null); };
+  const delSite = (id) => { persist((p) => { const att = { ...(p.attachments || {}) }; delete att[id]; return ({ ...p, sites: p.sites.filter((x) => x.id !== id), contacts: (p.contacts || []).map((c) => c.siteId === id ? { ...c, siteId: "" } : c), deals: (p.deals || []).map((d) => { const nd = d.siteId === id ? { ...d, siteId: "" } : d; return nd.livraisonSiteId === id ? { ...nd, livraisonSiteId: "" } : nd; }), interactions: (p.interactions || []).map((i) => i.siteId === id ? { ...i, siteId: "" } : i), attachments: att }); }); if (sel === id) setSel(null); };
   const usedAccounts = accounts.filter((a) => sites.some((x) => x.accountId === a.id));
   const tog = (arr, set, val) => set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
   const visible = (st) => st.type === "penup" || st.type === "entrepot" || st.type === "usine" ? true : (filtEns.length === 0 || filtEns.includes(st.accountId)) && (filtTypes.length === 0 || filtTypes.includes(st.type));
@@ -2253,21 +2268,24 @@ function Prospection({ data, persist, go }) {
   const del = (id) => { persist((d) => ({ ...d, prospects: d.prospects.filter((x) => x.id !== id) })); setEdit(null); };
   const NATURE_FROM_TYPE = { cooperative: "CA", chaine: "CA", franchise: "FC", independant: "MI", specialiste: "MI", gss: "CA", autre: "DV" };
   const convert = (p) => {
-    const accId = "acc_" + Date.now(); const nature = NATURE_FROM_TYPE[p.type] || "DV";
+    const accId = uid("acc_"); const nature = NATURE_FROM_TYPE[p.type] || "DV";
+    const kind = isCentraleOuChaine({ nature, magasins: 1 }) ? "groupe" : "établissement";
     persist((d) => {
       const code = buildClientCode(d.accounts, nature);
-      const notesParts = [p.nom, p.adresse, ((p.cp || "") + " " + (p.ville || "")).trim(), p.telephone, p.site].filter(Boolean);
+      const notesParts = [p.nom, p.adresse, ((p.cp || "") + " " + (p.ville || "")).trim(), p.region, p.telephone, p.site].filter(Boolean);
       if (p.raisonSociale || p.siren || p.siret) notesParts.push("Société : " + [p.raisonSociale, p.formeJuridique, p.siren && ("SIREN " + p.siren), p.siret && ("SIRET " + p.siret)].filter(Boolean).join(", "));
+      if (p.potentiel && POTENTIEL_META[p.potentiel]) notesParts.push("Potentiel : " + POTENTIEL_META[p.potentiel].label);
+      if (p.email) notesParts.push("Courriel : " + p.email);
       if (p.notes) notesParts.push(p.notes);
       const adr = [p.adresse, ((p.cp || "") + " " + (p.ville || "")).trim()].filter(Boolean).join(", ");
-      const hasContact = (p.contactNom || "").trim(); const cid = "c_" + Date.now(); const sid = "s_" + accId;
-      const acc = { id: accId, enseigne: p.enseigne || p.nom, stage: "prospect", magasins: 1, nature, code, siren: p.siren || "", formeJuridique: p.formeJuridique || "", typeSurface: "", ville: p.ville, lat: null, lng: null, pipeline: 0, prochaineAction: "Premier contact (issu de la prospection)", dateAction: "", notes: notesParts.join(" · "), adressePostale: adr, adresseLivraison: "", livraisonIdentique: true, stageLog: [{ stage: "prospect", date: TODAY() }] };
-      const site = { id: sid, accountId: accId, label: p.nom, type: "pdv", typeSurface: "", siret: p.siret || "", adresse: adr, adresseLivraison: "", livraisonIdentique: true, lat: null, lng: null, contactId: hasContact ? cid : "", notes: "Point de vente issu de la prospection." };
+      const hasContact = (p.contactNom || "").trim(); const cid = uid("c_"); const sid = "s_" + accId;
+      const acc = { id: accId, enseigne: p.enseigne || p.nom, kind, stage: "prospect", magasins: 1, nature, code, siren: p.siren || "", formeJuridique: p.formeJuridique || "", typeSurface: p.format || "", ville: p.ville, lat: null, lng: null, pipeline: 0, prochaineAction: "Premier contact (issu de la prospection)", dateAction: "", notes: notesParts.join(" · "), adressePostale: adr, adresseLivraison: "", livraisonIdentique: true, stageLog: [{ stage: "prospect", date: TODAY() }] };
+      const site = { id: sid, accountId: accId, label: p.nom, type: "pdv", typeSurface: p.format || "", siret: p.siret || "", adresse: adr, adresseLivraison: "", livraisonIdentique: true, lat: null, lng: null, contactId: hasContact ? cid : "", notes: "Point de vente issu de la prospection." };
       const out = { ...d, accounts: [...d.accounts, acc], sites: [...(d.sites || []), site], prospects: d.prospects.map((x) => x.id === p.id ? { ...x, statut: "converti", accountId: accId } : x) };
       if (hasContact) {
         const fon = (p.contactFonction || "").toLowerCase();
         const role = /acheteur|achat/.test(fon) ? "acheteur" : /g[ée]rant|dirigeant|pr[ée]sident|fondat|propri[ée]taire/.test(fon) ? "decideur" : "autre";
-        out.contacts = [...d.contacts, { id: cid, accountId: accId, siteId: sid, prenom: p.contactPrenom || "", nom: (p.contactNom || "").toUpperCase(), fonction: p.contactFonction || "", role, email: p.contactEmail || "", telephone: p.contactTel || "", mobile: "", linkedin: "", ville: p.ville || "", departement: p.departement || "", adresse: p.adresse || "", principal: true, notes: p.contactSource ? ("Identité issue de : " + p.contactSource + " · à vérifier") : "", createdAt: TODAY() }];
+        out.contacts = [...d.contacts, { id: cid, accountId: accId, siteId: sid, prenom: p.contactPrenom || "", nom: (p.contactNom || "").toUpperCase(), fonction: p.contactFonction || "", role, email: p.contactEmail || p.email || "", telephone: p.contactTel || "", mobile: "", linkedin: "", ville: p.ville || "", departement: p.departement || "", adresse: p.adresse || "", principal: true, notes: p.contactSource ? ("Identité issue de : " + p.contactSource + " · à vérifier") : "", createdAt: TODAY() }];
       }
       return out;
     });
@@ -2308,7 +2326,7 @@ function Prospection({ data, persist, go }) {
     <div className="card" style={{ marginBottom: 14, borderLeft: "4px solid var(--blue)" }}>
       <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
         <Sparkles size={18} style={{ color: "var(--orange)", flexShrink: 0, marginTop: 2 }} />
-        <div style={{ fontSize: 12.5, lineHeight: 1.55, flex: 1, minWidth: 260 }}>Ce listing recense des établissements de jouets et loisirs créatifs partout en France, tous types, triés par type, région et statut. La <strong>Recherche IA</strong> interroge le web puis les <strong>sources officielles</strong> (RNE/INSEE via annuaire-entreprises, Pappers, societe.com, Infogreffe, INPI) pour enrichir chaque fiche avec l'identité légale (raison sociale, SIREN, forme juridique, dirigeant) et un contact pré-rempli. À la conversion ; le compte <strong>et</strong> la fiche contact associée sont créées d'un coup. <strong>Point d'honnêteté :</strong> l'agent fonctionne dans l'aperçu Claude (API Anthropic + recherche web) ; l'application exportée nécessitera un serveur relais. Les résultats, surtout les courriels et noms, sont indicatifs et <strong>à vérifier</strong> avant tout démarchage.</div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.55, flex: 1, minWidth: 260 }}>Ce listing recense des établissements de jouets et loisirs créatifs partout en France, tous types, triés par type, région et statut. La <strong>Recherche IA</strong> interroge le web puis les <strong>sources officielles</strong> (RNE/INSEE via annuaire-entreprises, Pappers, societe.com, Infogreffe, INPI) pour enrichir chaque fiche avec l'identité légale (raison sociale, SIREN, forme juridique, dirigeant) et un contact pré-rempli. À la conversion, le compte <strong>et</strong> la fiche contact associée sont créés d'un coup. <strong>Point d'honnêteté :</strong> l'agent fonctionne dans l'aperçu Claude (API Anthropic + recherche web) ; l'application exportée nécessitera un serveur relais. Les résultats, surtout les courriels et noms, sont indicatifs et <strong>à vérifier</strong> avant tout démarchage.</div>
       </div>
     </div>
     <div className="card" style={{ marginBottom: 14 }}>
@@ -2322,9 +2340,9 @@ function Prospection({ data, persist, go }) {
       {aiErr && <div style={{ fontSize: 12.5, color: "var(--red)", marginTop: 10, lineHeight: 1.5 }}>{aiErr}</div>}
     </div>
     <div className="filtbar">
-      <FilterGroup label="Type" color="#3F60AA"><AllChip active={fType === "tous"} onClick={() => setFType("tous")}>Tous</AllChip>{Object.entries(PROSPECT_TYPES).map(([k, v]) => <button key={k} className={cx("chip", fType === k && "on")} onClick={() => setFType(k)} style={fType === k ? { background: v.color, borderColor: v.color, color: "#fff" } : {}}>{v.label}</button>)}</FilterGroup>
-      <FilterGroup label="Région" color="#2bb673"><AllChip active={fRegion === "tous"} onClick={() => setFRegion("tous")}>Toutes</AllChip>{regions.map((r) => <button key={r} className={cx("chip", fRegion === r && "on")} onClick={() => setFRegion(r)} style={fRegion === r ? { background: "#2bb673", borderColor: "#2bb673", color: "#fff" } : {}}>{r}</button>)}</FilterGroup>
-      <FilterGroup label="Statut" color="#F8B133"><AllChip active={fStatut === "tous"} onClick={() => setFStatut("tous")}>Tous</AllChip>{Object.entries(PROSPECT_STATUT).map(([k, v]) => <button key={k} className={cx("chip", fStatut === k && "on")} onClick={() => setFStatut(k)} style={fStatut === k ? { background: v.color, borderColor: v.color, color: "#fff" } : {}}>{v.label}</button>)}</FilterGroup>
+      <FilterGroup label="Type" color="#3F60AA"><AllChip active={fType === "tous"} onClick={() => setFType("tous")}>Tous</AllChip>{Object.entries(PROSPECT_TYPES).map(([k, v]) => <button key={k} className={cx("chip", fType === k && "on")} onClick={() => setFType(k)} style={fType === k ? { background: v.color, borderColor: v.color, color: onColor(v.color) } : {}}>{v.label}</button>)}</FilterGroup>
+      <FilterGroup label="Région" color="#2bb673"><AllChip active={fRegion === "tous"} onClick={() => setFRegion("tous")}>Toutes</AllChip>{regions.map((r) => <button key={r} className={cx("chip", fRegion === r && "on")} onClick={() => setFRegion(r)} style={fRegion === r ? { background: "#2bb673", borderColor: "#2bb673", color: onColor("#2bb673") } : {}}>{r}</button>)}</FilterGroup>
+      <FilterGroup label="Statut" color="#F8B133"><AllChip active={fStatut === "tous"} onClick={() => setFStatut("tous")}>Tous</AllChip>{Object.entries(PROSPECT_STATUT).map(([k, v]) => <button key={k} className={cx("chip", fStatut === k && "on")} onClick={() => setFStatut(k)} style={fStatut === k ? { background: v.color, borderColor: v.color, color: onColor(v.color) } : {}}>{v.label}</button>)}</FilterGroup>
     </div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -2499,7 +2517,7 @@ function FullCostCalc({ tva: defTva, products, persist, loadReq }) {
 }
 function CoefCalc({ tva: defTva, settings, products, persist, loadReq }) {
   const coefTarget = (settings && settings.coefTarget) || 2.2;
-  const coefMax = (settings && (settings.coefMax != null ? settings.coefMax : settings.coefMin)) || 2.4;
+  const coefMax = (settings && settings.coefMax != null) ? settings.coefMax : 2.4;
   const [cout, setCout] = useState(26); const [coef, setCoef] = useState(coefTarget); const [tva, setTva] = useState(defTva || 20);
   const [anchor, setAnchor] = useState("pvcttc"); const [val, setVal] = useState(99.99);
   const [selProd, setSelProd] = useState(null);
@@ -3210,7 +3228,7 @@ function Assistant({ data, persist, go }) {
       if (act.type === "add_event") { const et = (act.eventType && EVENT_TYPES[act.eventType]) ? act.eventType : "rdv"; const ev = { id: "ev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5), date: act.date, heure: act.heure || "", titre: act.titre || "RDV", notes: act.notes || "", type: et, color: EVENT_TYPES[et].color, accountId: act.accountId || null }; return { ...p, events: [...(p.events || []), ev] }; }
       if (act.type === "update_product") { const set = {}; Object.entries(act.set || {}).forEach(([k, v]) => { if (k === "vendable") set[k] = !!v; else if (NUM_F[k]) set[k] = +v; }); if (set.poidsG != null) set.poidsEstime = false; return { ...p, products: p.products.map((x) => x.code === act.code ? { ...x, ...set } : x) }; }
       if (act.type === "add_interaction") { const it = { id: "i_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5), accountId: act.accountId, contactId: act.contactId || "", type: act.intType || "note", direction: "", date: act.date || new Date().toISOString().slice(0, 10), sujet: sanitizeAIText(act.sujet || "Note"), resume: sanitizeAIText(act.resume || "") }; return { ...p, interactions: [...(p.interactions || []), it] }; }
-      if (act.type === "create_deal") { const lines = (act.lines || []).map((l) => { const pr = (p.products || []).find((x) => x.code === l.code); const defPu = pr ? (pr.cessionHT != null ? pr.cessionHT : pr.pvc) : 0; return L(l.code, pr ? pr.designation : l.code, +l.qte || 1, l.pu != null ? +l.pu : defPu); }); const deal = mkDeal({ id: "d_" + Date.now(), accountId: act.accountId, type: act.dealType || "Devis", date: act.date || new Date().toISOString().slice(0, 10), statut: "brouillon", ref: nextRef(act.dealType || "Devis", p.deals), note: stripInternalPricing(sanitizeAIText(act.note || "")), lines }); return { ...p, deals: [...(p.deals || []), deal] }; }
+      if (act.type === "create_deal") { const lines = (act.lines || []).map((l) => { const pr = (p.products || []).find((x) => x.code === l.code); const defPu = pr ? (pr.cessionHT != null ? pr.cessionHT : pr.pvc) : 0; return L(l.code, pr ? pr.designation : l.code, +l.qte || 1, l.pu != null ? +l.pu : defPu); }); const deal = mkDeal({ id: uid("d_"), accountId: act.accountId, type: act.dealType || "Devis", date: act.date || new Date().toISOString().slice(0, 10), statut: "brouillon", ref: nextRef(act.dealType || "Devis", p.deals), note: stripInternalPricing(sanitizeAIText(act.note || "")), lines }); return { ...p, deals: [...(p.deals || []), deal] }; }
       return p;
     });
     setApplied((s) => ({ ...s, [key]: true }));
@@ -3234,7 +3252,7 @@ function Assistant({ data, persist, go }) {
       </div>
       <div style={{ padding: "6px 10px", display: "flex", gap: 5, flexWrap: "wrap", borderTop: "1px solid var(--line)", background: "#fff" }}>{quick.map((qq) => <button key={qq} onClick={() => send(qq)} style={{ fontSize: 11, color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 20, padding: "3px 9px", cursor: "pointer", fontFamily: "inherit" }}>{qq}</button>)}</div>
       <div style={{ display: "flex", gap: 7, padding: "8px 10px 10px", background: "#fff", borderTop: "1px solid var(--line)" }}>
-        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} disabled={busy} placeholder={busy ? "…" : "Demandez ou demandez une action…"} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 11, padding: "9px 11px", fontFamily: "inherit", fontSize: 13, opacity: busy ? 0.6 : 1 }} />
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} disabled={busy} placeholder={busy ? "…" : "Posez une question ou demandez une action…"} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 11, padding: "9px 11px", fontFamily: "inherit", fontSize: 13, opacity: busy ? 0.6 : 1 }} />
         <button onClick={() => send()} disabled={busy} className="btn btn-p" style={{ padding: "0 12px", opacity: busy ? 0.6 : 1 }}><Send size={16} /></button>
       </div>
     </div>)}
@@ -3300,7 +3318,7 @@ export default function App() {
       return next;
     });
   }, []);
-  const loadDemo = useCallback(() => { appConfirm("Charger un jeu de donnees de demonstration ? Cela remplace les donnees actuelles.", { title: "Charger la demo ?", confirmLabel: "Charger" }).then((ok) => { if (ok) persist(() => normalize(buildSeed())); }); }, [persist]);
+  const loadDemo = useCallback(() => { appConfirm("Charger un jeu de données de démonstration ? Cela remplace les données actuelles.", { title: "Charger la démo ?", confirmLabel: "Charger" }).then((ok) => { if (ok) persist(() => normalize(buildSeed())); }); }, [persist]);
   const go = useCallback((t, id, site) => { setFocus({ tab: t, id, n: Date.now(), site: site || null }); setTab(t); }, []);
   const fc = (t) => (focus && focus.tab === t) ? focus : null;
   const theme = data.settings.theme || "light";
@@ -3332,9 +3350,7 @@ export default function App() {
     const savAl = data.tickets.filter((t) => t.statut === "ouvert" || t.statut === "en_cours").length;
     const prestoAl = data.deals.filter((d) => d.type === "Devis" && d.statut === "accepte" && !d.converti).length + data.deals.filter((d) => d.type === "Commande" && d.prestoStatus === "a_transmettre").length;
     const todayStr = new Date().toISOString().slice(0, 10);
-    const agendaAl = [
-      ...data.accounts.filter((a) => a.dateAction && a.dateAction <= todayStr).length === 0 ? [] : [1],
-    ].length;
+    const agendaAl = data.accounts.filter((a) => a.dateAction && a.dateAction <= todayStr).length;
     return { accounts: data.accounts.length, repertoire: data.contacts.length, prospection: data.prospects.filter((p) => p.statut === "a_contacter").length, deals: data.deals.length, pipeline: data.deals.filter((d) => d.statut !== "livre" && d.statut !== "refuse").length, agenda: agendaAl, stock: stockAl, reassort: reAl, sav: savAl, presto: prestoAl };
   }, [data]);
   const meta = TABS.find((t) => t.id === tab);
@@ -3352,7 +3368,7 @@ export default function App() {
           <button className="btn btn-ghost btn-s" onClick={exportAll} title="Exporter toutes les données"><Download size={15} /> Sauvegarde</button>
           <input ref={fileImportRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) importAll(f); e.target.value = ""; }} />
           <button className="btn btn-ghost btn-s" onClick={() => fileImportRef.current && fileImportRef.current.click()} title="Restaurer depuis une sauvegarde"><Upload size={15} /> Restaurer</button>
-          {(!data.accounts || data.accounts.length === 0) && <button className="btn btn-ghost btn-s" onClick={loadDemo} title="Charger un jeu de donnees de demonstration"><Sparkles size={15} /> Démo</button>}
+          {(!data.accounts || data.accounts.length === 0) && <button className="btn btn-ghost btn-s" onClick={loadDemo} title="Charger un jeu de données de démonstration"><Sparkles size={15} /> Démo</button>}
           <button className="btn btn-ghost btn-s" onClick={() => window.print()} title="Imprimer / PDF de la vue courante"><Printer size={15} /></button>
           <button className="btn btn-ghost btn-s" onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>{theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}</button>
           {CLERK_PK && <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 4, paddingLeft: 8, borderLeft: "1px solid var(--line)" }}><UserButton afterSignOutUrl="/" /></span>}
