@@ -849,6 +849,8 @@ const CSS = `
 @media print{
 /* Impression d'un document (devis / commande / facture) : on imprime UNIQUEMENT le document. */
 @page{margin:0;}
+/* Force le rendu des fonds colorés (bloc Total TTC, encadrés client/banque) à l'impression : sinon le PDF perd les aplats. */
+*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
 /* Cas 1 — un document est ouvert : <body> porte la classe « doc-print » (posée par DevisPreview).
    On masque tout le reste (l'app) plutôt que de dépendre du sélecteur :has(), inégalement supporté à l'impression. */
 body.doc-print > *:not(.print-doc-overlay){display:none!important;}
