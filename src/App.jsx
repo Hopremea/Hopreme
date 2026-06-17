@@ -3440,6 +3440,13 @@ export default function App() {
   const fc = (t) => (focus && focus.tab === t) ? focus : null;
   const theme = data.settings.theme || "light";
   const toggleTheme = () => persist((p) => ({ ...p, settings: { ...p.settings, theme: theme === "dark" ? "light" : "dark" } }));
+  // Mise à jour forcée : vide les caches du navigateur (Cache API + service workers) puis recharge
+  // depuis le serveur avec une URL anti-cache, pour récupérer immédiatement la dernière version déployée.
+  const hardRefresh = useCallback(async () => {
+    try { if (typeof caches !== "undefined") { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) { }
+    try { if (navigator.serviceWorker) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.unregister())); } } catch (e) { }
+    try { const u = new URL(window.location.href); u.searchParams.set("_v", Date.now().toString(36)); window.location.replace(u.toString()); } catch (e) { window.location.reload(); }
+  }, []);
   const exportAll = () => { const today = new Date().toISOString().slice(0, 10); downloadJSON({ exportedAt: new Date().toISOString(), version: 1, data }, `penup3d-cockpit-${today}.json`); };
   const importAll = async (file) => {
     try {
@@ -3486,6 +3493,7 @@ export default function App() {
           <input ref={fileImportRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) importAll(f); e.target.value = ""; }} />
           <button className="btn btn-ghost btn-s" onClick={() => fileImportRef.current && fileImportRef.current.click()} title="Restaurer depuis une sauvegarde"><Upload size={15} /> Restaurer</button>
           {(!data.accounts || data.accounts.length === 0) && <button className="btn btn-ghost btn-s" onClick={loadDemo} title="Charger un jeu de données de démonstration"><Sparkles size={15} /> Démo</button>}
+          <button className="btn btn-ghost btn-s" onClick={hardRefresh} title="Forcer la mise à jour : vide le cache et recharge la dernière version"><RefreshCw size={15} /> Mettre à jour</button>
           <button className="btn btn-ghost btn-s" onClick={() => window.print()} title="Imprimer / PDF de la vue courante"><Printer size={15} /></button>
           <button className="btn btn-ghost btn-s" onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>{theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}</button>
           {CLERK_PK && <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 4, paddingLeft: 8, borderLeft: "1px solid var(--line)" }}><UserButton afterSignOutUrl="/" /></span>}
