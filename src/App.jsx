@@ -16,7 +16,6 @@ import {
   AreaChart, Area, CartesianGrid
 } from "recharts";
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
 import { supabase, supabaseEnabled } from "./supabaseClient.js";
 import RESTORE_DATA from "./restoreData.json";
 import { UserButton } from "@clerk/clerk-react";
@@ -2859,7 +2858,7 @@ function Connexions({ data, persist }) {
   const onFile = (file) => {
     if (!file) return; const name = (file.name || "").toLowerCase();
     if (name.endsWith(".csv")) { Papa.parse(file, { header: true, skipEmptyLines: true, complete: (res) => applyRows(res.data) }); }
-    else { const rd = new FileReader(); rd.onload = (e) => { try { const wb = XLSX.read(e.target.result, { type: "array" }); const ws = wb.Sheets[wb.SheetNames[0]]; applyRows(XLSX.utils.sheet_to_json(ws)); } catch (err) { setMsg("Lecture du fichier impossible."); } }; rd.readAsArrayBuffer(file); }
+    else { const rd = new FileReader(); rd.onload = async (e) => { try { const XLSX = await import("xlsx"); const wb = XLSX.read(e.target.result, { type: "array" }); const ws = wb.Sheets[wb.SheetNames[0]]; applyRows(XLSX.utils.sheet_to_json(ws)); } catch (err) { setMsg("Lecture du fichier impossible."); } }; rd.readAsArrayBuffer(file); }
   };
   // Synchronisation du stock Shopify (lecture seule), rapprochement SKU = code article.
   const [shopMsg, setShopMsg] = useState(null);
