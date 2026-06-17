@@ -17,6 +17,7 @@ import {
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { supabase, supabaseEnabled } from "./supabaseClient.js";
+import RESTORE_DATA from "./restoreData.json";
 
 // Routage des appels IA : relais serveur en production (clé API protégée côté serveur),
 // appel direct proxifié dans l'aperçu Claude. Le jeton Clerk est joint pour que le relais l'authentifie.
@@ -3187,16 +3188,22 @@ export default function App() {
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [importMsg, setImportMsg] = useState(null);
   const fileImportRef = useRef(null);
-  // Chargement : cache localStorage immediat, puis source partagee Supabase si configuree.
+  // Chargement : cache localStorage, puis Supabase. Restauration unique de la vraie base (export CSV) si pas encore appliquee.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try { const c = localStorage.getItem(KEY); if (c && !cancelled) setData(normalize(JSON.parse(c))); } catch (e) { }
+      let current = null;
+      try { const c = localStorage.getItem(KEY); if (c) { current = normalize(JSON.parse(c)); if (!cancelled) setData(current); } } catch (e) { }
       if (supabaseEnabled && supabase) {
         try {
           const { data: row, error } = await supabase.from("cockpit_state").select("data").eq("id", "shared").maybeSingle();
-          if (!error && row && row.data && !cancelled) { const next = normalize(row.data); setData(next); try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) { } }
+          if (!error && row && row.data) { current = normalize(row.data); if (!cancelled) { setData(current); try { localStorage.setItem(KEY, JSON.stringify(current)); } catch (e) { } } }
         } catch (e) { }
+      }
+      if (!cancelled && !(current && current.settings && current.settings._restored_csv_v1)) {
+        const restored = normalize(JSON.parse(JSON.stringify(RESTORE_DATA)));
+        if (!cancelled) { setData(restored); try { localStorage.setItem(KEY, JSON.stringify(restored)); } catch (e) { } }
+        if (supabaseEnabled && supabase) { try { await supabase.from("cockpit_state").upsert({ id: "shared", data: restored, updated_at: new Date().toISOString() }, { onConflict: "id" }); } catch (e) { } }
       }
     })();
     return () => { cancelled = true; };
