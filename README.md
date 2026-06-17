@@ -95,11 +95,39 @@ ce qui évite les erreurs 404 au rafraîchissement.
 | Variable | Côté | Rôle |
 | --- | --- | --- |
 | `VITE_CLERK_PUBLISHABLE_KEY` | navigateur | Affiche l'écran de connexion, protège l'accès |
-| `CLERK_SECRET_KEY` | serveur | Vérifie le jeton sur `/api/claude` (protège la clé Anthropic) |
+| `CLERK_SECRET_KEY` | serveur | Vérifie le jeton sur `/api/claude`, `/api/gmail`, `/api/shopify` |
 | `ANTHROPIC_API_KEY` | serveur | Clé du relais IA, jamais envoyée au navigateur |
+| `SHOPIFY_STORE_DOMAIN` | serveur | Domaine de la boutique (ex. `ma-boutique.myshopify.com`) |
+| `SHOPIFY_ADMIN_TOKEN` | serveur | Jeton Admin API Shopify, jamais envoyé au navigateur |
 
 Si `CLERK_SECRET_KEY` n'est pas définie, le relais répond sans vérifier le jeton :
 à n'utiliser qu'en local. En production, définissez-la pour protéger `/api/claude`.
+
+## Synchronisation du stock Shopify (lecture seule)
+
+L'onglet **Intégrations & paramètres** (et un bouton « Stock Shopify » dans l'onglet
+**Stock entrepôt**) permet de **lire** le stock disponible de votre boutique Shopify et de
+mettre à jour la colonne « Dispo » du catalogue MITMIT. Ce stock alimente ensuite tous les
+onglets internes (Stock, Réassort, alertes et KPIs du tableau de bord). **Aucune donnée
+n'est écrite dans Shopify** : l'intégration est strictement en lecture.
+
+Mise en place :
+
+1. Dans l'admin Shopify : **Paramètres → Apps et canaux de vente → Développer des apps →
+   Créer une app**. Donnez-lui les scopes Admin API **`read_products`** et
+   **`read_inventory`**, installez-la, puis copiez le **jeton d'accès Admin API** (`shpat_…`).
+2. Sur Vercel (Settings → Environment Variables, Production) ajoutez :
+   - `SHOPIFY_STORE_DOMAIN` = `ma-boutique.myshopify.com`
+   - `SHOPIFY_ADMIN_TOKEN` = le jeton `shpat_…`
+3. Redéployez. Dans MITMIT, onglet Intégrations, cliquez **Tester la connexion** puis
+   **Synchroniser le stock**.
+
+Le rapprochement se fait sur le **SKU Shopify = code article MITMIT**. Les variantes dont le
+SKU ne correspond à aucun code du catalogue sont ignorées. La quantité retenue est
+`inventoryQuantity` (stock vendable total, toutes localisations confondues). Le jeton reste
+côté serveur (relais `/api/shopify`, protégé par Clerk) et n'est jamais exposé au navigateur.
+Si les variables ne sont pas définies, la synchro est simplement désactivée et l'app continue
+de fonctionner normalement.
 
 ## Limites connues et pistes (pour la suite avec Claude Code)
 
