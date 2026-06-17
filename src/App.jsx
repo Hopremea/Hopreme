@@ -3067,6 +3067,35 @@ async function assistantAI(text, history, data) {
   try { parsed = JSON.parse(clean); } catch (e) { const m = clean.match(/\{[\s\S]*\}/); try { parsed = JSON.parse(m ? m[0] : "{}"); } catch (e2) { parsed = { inScope: true, reply: raw || "Je n'ai pas pu structurer ma réponse.", actions: [] }; } }
   return { inScope: parsed.inScope !== false, reply: parsed.reply || "", actions: Array.isArray(parsed.actions) ? parsed.actions : [], usage: j.usage || null };
 }
+// ===== Garde-fous IA : conformite metier imposee en dur sur les sorties du modele =====
+// Regles non negociables : filament "biocompatible" jamais "biodegradable" seul (AGEC) ;
+// pas d'"agrement Education nationale" (formuler "appui du Reseau Canope") ;
+// jamais de marge / coefficient / prix de cession dans un texte destine au client.
+function sanitizeAIText(s) {
+  if (typeof s !== "string" || !s) return s;
+  let t = s;
+  t = t.replace(/biod[ée]gradable(s?)/gi, (m, pl) => "biocompatible" + (pl || ""));
+  t = t.replace(/\bagr[ée]ment\b[^.\n]*?[ée]ducation nationale/gi, "supports pédagogiques développés avec l'appui du Réseau Canopé");
+  t = t.replace(/\bagr[ée]{1,2}[^.\n]*?[ée]ducation nationale/gi, "développé avec l'appui du Réseau Canopé");
+  return t;
+}
+// Retire d'un texte CLIENT (note de devis/commande) toute clause citant marge, coefficient ou prix de cession.
+function stripInternalPricing(s) {
+  if (typeof s !== "string" || !s) return s;
+  const segs = s.split(/([.;\n]+)/); let out = "";
+  for (let i = 0; i < segs.length; i += 2) { const clause = segs[i] || ""; const sep = segs[i + 1] || ""; if (!/(marge|coefficient|\bcoef\b|prix de cession|cession\s*ht)/i.test(clause)) out += clause + sep; }
+  return out.trim();
+}
+// Anti-invention : refuse une action IA referencant un enregistrement inexistant. Renvoie un message ou null si OK.
+function validateAIAction(act, p) {
+  const acc = (id) => !id || (p.accounts || []).some((a) => a.id === id);
+  const prod = (code) => (p.products || []).some((x) => x.code === code);
+  if (act.type === "create_deal") { if (!acc(act.accountId)) return "compte introuvable"; const bad = (act.lines || []).filter((l) => !prod(l.code)).map((l) => l.code); if (bad.length) return "produit(s) inconnu(s) : " + bad.join(", "); }
+  if (act.type === "add_interaction" && !acc(act.accountId)) return "compte introuvable";
+  if (act.type === "update_product" && !prod(act.code)) return "produit introuvable : " + act.code;
+  if (act.type === "add_event" && !acc(act.accountId)) return "compte introuvable";
+  return null;
+}
 function Assistant({ data, persist, go }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -3083,7 +3112,7 @@ function Assistant({ data, persist, go }) {
     try {
       const r = await assistantAI(t, hist.slice(-8), data);
       if (r.usage) persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, r.usage) }));
-      setMsgs((m) => [...m, { role: "bot", text: r.reply || "…", actions: r.inScope === false ? [] : (r.actions || []) }]);
+      setMsgs((m) => [...m, { role: "bot", text: sanitizeAIText(r.reply) || "…", actions: r.inScope === false ? [] : (r.actions || []) }]);
     } catch (e) {
       const fb = assistantAnswer(t, data);
       setMsgs((m) => [...m, { role: "bot", text: (fb.text || "Je n'ai pas pu joindre l'assistant intelligent.") + "\n\n(Mode hors-ligne : la connexion à l'IA a échoué ici, capacités réduites. L'assistant intelligent fonctionne dans l'aperçu connecté ou avec le serveur relais.)", actions: fb.actions || [] }]);
@@ -3100,11 +3129,13 @@ function Assistant({ data, persist, go }) {
   };
   const NUM_F = { dispo: 1, resa: 1, encmd: 1, pvc: 1, seuil: 1, cout: 1, poidsG: 1 };
   const applyAction = (act, key) => {
+    const gErr = validateAIAction(act, data);
+    if (gErr) { setApplied((s) => ({ ...s, [key]: { error: gErr } })); return; }
     persist((p) => {
       if (act.type === "add_event") { const et = (act.eventType && EVENT_TYPES[act.eventType]) ? act.eventType : "rdv"; const ev = { id: "ev_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5), date: act.date, heure: act.heure || "", titre: act.titre || "RDV", notes: act.notes || "", type: et, color: EVENT_TYPES[et].color, accountId: act.accountId || null }; return { ...p, events: [...(p.events || []), ev] }; }
       if (act.type === "update_product") { const set = {}; Object.entries(act.set || {}).forEach(([k, v]) => { if (k === "vendable") set[k] = !!v; else if (NUM_F[k]) set[k] = +v; }); if (set.poidsG != null) set.poidsEstime = false; return { ...p, products: p.products.map((x) => x.code === act.code ? { ...x, ...set } : x) }; }
-      if (act.type === "add_interaction") { const it = { id: "i_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5), accountId: act.accountId, contactId: act.contactId || "", type: act.intType || "note", direction: "", date: act.date || new Date().toISOString().slice(0, 10), sujet: act.sujet || "Note", resume: act.resume || "" }; return { ...p, interactions: [...(p.interactions || []), it] }; }
-      if (act.type === "create_deal") { const lines = (act.lines || []).map((l) => { const pr = (p.products || []).find((x) => x.code === l.code); const defPu = pr ? (pr.cessionHT != null ? pr.cessionHT : pr.pvc) : 0; return L(l.code, pr ? pr.designation : l.code, +l.qte || 1, l.pu != null ? +l.pu : defPu); }); const deal = mkDeal({ id: "d_" + Date.now(), accountId: act.accountId, type: act.dealType || "Devis", date: act.date || new Date().toISOString().slice(0, 10), statut: "brouillon", ref: nextRef(act.dealType || "Devis", p.deals), note: act.note || "", lines }); return { ...p, deals: [...(p.deals || []), deal] }; }
+      if (act.type === "add_interaction") { const it = { id: "i_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5), accountId: act.accountId, contactId: act.contactId || "", type: act.intType || "note", direction: "", date: act.date || new Date().toISOString().slice(0, 10), sujet: sanitizeAIText(act.sujet || "Note"), resume: sanitizeAIText(act.resume || "") }; return { ...p, interactions: [...(p.interactions || []), it] }; }
+      if (act.type === "create_deal") { const lines = (act.lines || []).map((l) => { const pr = (p.products || []).find((x) => x.code === l.code); const defPu = pr ? (pr.cessionHT != null ? pr.cessionHT : pr.pvc) : 0; return L(l.code, pr ? pr.designation : l.code, +l.qte || 1, l.pu != null ? +l.pu : defPu); }); const deal = mkDeal({ id: "d_" + Date.now(), accountId: act.accountId, type: act.dealType || "Devis", date: act.date || new Date().toISOString().slice(0, 10), statut: "brouillon", ref: nextRef(act.dealType || "Devis", p.deals), note: stripInternalPricing(sanitizeAIText(act.note || "")), lines }); return { ...p, deals: [...(p.deals || []), deal] }; }
       return p;
     });
     setApplied((s) => ({ ...s, [key]: true }));
@@ -3122,7 +3153,7 @@ function Assistant({ data, persist, go }) {
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "12px 12px 6px", display: "flex", flexDirection: "column", gap: 8, background: "var(--bg)" }}>
         {msgs.map((m, i) => (<div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%" }}>
           <div style={{ padding: "8px 11px", borderRadius: 13, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", background: m.role === "user" ? "#3F60AA" : "#fff", color: m.role === "user" ? "#fff" : "var(--ink)", border: m.role === "user" ? "none" : "1px solid var(--line)" }}>{m.text}</div>
-          {m.actions && m.actions.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>{m.actions.map((act, j) => { const key = i + "-" + j; if (act.type === "navigate") return <button key={j} onClick={() => { go(act.tab, act.id || null); setOpen(false); }} style={{ alignSelf: "flex-start", fontSize: 11.5, fontWeight: 700, color: "#3F60AA", background: "#fff", border: "1px solid #3F60AA55", borderRadius: 20, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}>{act.label || ("Aller à " + act.tab)} →</button>; const done = applied[key]; return (<div key={j} style={{ border: "1px solid var(--line)", borderRadius: 11, padding: "8px 10px", background: "#fff", fontSize: 12 }}><div style={{ marginBottom: 6, lineHeight: 1.4 }}>{actionDesc(act)}</div>{done ? <span style={{ fontSize: 11.5, color: "var(--green)", fontWeight: 700 }}>✓ Appliqué</span> : <button onClick={() => applyAction(act, key)} style={{ fontSize: 11.5, fontWeight: 800, color: "#fff", background: "var(--green)", border: "none", borderRadius: 9, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit" }}>Appliquer</button>}</div>); })}</div>}
+          {m.actions && m.actions.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>{m.actions.map((act, j) => { const key = i + "-" + j; if (act.type === "navigate") return <button key={j} onClick={() => { go(act.tab, act.id || null); setOpen(false); }} style={{ alignSelf: "flex-start", fontSize: 11.5, fontWeight: 700, color: "#3F60AA", background: "#fff", border: "1px solid #3F60AA55", borderRadius: 20, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" }}>{act.label || ("Aller à " + act.tab)} →</button>; const done = applied[key]; return (<div key={j} style={{ border: "1px solid var(--line)", borderRadius: 11, padding: "8px 10px", background: "#fff", fontSize: 12 }}><div style={{ marginBottom: 6, lineHeight: 1.4 }}>{actionDesc(act)}</div>{done === true ? <span style={{ fontSize: 11.5, color: "var(--green)", fontWeight: 700 }}>✓ Appliqué</span> : (done && done.error) ? <span style={{ fontSize: 11.5, color: "var(--red)", fontWeight: 700 }}>⚠ Refusé (garde-fou IA) : {done.error}</span> : <button onClick={() => applyAction(act, key)} style={{ fontSize: 11.5, fontWeight: 800, color: "#fff", background: "var(--green)", border: "none", borderRadius: 9, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit" }}>Appliquer</button>}</div>); })}</div>}
         </div>))}
         {busy && <div style={{ alignSelf: "flex-start", padding: "8px 11px", borderRadius: 13, fontSize: 13, background: "#fff", border: "1px solid var(--line)", color: "var(--muted)" }}>L'assistant réfléchit…</div>}
       </div>
