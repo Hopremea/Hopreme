@@ -7,7 +7,7 @@ import {
   ChevronLeft, ArrowUpRight, ArrowDownLeft, Linkedin, User, Briefcase,
   Calculator, Percent, Truck, ArrowRightLeft, RefreshCw, Eye, Printer,
   LifeBuoy, Repeat, Zap, Map as MapIcon, Send, ExternalLink, Link2,
-  Layers, ShoppingCart, Navigation, Copy, Sparkles,
+  Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon,
   Download, Paperclip, Moon, Sun, ChevronRight, CalendarDays,
   GitBranch, MoreHorizontal, Filter, Save, FileDown, Clock, ArrowDown, ArrowUp
 } from "lucide-react";
@@ -765,7 +765,14 @@ const CSS = `
 .chip-all.on{background:#3a3f47;color:#fff;border:1px solid #3a3f47;}
 .pu-root.dark .chip-all{background:var(--blue-l);color:var(--ink);}
 .pu-root.dark .chip-all.on{background:#e8edf5;color:#16203a;border-color:#e8edf5;}
-.av{border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;flex-shrink:0;width:44px;height:44px;}.av.lg{width:64px;height:64px;border-radius:18px;font-size:23px;}
+.av{border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;flex-shrink:0;width:44px;height:44px;overflow:hidden;}.av.lg{width:64px;height:64px;border-radius:18px;font-size:23px;}.av img{width:100%;height:100%;object-fit:cover;display:block;}
+.photo-edit{position:absolute!important;right:-6px;bottom:-6px;width:26px!important;height:26px!important;background:#fff;border:1px solid var(--line);box-shadow:0 2px 6px rgba(20,32,58,.18);border-radius:50%;}
+.photo-menu{position:absolute;z-index:30;top:calc(100% + 6px);left:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(20,32,58,.18);padding:6px;min-width:218px;}
+.pu-root.dark .photo-menu{background:#1c2230;}
+.photo-menu button{display:flex;align-items:center;gap:9px;width:100%;border:0;background:none;text-align:left;padding:8px 10px;border-radius:8px;font-size:13px;color:var(--ink);cursor:pointer;font-weight:600;}
+.photo-menu button:hover{background:var(--blue-l);}
+.photo-menu button.danger{color:var(--red);}
+.photo-menu .photo-msg{font-size:11.5px;color:var(--muted);padding:5px 10px 4px;line-height:1.4;font-weight:500;}
 .crow{display:flex;align-items:center;gap:13px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fff;cursor:pointer;transition:.16s;margin-bottom:9px;}.crow:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(20,32,58,.09);border-color:#d8e1f5;}
 .kv{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f0f3f9;font-size:13px;}.kv .k{color:var(--muted);width:88px;flex-shrink:0;font-size:12px;display:flex;align-items:center;gap:6px;}.kv .v{font-weight:600;word-break:break-word;}
 .tl{position:relative;padding-left:24px;margin-top:6px;}.tl:before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:var(--line);}
@@ -927,7 +934,78 @@ function Modal({ title, onClose, children, wide, xl, guard = true }) {
   useEffect(() => { if (!guard) return; _modalGuards++; return () => { _modalGuards = Math.max(0, _modalGuards - 1); }; }, [guard]);
   return (<div className="ov no-print" onClick={onClose}><div className="modal" ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined} style={{ width: w, outline: "none" }} onClick={(e) => e.stopPropagation()}><div className="modal-h"><h3 className="pu-display">{title}</h3><button className="iconbtn" onClick={onClose} aria-label="Fermer"><X size={18} /></button></div><div className="modal-b">{children}</div></div></div>);
 }
-const Avatar = ({ c, lg }) => (<div className={cx("av", lg && "lg")} style={{ background: avColor(fullName(c)) }}>{initials(c) || <User size={lg ? 26 : 18} />}</div>);
+function Avatar({ c, lg, fallback }) {
+  const src = (c && c.photo) || fallback || "";
+  const [err, setErr] = useState(false);
+  useEffect(() => { setErr(false); }, [src]);
+  if (src && !err) return (<div className={cx("av", lg && "lg")} style={{ background: "#fff", border: "1px solid var(--line)" }}><img src={src} alt="" onError={() => setErr(true)} /></div>);
+  return (<div className={cx("av", lg && "lg")} style={{ background: avColor(fullName(c)) }}>{initials(c) || <User size={lg ? 26 : 18} />}</div>);
+}
+// Construit des URLs de logo à partir d'un domaine (Clearbit en premier, favicon Google en repli via onError).
+function logoFromDomain(domain) {
+  const d = String(domain || "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^www\./i, "").trim();
+  if (!d || !d.includes(".")) return "";
+  return "https://logo.clearbit.com/" + d;
+}
+function faviconFromDomain(domain) {
+  const d = String(domain || "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^www\./i, "").trim();
+  if (!d || !d.includes(".")) return "";
+  return "https://www.google.com/s2/favicons?sz=128&domain=" + encodeURIComponent(d);
+}
+// Recherche web (via Claude) du domaine du site officiel d'une enseigne, pour en déduire le logo.
+async function webFindDomain(query, persistUsage) {
+  const res = await fetch(CLAUDE_URL, { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 300, tools: [{ type: "web_search_20250305", name: "web_search" }], messages: [{ role: "user", content: "Donne le domaine du site web officiel de l'enseigne ou de l'entreprise : \"" + query + "\". Réponds UNIQUEMENT par un objet JSON sans texte ni Markdown : {\"domaine\":\"exemple.fr\"}. Si tu n'es pas sûr, mets une chaîne vide." }] }) });
+  const dt = await res.json();
+  if (dt && dt.usage && persistUsage) persistUsage(dt.usage);
+  const text = (dt.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const m = text.match(/\{[\s\S]*\}/); const o = m ? JSON.parse(m[0]) : {};
+  return String(o.domaine || "").trim();
+}
+// Encart photo / logo éditable : téléversement, URL, logo automatique (web) ou logo du groupe.
+function EntityPhoto({ value, onChange, initials: ini, bg, round, size = 64, enseigne, groupLogo, fallback, persistUsage }) {
+  const fileRef = useRef(null);
+  const [menu, setMenu] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [imgErr, setImgErr] = useState(false);
+  useEffect(() => { setImgErr(false); }, [value]);
+  const close = () => { setMenu(false); setMsg(null); };
+  const upload = async (file) => {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { setMsg("Choisissez un fichier image."); return; }
+    if (file.size > 2 * 1024 * 1024) { setMsg("Image trop lourde (max 2 Mo). Réduisez-la avant de l'ajouter."); return; }
+    const url = await fileToBase64(file); onChange(url); close();
+  };
+  const fromUrl = () => { const u = window.prompt("Collez l'adresse (URL) de l'image :", typeof value === "string" && /^https?:/.test(value) ? value : ""); if (u && u.trim()) { onChange(u.trim()); close(); } };
+  const auto = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const dom = await webFindDomain(enseigne || "", persistUsage);
+      const logo = logoFromDomain(dom) || faviconFromDomain(dom);
+      if (logo) { onChange(logo); close(); }
+      else setMsg("Aucun logo trouvé automatiquement. Téléversez une image ou collez une URL.");
+    } catch (e) { setMsg("Recherche web indisponible ici (fonctionne dans l'app Claude). Téléversez une image ou collez une URL."); }
+    finally { setBusy(false); }
+  };
+  const radius = round ? "50%" : Math.round(size * 0.26);
+  const display = value || fallback || "";
+  const show = display && !imgErr;
+  return (<div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+    <div style={{ width: size, height: size, borderRadius: radius, overflow: "hidden", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, fontSize: Math.round(size * 0.34), fontFamily: "'Bricolage Grotesque',sans-serif", background: show ? "#fff" : (bg || avColor(ini || "")), border: "1px solid var(--line)" }}>
+      {show ? <img src={display} alt="" onError={() => setImgErr(true)} style={{ width: "100%", height: "100%", objectFit: round ? "cover" : "contain", padding: round ? 0 : Math.round(size * 0.08) }} /> : (ini || <User size={Math.round(size * 0.42)} />)}
+    </div>
+    <button className="iconbtn photo-edit" title="Photo / logo" onClick={() => setMenu((m) => !m)}>{busy ? <RefreshCw size={13} className="spin" /> : <Camera size={13} />}</button>
+    {menu && (<><div onClick={close} style={{ position: "fixed", inset: 0, zIndex: 20 }} /><div className="photo-menu">
+      <button onClick={() => fileRef.current && fileRef.current.click()}><Upload size={15} /> Téléverser une image</button>
+      <button onClick={fromUrl}><Link2 size={15} /> Coller une URL d'image</button>
+      {enseigne ? <button onClick={auto} disabled={busy}><Sparkles size={15} /> {busy ? "Recherche…" : "Logo automatique (web)"}</button> : null}
+      {groupLogo && groupLogo !== value ? <button onClick={() => { onChange(groupLogo); close(); }}><ImageIcon size={15} /> Utiliser le logo du groupe</button> : null}
+      {value ? <button className="danger" onClick={() => { onChange(""); close(); }}><Trash2 size={15} /> Retirer la photo</button> : null}
+      {msg && <div className="photo-msg">{msg}</div>}
+    </div></>)}
+    <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) upload(f); e.target.value = ""; }} />
+  </div>);
+}
 const Stat = ({ label, value }) => (<div><div style={{ color: "var(--muted)", fontSize: 11.5, fontWeight: 600 }}>{label}</div><div className="pu-display tnum" style={{ fontSize: 18, marginTop: 2 }}>{value}</div></div>);
 // Options groupées (Groupes / Indépendants) pour les sélecteurs simples au niveau compte.
 function AccountOptions({ accounts = [] }) {
@@ -1289,6 +1367,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
     <button className="back" onClick={onBack}><ChevronLeft size={16} /> Retour aux groupes & établissements</button>
     <div className="card" style={{ marginBottom: 16, borderLeft: `4px solid ${col}` }}>
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <EntityPhoto value={s.photo || ""} onChange={(url) => saveSite({ ...s, photo: url })} initials={(s.label || "É").slice(0, 1).toUpperCase()} bg={col} size={64} enseigne={[s.label, acc && acc.enseigne, s.adresse].filter(Boolean).join(" ")} groupLogo={acc && acc.logo} fallback={acc && acc.logo} persistUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} />
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><svg width="22" height="22" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(tm.shape)} fill={col} stroke="#fff" strokeWidth={1.5} /></svg><h2 className="pu-display" style={{ margin: 0, fontSize: 22 }}>{s.label || "Établissement"}</h2><Badge color={s.type === "decision" ? "#7c5cf0" : "#F8B133"}>{s.type === "decision" ? "Siège" : "Établissement"}</Badge>{acc && <Badge color={st.color}>{st.label}</Badge>}</div>
           {grp && <div style={{ marginTop: 7, fontSize: 13 }}><span style={{ color: "var(--muted)" }}>Groupe : </span><span className="lnk" style={{ fontWeight: 700 }} onClick={() => onGoAccount(acc.id)}>{grp.enseigne}</span>{acc.code ? <span className="tnum" style={{ color: "var(--muted)" }}> · {acc.code}</span> : null}</div>}
@@ -1342,6 +1421,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   useEffect(() => { if (openSiteId) { setHlSite(openSiteId); if (sitesRef.current) { try { sitesRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {} } const t = setTimeout(() => setHlSite(null), 2600); return () => clearTimeout(t); } }, [openSiteId]);
   const fileRef = useRef(null);
   const saveSite = (site) => persist((p) => { const ex = p.sites.some((x) => x.id === site.id); return { ...p, sites: ex ? p.sites.map((x) => x.id === site.id ? site : x) : [...p.sites, site] }; });
+  const saveAccount = (patch) => persist((p) => ({ ...p, accounts: p.accounts.map((x) => x.id === a.id ? { ...x, ...patch } : x) }));
   const delSite = (id) => persist((p) => { const att = { ...(p.attachments || {}) }; delete att[id]; return ({ ...p, sites: p.sites.filter((x) => x.id !== id), contacts: (p.contacts || []).map((c) => c.siteId === id ? { ...c, siteId: "" } : c), deals: (p.deals || []).map((d) => { const nd = d.siteId === id ? { ...d, siteId: "" } : d; return nd.livraisonSiteId === id ? { ...nd, livraisonSiteId: "" } : nd; }), interactions: (p.interactions || []).map((i) => i.siteId === id ? { ...i, siteId: "" } : i), attachments: att }); });
   const newSite = (type) => ({ id: "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 5), accountId: a.id, label: a.enseigne ? a.enseigne + (type === "decision" ? ", siège" : " ") : "", type, adresse: "", lat: null, lng: null, siret: "", typeSurface: "", adresseLivraison: "", livraisonIdentique: true, contactId: "" });
   const addInteraction = (it) => persist((p) => ({ ...p, interactions: [...p.interactions, it] }));
@@ -1362,6 +1442,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
     <button className="back" onClick={onBack}><ChevronLeft size={16} /> Retour aux groupes & établissements</button>
     <div className="card" style={{ marginBottom: 16, borderLeft: `4px solid ${st.color}` }}>
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <EntityPhoto value={a.logo || ""} onChange={(url) => saveAccount({ logo: url })} initials={(a.enseigne || "?").slice(0, 1).toUpperCase()} bg={st.color} size={64} enseigne={[a.enseigne, a.ville].filter(Boolean).join(" ")} persistUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} />
         <div style={{ flex: 1, minWidth: 220 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><h2 className="pu-display" style={{ margin: 0, fontSize: 23 }}>{a.enseigne}</h2>{a.code && <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: ".04em", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 8, padding: "3px 9px", color: "var(--ink)" }} className="tnum">{a.code}</span>}<Badge color={st.color}>{st.label}</Badge>{isGroupe(a) ? <Badge color="#3F60AA">Groupe</Badge> : <Badge color="#7a8699">Établissement</Badge>}</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9 }}><Badge color={(NATURE_META[a.nature] || NATURE_META.DV).color}>{(NATURE_META[a.nature] || NATURE_META.DV).label}</Badge><Badge color={seg.color}>{seg.label}</Badge>{a.ville && <span style={{ color: "var(--muted)", fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={13} />{a.ville}</span>}</div>
           {(a.siren || a.formeJuridique) && <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><Building2 size={13} />{[a.formeJuridique, a.siren && ("SIREN " + a.siren)].filter(Boolean).join(" · ")}</div>}</div>
@@ -1547,7 +1628,7 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
   return (<div className="fade">
     <button className="back" onClick={onBack}><ChevronLeft size={16} /> Retour à l'annuaire</button>
     <div className="card" style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}><Avatar c={c} lg />
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}><EntityPhoto value={c.photo || ""} onChange={(url) => onSaveContact({ ...c, photo: url })} initials={initials(c)} bg={avColor(fullName(c))} round size={68} enseigne={[fullName(c), ens].filter(Boolean).join(" ")} groupLogo={account && account.logo} fallback={account && account.logo} persistUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} />
         <div style={{ flex: 1, minWidth: 200 }}><div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}><h2 className="pu-display" style={{ margin: 0, fontSize: 22 }}>{fullName(c)}</h2><button className="star" onClick={onTogglePrincipal}><Star size={18} fill={c.principal ? "var(--yellow)" : "none"} color={c.principal ? "var(--yellow)" : "var(--muted)"} /></button></div><div style={{ color: "var(--muted)", marginTop: 3 }}>{c.fonction || "—"} · <span className="lnk" onClick={onGoEnseigne}>{ens}</span></div><div style={{ marginTop: 9 }}><Badge color={rm.color}>{rm.label}</Badge></div></div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><a className="btn btn-g" href={linkedinSearch(c, ens)} target="_blank" rel="noreferrer"><Linkedin size={15} /> LinkedIn</a><button className="btn btn-g" onClick={enrichir} disabled={enr}><Sparkles size={15} className={enr ? "spin" : ""} /> {enr ? "Recherche…" : "Enrichir (web)"}</button><button className="btn btn-g" onClick={onEdit}><Pencil size={15} /></button><button className="btn btn-d" onClick={onDelete}><Trash2 size={15} /></button></div></div>
       {enrMsg && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>{enrMsg}</div>}
