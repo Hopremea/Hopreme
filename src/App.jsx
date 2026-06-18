@@ -849,6 +849,10 @@ const CSS = `
 .pu-root.dark .tbl tr:hover td{background:#1d2945;}
 /* Accessibilité : anneau de focus clavier visible (sans gêner la souris). */
 .nav button:focus-visible,.btn:focus-visible,.btn-save:focus-visible,.chip:focus-visible,.chip-all:focus-visible,.iconbtn:focus-visible,.zbtn:focus-visible,.star:focus-visible,.back:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px;}
+/* Squelettes de chargement (premier démarrage) */
+.skel{background:linear-gradient(90deg,var(--line) 25%,rgba(255,255,255,.55) 37%,var(--line) 63%);background-size:400% 100%;animation:shimmer 1.4s ease infinite;border-radius:10px;}
+.pu-root.dark .skel{background:linear-gradient(90deg,#222c44 25%,#2c3650 37%,#222c44 63%);background-size:400% 100%;}
+@keyframes shimmer{0%{background-position:100% 0;}100%{background-position:0 0;}}
 /* Accessibilité : respecte « réduire les animations » du système. */
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important;}}
 
@@ -3408,6 +3412,8 @@ export default function App() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [importMsg, setImportMsg] = useState(null);
   const [syncState, setSyncState] = useState("saved"); // saved | saving | remote | offline
+  const [loading, setLoading] = useState(true);
+  const coldStart = loading && (!data.accounts || data.accounts.length === 0);
   useEffect(() => {
     const off = () => setSyncState("offline"); const on = () => setSyncState("saved");
     window.addEventListener("offline", off); window.addEventListener("online", on);
@@ -3440,6 +3446,7 @@ export default function App() {
         if (!cancelled) { setData(restored); try { localStorage.setItem(KEY, JSON.stringify(restored)); } catch (e) { } }
         if (supabaseEnabled && supabase) { try { await supabase.from("cockpit_state").upsert({ id: "shared", data: restored, updated_at: new Date().toISOString() }, { onConflict: "id" }); } catch (e) { } }
       }
+      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -3564,7 +3571,14 @@ export default function App() {
         </div>
       </div>
       {importMsg && <div className="card" style={{ borderLeft: "4px solid var(--blue)", marginBottom: 14, fontSize: 13 }}>{importMsg}</div>}
-      {(!data.accounts || data.accounts.length === 0) && (
+      {coldStart && (
+        <div className="fade no-print" aria-busy="true" aria-label="Chargement…">
+          <div className="skel" style={{ height: 28, width: 220, marginBottom: 18 }} />
+          <div className="grid kpis" style={{ marginBottom: 16 }}>{Array.from({ length: 4 }).map((_, i) => <div key={i} className="card" style={{ height: 96 }}><div className="skel" style={{ height: 14, width: "55%", marginBottom: 12 }} /><div className="skel" style={{ height: 26, width: "40%" }} /></div>)}</div>
+          <div className="card" style={{ height: 240 }}><div className="skel" style={{ height: 16, width: 180, marginBottom: 14 }} /><div className="skel" style={{ height: 168, width: "100%" }} /></div>
+        </div>
+      )}
+      {!coldStart && (!data.accounts || data.accounts.length === 0) && (
         <div className="card no-print fade" style={{ marginBottom: 16, borderLeft: "4px solid var(--blue)", background: "linear-gradient(180deg,#ffffff, var(--blue-l))" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}><Sparkles size={20} style={{ color: "var(--orange)" }} /><h3 className="pu-display" style={{ margin: 0, fontSize: 18 }}>Bienvenue dans MITMIT</h3></div>
           <p style={{ margin: "0 0 14px", color: "var(--muted)", fontSize: 13.5, lineHeight: 1.55 }}>Votre poste de pilotage commercial & logistique. Pour démarrer, choisissez une option :</p>
@@ -3575,7 +3589,7 @@ export default function App() {
           </div>
         </div>
       )}
-      <div className="print-area">
+      <div className="print-area" style={coldStart ? { display: "none" } : undefined}>
       {tab === "dash" && <Dashboard key={"dash-" + navKey} data={data} go={go} />}
       {tab === "performance" && <Performance key={"performance-" + navKey} data={data} go={go} />}
       {tab === "stats" && <Statistiques key={"stats-" + navKey} data={data} />}
