@@ -156,6 +156,8 @@ function assignClientCodes(accounts) {
   });
 }
 const INT_META = { email: { label: "Courriel", color: "#5b8def", icon: Mail }, appel: { label: "Appel", color: "#2bb673", icon: Phone }, rdv: { label: "RDV", color: "#7c5cf0", icon: Calendar }, note: { label: "Note", color: "#9aa6bd", icon: Pencil } };
+// Sujets d'échange proposés (liste déroulante) — la saisie libre reste possible.
+const SUJET_PRESETS = ["Prise de contact", "Présentation de la gamme", "Présentation des nouveautés", "Demande de devis", "Envoi de devis", "Relance devis", "Négociation tarifaire", "Conditions commerciales", "Référencement", "Prise de commande", "Suivi de commande", "Livraison", "Réassort", "Point de suivi", "Prise de rendez-vous", "Compte rendu de rendez-vous", "Réclamation / SAV", "Remerciements"];
 const SAV_CANAL = { livraison: "Livraison", produit: "Produit", client: "Client final", autre: "Autre" };
 const SAV_STATUT = { ouvert: { label: "Ouvert", color: "#FF5A45" }, en_cours: { label: "En cours", color: "#F8B133" }, resolu: { label: "Résolu", color: "#2bb673" }, clos: { label: "Clos", color: "#9aa6bd" } };
 const SAV_GRAV = { mineur: { label: "Mineur", color: "#9aa6bd" }, majeur: { label: "Majeur", color: "#F8B133" }, critique: { label: "Critique", color: "#CD2A24" } };
@@ -1509,7 +1511,7 @@ function AccountInteractionForm({ contactId, accountId, contacts, onCancel, onSa
   return (<>
     <div className="row2"><div className="fld"><label>Type</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{Object.entries(INT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div></div>
     <div className="row2"><div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option></select></div><div className="fld"><label>Contact</label><select value={f.contactId} onChange={(e) => up("contactId", e.target.value)}><option value="">Aucun précis</option>{contacts.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></div></div>
-    <div className="fld"><label>Sujet</label><input value={f.sujet} onChange={(e) => up("sujet", e.target.value)} placeholder="Objet de l'échange" /></div>
+    <div className="fld"><label>Sujet</label><Combo value={f.sujet} onChange={(v) => up("sujet", v)} options={SUJET_PRESETS} placeholder="Choisir ou saisir l'objet de l'échange" /></div>
     <div className="fld"><label>Résumé</label><textarea rows={3} value={f.resume} onChange={(e) => up("resume", e.target.value)} placeholder="Points clés, décisions, prochaines étapes" /></div>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><button className="btn btn-ghost" onClick={onCancel}>Annuler</button><button className="btn btn-p" onClick={() => onSave(f)} disabled={!f.sujet}>Enregistrer</button></div>
   </>);
@@ -1682,7 +1684,7 @@ function InteractionForm({ accountId, contactId, onSave }) {
   return (<>
     <div className="row2"><div className="fld"><label>Type</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{Object.entries(INT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>{showDir ? <div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option></select></div> : <div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div>}</div>
     {showDir && <div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div>}
-    <div className="fld"><label>Sujet</label><input value={f.sujet} onChange={(e) => up("sujet", e.target.value)} /></div>
+    <div className="fld"><label>Sujet</label><Combo value={f.sujet} onChange={(v) => up("sujet", v)} options={SUJET_PRESETS} placeholder="Choisir ou saisir l'objet de l'échange" /></div>
     <div className="fld"><label>Résumé</label><textarea rows={4} value={f.resume} onChange={(e) => up("resume", e.target.value)} /></div>
     <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="btn btn-p" onClick={() => onSave(f)} disabled={!f.sujet}>Enregistrer</button></div>
   </>);
