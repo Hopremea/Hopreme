@@ -3397,6 +3397,13 @@ export default function App() {
   const [tab, setTab] = useState("dash"); const [focus, setFocus] = useState(null); const [navKey, setNavKey] = useState(0);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [importMsg, setImportMsg] = useState(null);
+  const [syncState, setSyncState] = useState("saved"); // saved | saving | remote | offline
+  useEffect(() => {
+    const off = () => setSyncState("offline"); const on = () => setSyncState("saved");
+    window.addEventListener("offline", off); window.addEventListener("online", on);
+    if (typeof navigator !== "undefined" && navigator.onLine === false) setSyncState("offline");
+    return () => { window.removeEventListener("offline", off); window.removeEventListener("online", on); };
+  }, []);
   const fileImportRef = useRef(null);
   const saveTimer = useRef(null);
   const lastSyncAt = useRef(null);    // updated_at de la dernière version appliquée/écrite : ignore nos propres échos.
@@ -3433,11 +3440,11 @@ export default function App() {
       try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) { }
       if (supabaseEnabled && supabase) {
         if (saveTimer.current) clearTimeout(saveTimer.current);
-        pendingWrite.current = true;
+        pendingWrite.current = true; setSyncState("saving");
         saveTimer.current = setTimeout(() => {
           const ts = new Date().toISOString();
           supabase.from("cockpit_state").upsert({ id: "shared", data: next, updated_at: ts }, { onConflict: "id" })
-            .then(() => { lastSyncAt.current = ts; pendingWrite.current = false; saveTimer.current = null; }, () => { pendingWrite.current = false; saveTimer.current = null; });
+            .then(() => { lastSyncAt.current = ts; pendingWrite.current = false; saveTimer.current = null; setSyncState("saved"); }, () => { pendingWrite.current = false; saveTimer.current = null; setSyncState("offline"); });
         }, 800);
       }
       return next;
@@ -3457,6 +3464,7 @@ export default function App() {
         const merged = normalize(row.data);
         setData(merged);
         try { localStorage.setItem(KEY, JSON.stringify(merged)); } catch (e) { }
+        setSyncState("remote"); setTimeout(() => setSyncState((s) => s === "remote" ? "saved" : s), 2600);
       })
       .subscribe();
     return () => { try { supabase.removeChannel(ch); } catch (e) { } };
@@ -3514,6 +3522,11 @@ export default function App() {
       <div className="topbar">
         <div><h2 className="pu-display">{meta.title}</h2><p>{meta.sub}</p></div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {(() => {
+            const SS = { saving: { l: "Enregistrement…", c: "#a06a06", I: RefreshCw }, saved: { l: supabaseEnabled ? "Synchronisé" : "Enregistré", c: "#1d8956", I: CheckCircle2 }, remote: { l: "Mis à jour par un collègue", c: "var(--blue)", I: Users }, offline: { l: "Hors ligne", c: "var(--red)", I: AlertTriangle } };
+            const m = SS[syncState] || SS.saved; const Ic = m.I;
+            return <span title="État de la synchronisation des données" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: m.c, background: m.c + "14", border: "1px solid " + m.c + "33", borderRadius: 20, padding: "5px 10px", whiteSpace: "nowrap" }}><Ic size={13} className={syncState === "saving" ? "spin" : undefined} />{m.l}</span>;
+          })()}
           <button className="btn btn-ghost btn-s" onClick={() => setCmdkOpen(true)} title="Recherche (Ctrl/Cmd+K)"><Search size={15} /> Rechercher <span style={{ fontSize: 10, opacity: .6, marginLeft: 4 }}>⌘K</span></button>
           <button className="btn btn-ghost btn-s" onClick={exportAll} title="Exporter toutes les données"><Download size={15} /> Sauvegarde</button>
           <input ref={fileImportRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) importAll(f); e.target.value = ""; }} />
