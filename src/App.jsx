@@ -2994,16 +2994,18 @@ function PipelineKanban({ data, persist, go, embedded }) {
   const moveDeal = (dealId, newStatut) => persist((p) => ({ ...p, deals: p.deals.map((d) => d.id === dealId ? { ...d, statut: newStatut } : d) }));
   const totalBy = (st) => data.deals.filter((d) => d.statut === st).reduce((s, d) => s + (d.montant || 0), 0);
   const cntBy = (st) => data.deals.filter((d) => d.statut === st).length;
-  const onDragStart = (e, id) => { e.dataTransfer.setData("text/plain", id); e.dataTransfer.effectAllowed = "move"; };
-  const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
-  const onDrop = (e, st) => { e.preventDefault(); const id = e.dataTransfer.getData("text/plain"); if (id) moveDeal(id, st); };
+  const [dragId, setDragId] = useState(null); const [dragCol, setDragCol] = useState(null);
+  const onDragStart = (e, id) => { e.dataTransfer.setData("text/plain", id); e.dataTransfer.effectAllowed = "move"; setDragId(id); };
+  const onDragEnd = () => { setDragId(null); setDragCol(null); };
+  const onDragOver = (e, st) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (st && st !== dragCol) setDragCol(st); };
+  const onDrop = (e, st) => { e.preventDefault(); const id = e.dataTransfer.getData("text/plain") || dragId; setDragId(null); setDragCol(null); if (id) moveDeal(id, st); };
   return (<div className={embedded ? "" : "fade"}>
     {!embedded && <div className="card" style={{ marginBottom: 14, borderLeft: "4px solid var(--blue)", fontSize: 13, lineHeight: 1.55 }}>Glissez les fiches deals entre les colonnes pour faire évoluer l'étape. Pipeline total visible en haut de chaque colonne.</div>}
     <div className="kan kan-deals">
-      {STAGES_K.map((s) => (<div key={s.id} className="col" onDragOver={onDragOver} onDrop={(e) => onDrop(e, s.id)}>
+      {STAGES_K.map((s) => (<div key={s.id} className="col" onDragOver={(e) => onDragOver(e, s.id)} onDrop={(e) => onDrop(e, s.id)} style={dragCol === s.id && dragId ? { background: s.color + "1f", outline: `2px dashed ${s.color}`, outlineOffset: -2 } : undefined}>
         <div className="col-h"><i className="dot" style={{ background: s.color }} />{s.label}<span className="cnt">{cntBy(s.id)} · {eur(totalBy(s.id))}</span></div>
         {data.deals.filter((d) => d.statut === s.id).sort((a, b) => (b.date || "").localeCompare(a.date || "")).map((d) => { const a = accOf(d.accountId); return (
-          <div key={d.id} className="deal-card" draggable onDragStart={(e) => onDragStart(e, d.id)} onClick={() => go("deals", d.id)} style={{ borderLeft: `4px solid ${s.color}` }}>
+          <div key={d.id} className="deal-card" draggable onDragStart={(e) => onDragStart(e, d.id)} onDragEnd={onDragEnd} onClick={() => go("deals", d.id)} style={{ borderLeft: `4px solid ${s.color}`, opacity: dragId === d.id ? 0.4 : 1, cursor: "grab" }}>
             <h5>{d.ref || d.type}</h5>
             <div className="deal-meta"><Building2 size={11} />{a ? a.enseigne : "—"}</div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
