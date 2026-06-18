@@ -3400,6 +3400,7 @@ export default function App() {
   const [data, setData] = useState(() => normalize(emptyData()));
   const [tab, setTab] = useState("dash"); const [focus, setFocus] = useState(null); const [navKey, setNavKey] = useState(0);
   const [cmdkOpen, setCmdkOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [importMsg, setImportMsg] = useState(null);
   const [syncState, setSyncState] = useState("saved"); // saved | saving | remote | offline
   useEffect(() => {
@@ -3497,14 +3498,23 @@ export default function App() {
       setTimeout(() => setImportMsg(null), 4000);
     } catch (e) { setImportMsg("Échec de l'import : " + (e.message || "fichier invalide")); setTimeout(() => setImportMsg(null), 5000); }
   };
-  // Raccourci Cmd/Ctrl+K
+  // Raccourcis clavier : ⌘/Ctrl+K (recherche), « / » (recherche), « ? » (aide),
+  // et navigation type Gmail « g puis lettre » (g d = Devis, g e = Établissements…).
   useEffect(() => {
+    let gActive = false; let gTimer = null;
+    const GKEYS = { t: "dash", e: "accounts", r: "repertoire", p: "prospection", d: "deals", a: "agenda", s: "stock", c: "carte", l: "calc", v: "sav", o: "reassort" };
     const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setCmdkOpen((v) => !v); }
-      if (e.key === "Escape") setCmdkOpen(false);
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setCmdkOpen((v) => !v); return; }
+      if (e.key === "Escape") { setCmdkOpen(false); setHelpOpen(false); gActive = false; return; }
+      const tag = (e.target && e.target.tagName) || ""; const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target && e.target.isContentEditable);
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "/") { e.preventDefault(); setCmdkOpen(true); return; }
+      if (e.key === "?") { e.preventDefault(); setHelpOpen((v) => !v); return; }
+      if (e.key === "g" || e.key === "G") { gActive = true; clearTimeout(gTimer); gTimer = setTimeout(() => { gActive = false; }, 1200); return; }
+      if (gActive) { gActive = false; const t = GKEYS[e.key.toLowerCase()]; if (t) { e.preventDefault(); setTab(t); setFocus(null); setNavKey((k) => k + 1); } }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", onKey); clearTimeout(gTimer); };
   }, []);
   const counts = useMemo(() => {
     const stockAl = data.products.filter((p) => statusOf(p) !== "ok").length;
@@ -3520,7 +3530,7 @@ export default function App() {
     <aside className="sb">
       <div className="brand"><img src={LOGO_DATA_URI} alt="PEN'UP 3D" /><div className="brand-accent" /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><small style={{ letterSpacing: ".12em" }}>MITMIT · Poste de pilotage B2B</small><span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600, lineHeight: 1.3, textTransform: "none", letterSpacing: 0 }} title="Le petit nom du cockpit">Module Intégré de Traitement, Marges, Inventaire &amp; Tarification</span></div></div>
       <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { setTab(t.id); setFocus(null); setNavKey((k) => k + 1); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
-      <div className="sb-foot">PEN'UP 3D, SAS · Montauban<br />Données locales à cet appareil.</div>
+      <div className="sb-foot">PEN'UP 3D, SAS · Montauban<br />Données locales à cet appareil.<br /><span className="lnk" style={{ fontSize: 11 }} onClick={() => setHelpOpen(true)}>⌨ Raccourcis clavier</span></div>
     </aside>
     <main className="main">
       <div className="topbar">
@@ -3563,6 +3573,16 @@ export default function App() {
       </div>
     </main>
     {cmdkOpen && <SearchPalette data={data} onClose={() => setCmdkOpen(false)} onPick={(target) => { setCmdkOpen(false); go(target.tab, target.id); }} />}
+    {helpOpen && <Modal title="Raccourcis clavier" onClose={() => setHelpOpen(false)}>
+      {(() => { const Kbd = ({ children }) => <kbd style={{ fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 6, padding: "2px 7px", color: "var(--ink)", whiteSpace: "nowrap" }}>{children}</kbd>;
+        const Row = ({ keys, label }) => <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--line)" }}><span style={{ fontSize: 13 }}>{label}</span><span style={{ display: "inline-flex", gap: 5, flexShrink: 0 }}>{keys.map((k, i) => <Kbd key={i}>{k}</Kbd>)}</span></div>;
+        return (<div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>Recherche & aide</div>
+          <Row keys={["⌘/Ctrl", "K"]} label="Recherche globale" /><Row keys={["/"]} label="Recherche globale" /><Row keys={["?"]} label="Afficher cette aide" /><Row keys={["Échap"]} label="Fermer une fenêtre" />
+          <div style={{ fontSize: 12, color: "var(--muted)", margin: "14px 0 6px" }}>Navigation — appuyez sur <Kbd>G</Kbd> puis…</div>
+          <Row keys={["G", "T"]} label="Tableau de bord" /><Row keys={["G", "E"]} label="Groupes & établissements" /><Row keys={["G", "R"]} label="Répertoire" /><Row keys={["G", "P"]} label="Prospection" /><Row keys={["G", "D"]} label="Devis & commandes" /><Row keys={["G", "A"]} label="Agenda" /><Row keys={["G", "C"]} label="Carte" /><Row keys={["G", "S"]} label="Stock" /><Row keys={["G", "O"]} label="Réassort" /><Row keys={["G", "V"]} label="SAV" /><Row keys={["G", "L"]} label="Calculateurs" />
+        </div>); })()}
+    </Modal>}
     <Assistant data={data} persist={persist} go={go} />
   </div>);
 }
