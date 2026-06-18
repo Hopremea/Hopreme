@@ -763,7 +763,7 @@ const CSS = `
 .devis-doc th{background:#f4f6fb;text-align:left;padding:9px 10px;font-size:11px;text-transform:uppercase;color:#6b7589;border-bottom:2px solid var(--blue);}
 .devis-doc td{padding:9px 10px;border-bottom:1px solid #eef1f7;}
 .lnk{color:var(--blue);font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:4px;}.lnk:hover{text-decoration:underline;}
-.mapwrap{position:relative;background:linear-gradient(180deg,#f7fafe,#eef3fb);border:1px solid var(--line);border-radius:18px;overflow:hidden;}
+.mapwrap{position:relative;background:linear-gradient(180deg,#f7fafe,#eef3fb);border:1px solid var(--line);border-radius:18px;overflow:hidden;isolation:isolate;}
 .ping{cursor:pointer;}
 .ping .halo{transform-origin:center;animation:halo 2.2s ease-out infinite;}
 @keyframes halo{0%{r:6;opacity:.5;}100%{r:20;opacity:0;}}
