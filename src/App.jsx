@@ -2246,7 +2246,7 @@ function Carte({ data, persist, go, focus }) {
   const accOf = (id) => accounts.find((x) => x.id === id);
   const placed = sites.filter((s) => s.lat && s.lng);
   const [sel, setSel] = useState(placed[0]?.id || null); const [edit, setEdit] = useState(null);
-  const [filtEns, setFiltEns] = useState([]); const [filtCat, setFiltCat] = useState([]);
+  const [filtSurf, setFiltSurf] = useState([]); const [filtCat, setFiltCat] = useState([]);
   const [useOSRM, setUseOSRM] = useState(false);
   const [osrmCache, setOsrmCache] = useState({});
   const mapEl = useRef(null); const mapInst = useRef(null); const markersLayer = useRef(null); const routesLayer = useRef(null);
@@ -2268,7 +2268,9 @@ function Carte({ data, persist, go, focus }) {
   const tog = (arr, set, val) => set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
   // Catégorie de rattachement : « groupe » si le compte parent est un groupe (sièges + magasins rattachés), sinon « indépendant ».
   const siteCat = (st) => isGroupe(accOf(st.accountId)) ? "groupe" : "independant";
-  const visible = (st) => st.type === "penup" || st.type === "entrepot" || st.type === "usine" ? true : (filtEns.length === 0 || filtEns.includes(st.accountId)) && (filtCat.length === 0 || filtCat.includes(siteCat(st)));
+  const visible = (st) => st.type === "penup" || st.type === "entrepot" || st.type === "usine" ? true : (filtSurf.length === 0 || filtSurf.includes(st.typeSurface || "")) && (filtCat.length === 0 || filtCat.includes(siteCat(st)));
+  // Types de surface réellement présents parmi les sites placés (hors sites internes PEN'UP), dans l'ordre canonique.
+  const usedSurfaces = TYPE_SURFACE.filter((t) => placed.some((st) => st.typeSurface === t && !(st.type === "penup" || st.type === "entrepot" || st.type === "usine")));
   const shown = placed.filter(visible); const visibleIds = new Set(shown.map((x) => x.id));
   const entrepot = placed.find((x) => x.type === "entrepot");
   const routes = entrepot ? data.deals.filter((d) => d.statut === "expediee" && d.livraisonSiteId).map((d) => { const dest = placed.find((x) => x.id === d.livraisonSiteId); return dest && visibleIds.has(dest.id) ? { d, dest } : null; }).filter(Boolean) : [];
@@ -2364,7 +2366,7 @@ function Carte({ data, persist, go, focus }) {
   return (<div className="fade">
     <div className="card" style={{ marginBottom: 14, borderLeft: "4px solid var(--blue)" }}><div style={{ display: "flex", gap: 12, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" }}><div style={{ fontSize: 13, lineHeight: 1.55, flex: 1, minWidth: 240 }}>La <strong>couleur</strong> indique le groupe / établissement, la <strong>forme</strong> le type d'établissement. Zoomez à la molette ou avec les boutons, déplacez en glissant. Une <strong>ligne pointillée animée</strong> relie l'entrepôt à un établissement quand une commande est en cours de livraison ; un badge indique le nombre de commandes simultanées vers la même destination.</div><div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}><button className="btn btn-p btn-s" onClick={() => setEdit({ id: "s_" + Date.now(), accountId: accounts[0]?.id || null, label: "", type: "pdv", adresse: "", lat: null, lng: null, siret: "", typeSurface: "", adresseLivraison: "", livraisonIdentique: true, contactId: "" })}><Plus size={15} /> Ajouter un site</button><label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600 }}><input type="checkbox" checked={useOSRM} onChange={(e) => setUseOSRM(e.target.checked)} style={{ width: 14, height: 14 }} />Itinéraires réels (OSRM)</label></div></div></div>
     <div className="filtbar">
-      <div className="grp"><span className="lbl">Groupes / établissements</span><AllChip active={filtEns.length === 0} onClick={() => setFiltEns([])}>Toutes</AllChip>{usedAccounts.map((a) => <button key={a.id} className={cx("chip", filtEns.includes(a.id) && "on")} onClick={() => tog(filtEns, setFiltEns, a.id)} style={filtEns.includes(a.id) ? { background: enseigneColor(a), borderColor: enseigneColor(a) } : { borderLeft: `4px solid ${enseigneColor(a)}` }}>{a.enseigne}</button>)}</div>
+      <div className="grp"><span className="lbl">Type de surface</span><AllChip active={filtSurf.length === 0} onClick={() => setFiltSurf([])}>Toutes</AllChip>{usedSurfaces.map((t) => { const col = SURFACE_COLOR[t] || "#9aa6bd"; return <button key={t} className={cx("chip", filtSurf.includes(t) && "on")} onClick={() => tog(filtSurf, setFiltSurf, t)} style={filtSurf.includes(t) ? { background: col, borderColor: col, color: onColor(col) } : { borderLeft: `4px solid ${col}` }}>{t}</button>; })}</div>
       <div className="grp"><span className="lbl">Rattachement</span><AllChip active={filtCat.length === 0} onClick={() => setFiltCat([])}>Tous</AllChip><button className={cx("chip", filtCat.includes("groupe") && "on")} onClick={() => tog(filtCat, setFiltCat, "groupe")}>Groupe</button><button className={cx("chip", filtCat.includes("independant") && "on")} onClick={() => tog(filtCat, setFiltCat, "independant")}>Indépendant</button></div>
       <span style={{ fontSize: 11, color: "var(--muted)" }}>Siège PEN'UP et entrepôt restent toujours affichés.</span>
     </div>
