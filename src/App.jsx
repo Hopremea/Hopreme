@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import LF from "leaflet";
-import "leaflet/dist/leaflet.css";
 import {
   LayoutDashboard, Building2, FileText, Boxes, Plug, Plus, X, Search,
   TrendingUp, BarChart3, AlertTriangle, CheckCircle2, Upload, Pencil, Calendar,
@@ -2123,6 +2121,14 @@ function Carte({ data, persist, go, focus }) {
   const [osrmCache, setOsrmCache] = useState({});
   const mapEl = useRef(null); const mapInst = useRef(null); const markersLayer = useRef(null); const routesLayer = useRef(null);
   const [mapReady, setMapReady] = useState(false);
+  const [LF, setLF] = useState(null);
+  // Leaflet (≈ 150 Ko) est chargé à la demande, uniquement à l'ouverture de la carte :
+  // il n'alourdit donc pas le démarrage des autres onglets.
+  useEffect(() => {
+    let on = true;
+    Promise.all([import("leaflet"), import("leaflet/dist/leaflet.css")]).then(([mod]) => { if (on) setLF(mod.default || mod); }).catch(() => { });
+    return () => { on = false; };
+  }, []);
   // Recentrage depuis la liste latérale ou la navigation : vole vers le site sélectionné.
   const selectSite = (s) => { setSel(s.id); if (s.lat == null || s.lng == null || !mapInst.current) return; const zz = Math.max(mapInst.current.getZoom(), 12); mapInst.current.flyTo([s.lat, s.lng], zz, { duration: 0.6 }); };
   const s = sites.find((x) => x.id === sel); const sAcc = s ? accOf(s.accountId) : null; const tmeta = s ? SITE_TYPES[s.type] : null;
@@ -2157,7 +2163,7 @@ function Carte({ data, persist, go, focus }) {
   // Initialisation de la carte satellite (Leaflet + imagerie Esri World Imagery, libre).
   // La couche « Boundaries & Places » ajoute les noms de villes/pays par-dessus (rendu hybride type Google).
   useEffect(() => {
-    if (!mapEl.current || mapInst.current) return;
+    if (!LF || !mapEl.current || mapInst.current) return;
     const map = LF.map(mapEl.current, { zoomControl: false, attributionControl: true, worldCopyJump: true, wheelPxPerZoomLevel: 120, wheelDebounceTime: 25 }).setView([46.6, 2.4], 6);
     LF.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, maxNativeZoom: 19, attribution: "Imagerie © Esri, Maxar, Earthstar Geographics" }).addTo(map);
     LF.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, maxNativeZoom: 19 }).addTo(map);
@@ -2171,7 +2177,7 @@ function Carte({ data, persist, go, focus }) {
     if (pts.length === 1) map.setView(pts[0], 12); else if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
     setMapReady(true);
     return () => { try { map.remove(); } catch (e) { } mapInst.current = null; markersLayer.current = null; routesLayer.current = null; setMapReady(false); };
-  }, []);
+  }, [LF]);
   // Marqueurs : un divIcon SVG par site (forme = type, couleur = enseigne), surbrillance + étiquette sur le sélectionné.
   const markerKey = useMemo(() => shown.map((p) => p.id + ":" + p.lat + ":" + p.lng + ":" + siteColor(p, accOf(p.accountId))).join("|") + "#" + sel, [shown, sel]);
   useEffect(() => {
@@ -2217,6 +2223,7 @@ function Carte({ data, persist, go, focus }) {
       <div>
         <div className="mapwrap" style={{ aspectRatio: `${MAP_VBW} / ${MAP_VBH}` }}>
           <div ref={mapEl} style={{ position: "absolute", inset: 0 }} />
+          {!mapReady && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--muted)", fontSize: 13, fontWeight: 600, gap: 8, zIndex: 5, pointerEvents: "none" }}><RefreshCw size={18} className="spin" /> Chargement de la carte…</div>}
           <div className="zoomctl" style={{ right: "auto", left: 12 }}>
             <button className="zbtn" title="Recadrer sur tous les sites" onClick={() => { const pts = sites.filter((p) => p.lat && p.lng).map((p) => [p.lat, p.lng]); if (!mapInst.current) return; if (pts.length === 1) mapInst.current.setView(pts[0], 12); else if (pts.length > 1) mapInst.current.fitBounds(pts, { padding: [40, 40], maxZoom: 13 }); }} style={{ fontSize: 15 }}>⤢</button>
           </div>

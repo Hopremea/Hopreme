@@ -13,6 +13,7 @@ export default defineConfig({
           if (id.includes("node_modules")) {
             if (id.includes("recharts") || id.includes("d3-") || id.includes("/d3/")) return "charts";
             if (id.includes("xlsx")) return "xlsx";
+            if (id.includes("leaflet")) return "leaflet"; // chargé à la demande (onglet Carte)
             return "vendor";
           }
         },
