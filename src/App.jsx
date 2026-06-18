@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import LF from "leaflet";
+import "leaflet/dist/leaflet.css";
 import {
   LayoutDashboard, Building2, FileText, Boxes, Plug, Plus, X, Search,
   TrendingUp, BarChart3, AlertTriangle, CheckCircle2, Upload, Pencil, Calendar,
@@ -769,6 +771,18 @@ const CSS = `
 .seg-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
 .route{vector-effect:non-scaling-stroke;stroke-dasharray:1.4 4.2;stroke-linecap:round;animation:dash 5s linear infinite;}
 @keyframes dash{to{stroke-dashoffset:-11.2;}}
+/* Carte satellite (Leaflet) */
+.leaflet-container{height:100%;width:100%;background:#0b1a2b;font:inherit;}
+.mapwrap .leaflet-control-zoom{border:none;box-shadow:0 2px 8px rgba(20,32,58,.25);}
+.mapwrap .leaflet-control-zoom a{border-radius:9px!important;color:var(--ink);font-weight:800;}
+.mapwrap .leaflet-bar a{background:#fff;}
+.site-marker{background:transparent;border:none;}
+.site-marker .halo{transform-origin:center;animation:halo 2.2s ease-out infinite;}
+.site-tip{background:rgba(20,32,58,.92);color:#fff;border:none;border-radius:7px;font-weight:700;font-size:11px;box-shadow:0 2px 6px rgba(0,0,0,.45);padding:2px 8px;}
+.site-tip::before{display:none;}
+.route-badge{background:transparent;border:none;}
+.lroute{stroke-linecap:round;stroke-dasharray:7 9;animation:ldash 1s linear infinite;}
+@keyframes ldash{to{stroke-dashoffset:-16;}}
 .zoomctl{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:6px;z-index:4;}
 .zbtn{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;cursor:pointer;color:var(--ink);box-shadow:0 2px 6px rgba(20,32,58,.12);font-weight:800;}
 .zbtn:hover{border-color:var(--blue);color:var(--blue);}
@@ -2105,45 +2119,12 @@ function Carte({ data, persist, go, focus }) {
   const placed = sites.filter((s) => s.lat && s.lng);
   const [sel, setSel] = useState(placed[0]?.id || null); const [edit, setEdit] = useState(null);
   const [filtEns, setFiltEns] = useState([]); const [filtTypes, setFiltTypes] = useState([]);
-  const [view, setView] = useState(MAP_VIEW_EUROPE);
   const [useOSRM, setUseOSRM] = useState(false);
   const [osrmCache, setOsrmCache] = useState({});
-  const svgRef = useRef(null); const drag = useRef(null);
-  useEffect(() => { if (focus && focus.id) { const byId = sites.find((s) => s.id === focus.id); const target = byId || sites.find((s) => s.accountId === focus.id && s.lat != null); if (target) { setSel(target.id); if (target.lat != null && target.lng != null) { const { x, y } = mapProject(target.lng, target.lat); const w = 90; const h = w * (MAP_VBH / MAP_VBW); setView({ x: Math.min(Math.max(0, x - w / 2), MAP_VBW - w), y: Math.min(Math.max(0, y - h / 2), MAP_VBH - h), w, h }); } } } }, [focus && focus.n]);
-  const clampView = (v) => { let w = Math.min(MAP_VBW, Math.max(4, v.w)); const h = w * (MAP_VBH / MAP_VBW); let x = Math.min(Math.max(0, v.x), MAP_VBW - w); let y = Math.min(Math.max(0, v.y), MAP_VBH - h); return { x, y, w, h }; };
-  const zoomAt = (factor, fx, fy) => setView((v) => { let w = v.w * factor; w = Math.min(MAP_VBW, Math.max(4, w)); const h = w * (MAP_VBH / MAP_VBW); return clampView({ x: v.x + (v.w - w) * fx, y: v.y + (v.h - h) * fy, w, h }); });
-  // Molette : zoom proportionnel à la DISTANCE de défilement, pas au nombre d'événements
-  // (une souris/pavé peut émettre des dizaines d'événements par cran, ce qui faisait
-  // exploser le zoom). Normalisé par deltaMode + borné à un cran : 1 cran ≈ ×10.
-  useEffect(() => {
-    const el = svgRef.current; if (!el) return;
-    const onWheel = (e) => {
-      e.preventDefault();
-      let d = e.deltaY;
-      if (e.deltaMode === 1) d *= 33;                        // défilement en lignes → pixels
-      else if (e.deltaMode === 2) d *= el.clientHeight;      // en pages → pixels
-      d = Math.max(-100, Math.min(100, d));                  // un seul événement ne dépasse pas un cran
-      const r = el.getBoundingClientRect();
-      const factor = Math.exp(d * 0.02303);                  // |d| = 100 px ⇒ ×10 (zoom in si d < 0)
-      zoomAt(factor, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
-  const onDown = (e) => { drag.current = { px: e.clientX, py: e.clientY, v: { ...view } }; e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId); };
-  const onMove = (e) => { if (!drag.current) return; const r = svgRef.current.getBoundingClientRect(); const dx = (e.clientX - drag.current.px) / r.width * drag.current.v.w; const dy = (e.clientY - drag.current.py) / r.height * drag.current.v.h; setView(clampView({ ...drag.current.v, x: drag.current.v.x - dx, y: drag.current.v.y - dy })); };
-  // Sélection depuis la liste latérale : recentre si le site est hors-vue
-  const selectSite = (s) => { setSel(s.id); if (s.lat == null || s.lng == null) return; const { x, y } = mapProject(s.lng, s.lat); const m = 6; const out = x < view.x + m || x > view.x + view.w - m || y < view.y + m || y > view.y + view.h - m; if (out) { const w = Math.max(40, Math.min(view.w, 100)); const h = w * (MAP_VBH / MAP_VBW); setView(clampView({ x: x - w / 2, y: y - h / 2, w, h })); } };
-  const onUp = () => { drag.current = null; };
-  const z = view.w / MAP_VBW;
-  // Niveau de zoom (×1 = monde entier) et échelle de distance approximative au centre de la vue.
-  const zoomLevel = MAP_VBW / view.w;
-  const centerLat = MAP_LATMAX - ((view.y + view.h / 2) - MAP_M) / MAP_SCALE;
-  const kmPerUnitX = (1 / MAP_SCALE) * 111.32 * Math.max(0.1, Math.cos(centerLat * Math.PI / 180));
-  const rawKm = view.w * 0.2 * kmPerUnitX;
-  const niceKm = (() => { const r = rawKm > 0 ? rawKm : 1; const p = Math.pow(10, Math.floor(Math.log10(r))); const f = r / p; return (f >= 5 ? 5 : f >= 2 ? 2 : 1) * p; })();
-  const scaleBarPct = Math.max(4, (niceKm / kmPerUnitX) / view.w * 100);
-  const scaleLabel = niceKm >= 1 ? (Number.isInteger(niceKm) ? niceKm : niceKm.toFixed(1)) + " km" : Math.round(niceKm * 1000) + " m";
+  const mapEl = useRef(null); const mapInst = useRef(null); const markersLayer = useRef(null); const routesLayer = useRef(null);
+  const [mapReady, setMapReady] = useState(false);
+  // Recentrage depuis la liste latérale ou la navigation : vole vers le site sélectionné.
+  const selectSite = (s) => { setSel(s.id); if (s.lat == null || s.lng == null || !mapInst.current) return; const zz = Math.max(mapInst.current.getZoom(), 12); mapInst.current.flyTo([s.lat, s.lng], zz, { duration: 0.6 }); };
   const s = sites.find((x) => x.id === sel); const sAcc = s ? accOf(s.accountId) : null; const tmeta = s ? SITE_TYPES[s.type] : null;
   const saveSite = (site) => persist((p) => { const ex = p.sites.some((x) => x.id === site.id); return { ...p, sites: ex ? p.sites.map((x) => x.id === site.id ? site : x) : [...p.sites, site] }; });
   const delSite = (id) => { persist((p) => { const att = { ...(p.attachments || {}) }; delete att[id]; return ({ ...p, sites: p.sites.filter((x) => x.id !== id), contacts: (p.contacts || []).map((c) => c.siteId === id ? { ...c, siteId: "" } : c), deals: (p.deals || []).map((d) => { const nd = d.siteId === id ? { ...d, siteId: "" } : d; return nd.livraisonSiteId === id ? { ...nd, livraisonSiteId: "" } : nd; }), interactions: (p.interactions || []).map((i) => i.siteId === id ? { ...i, siteId: "" } : i), attachments: att }); }); if (sel === id) setSel(null); };
@@ -2173,12 +2154,58 @@ function Carte({ data, persist, go, focus }) {
     routes.forEach((r) => { (m[r.dest.id] = m[r.dest.id] || []).push(r); });
     return Object.values(m);
   }, [routes]);
-  // Mise à l'échelle proportionnelle : les marqueurs grossissent en zoom in, rétrécissent en zoom out
-  // sans exploser au fort zoom. z^0.8 + multiplicateur 1.2 donne un rendu équilibré.
-  const markScale = (boost) => Math.pow(z, 0.8) * 1.2 * (boost || 1);
-  // Stroke et rayon sur les routes : finesse cohérente avec les marqueurs.
-  const strokeUnit = Math.pow(z, 0.8) * 0.5;
-  const dotR = Math.pow(z, 0.8) * 2.5;
+  // Initialisation de la carte satellite (Leaflet + imagerie Esri World Imagery, libre).
+  // La couche « Boundaries & Places » ajoute les noms de villes/pays par-dessus (rendu hybride type Google).
+  useEffect(() => {
+    if (!mapEl.current || mapInst.current) return;
+    const map = LF.map(mapEl.current, { zoomControl: false, attributionControl: true, worldCopyJump: true, wheelPxPerZoomLevel: 120, wheelDebounceTime: 25 }).setView([46.6, 2.4], 6);
+    LF.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, maxNativeZoom: 19, attribution: "Imagerie © Esri, Maxar, Earthstar Geographics" }).addTo(map);
+    LF.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, maxNativeZoom: 19 }).addTo(map);
+    LF.control.zoom({ position: "topright" }).addTo(map);
+    LF.control.scale({ imperial: false, metric: true, position: "bottomleft" }).addTo(map);
+    routesLayer.current = LF.layerGroup().addTo(map);
+    markersLayer.current = LF.layerGroup().addTo(map);
+    mapInst.current = map;
+    setTimeout(() => { try { map.invalidateSize(); } catch (e) { } }, 60);
+    const pts = sites.filter((p) => p.lat && p.lng).map((p) => [p.lat, p.lng]);
+    if (pts.length === 1) map.setView(pts[0], 12); else if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
+    setMapReady(true);
+    return () => { try { map.remove(); } catch (e) { } mapInst.current = null; markersLayer.current = null; routesLayer.current = null; setMapReady(false); };
+  }, []);
+  // Marqueurs : un divIcon SVG par site (forme = type, couleur = enseigne), surbrillance + étiquette sur le sélectionné.
+  const markerKey = useMemo(() => shown.map((p) => p.id + ":" + p.lat + ":" + p.lng + ":" + siteColor(p, accOf(p.accountId))).join("|") + "#" + sel, [shown, sel]);
+  useEffect(() => {
+    if (!mapReady || !markersLayer.current) return;
+    const lg = markersLayer.current; lg.clearLayers();
+    shown.forEach((p) => {
+      const col = siteColor(p, accOf(p.accountId)); const tp = SITE_TYPES[p.type].shape; const on = p.id === sel;
+      const W = on ? 38 : 30; const H = W * 26 / 24;
+      const html = `<svg width="${W}" height="${H}" viewBox="-12 -16 24 26" style="overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))">${on ? `<circle class="halo" cx="0" cy="0" r="6" fill="${col}"/>` : ""}<path d="${shapePath(tp)}" fill="${col}" stroke="#fff" stroke-width="1.6"/>${tp === "pin" ? `<circle cx="0" cy="-9" r="2.4" fill="#fff"/>` : ""}</svg>`;
+      const icon = LF.divIcon({ html, className: "site-marker", iconSize: [W, H], iconAnchor: [W / 2, W * 2 / 3] });
+      const m = LF.marker([p.lat, p.lng], { icon, zIndexOffset: on ? 1000 : 0, title: p.label }).addTo(lg);
+      m.on("click", () => setSel(p.id));
+      if (on) m.bindTooltip(p.label, { permanent: true, direction: "top", offset: [0, -W * 2 / 3], className: "site-tip" }).openTooltip();
+    });
+  }, [mapReady, markerKey]);
+  // Routes de livraison : trait pointillé animé entrepôt → destination (ligne droite ou itinéraire OSRM réel).
+  const routeKey = useMemo(() => routesByDest.map((g) => g[0].dest.id + ":" + g.length).join("|") + (useOSRM ? "|osrm:" + Object.keys(osrmCache).length : ""), [routesByDest, useOSRM, osrmCache]);
+  useEffect(() => {
+    if (!mapReady || !routesLayer.current) return;
+    const lg = routesLayer.current; lg.clearLayers(); if (!entrepot) return;
+    routesByDest.forEach((group) => {
+      const dest = group[0].dest; const cnt = group.length; const col = enseigneColor(accOf(dest.accountId)) || "#F8B133";
+      const key = `${entrepot.lat},${entrepot.lng}>${dest.lat},${dest.lng}`; const osrm = useOSRM ? osrmCache[key] : null;
+      const latlngs = osrm && osrm.coords ? osrm.coords.map(([lon, lat]) => [lat, lon]) : [[entrepot.lat, entrepot.lng], [dest.lat, dest.lng]];
+      LF.polyline(latlngs, { color: col, weight: 3, opacity: 0.9, className: "lroute" }).addTo(lg);
+      if (cnt > 1) LF.marker([dest.lat, dest.lng], { icon: LF.divIcon({ html: `<div style="background:${col};color:#fff;font-weight:800;font-size:10px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)">${cnt}</div>`, className: "route-badge", iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(lg);
+    });
+  }, [mapReady, routeKey]);
+  // Navigation externe (clic « Voir sur la carte ») : sélectionne et vole vers le site.
+  useEffect(() => {
+    if (!mapReady || !focus || !focus.id) return;
+    const byId = sites.find((x) => x.id === focus.id); const target = byId || sites.find((x) => x.accountId === focus.id && x.lat != null);
+    if (target) { setSel(target.id); if (target.lat != null && target.lng != null && mapInst.current) mapInst.current.flyTo([target.lat, target.lng], 13, { duration: 0.8 }); }
+  }, [mapReady, focus && focus.n]);
   return (<div className="fade">
     <div className="card" style={{ marginBottom: 14, borderLeft: "4px solid var(--blue)" }}><div style={{ display: "flex", gap: 12, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" }}><div style={{ fontSize: 13, lineHeight: 1.55, flex: 1, minWidth: 240 }}>La <strong>couleur</strong> indique le groupe / établissement, la <strong>forme</strong> le type d'établissement. Zoomez à la molette ou avec les boutons, déplacez en glissant. Une <strong>ligne pointillée animée</strong> relie l'entrepôt à un établissement quand une commande est en cours de livraison ; un badge indique le nombre de commandes simultanées vers la même destination.</div><div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}><button className="btn btn-p btn-s" onClick={() => setEdit({ id: "s_" + Date.now(), accountId: accounts[0]?.id || null, label: "", type: "pdv", adresse: "", lat: null, lng: null, siret: "", typeSurface: "", adresseLivraison: "", livraisonIdentique: true, contactId: "" })}><Plus size={15} /> Ajouter un site</button><label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600 }}><input type="checkbox" checked={useOSRM} onChange={(e) => setUseOSRM(e.target.checked)} style={{ width: 14, height: 14 }} />Itinéraires réels (OSRM)</label></div></div></div>
     <div className="filtbar">
@@ -2189,17 +2216,9 @@ function Carte({ data, persist, go, focus }) {
     <div className="grid" style={{ gridTemplateColumns: "1.5fr 1fr", alignItems: "start" }}>
       <div>
         <div className="mapwrap" style={{ aspectRatio: `${MAP_VBW} / ${MAP_VBH}` }}>
-          <div className="zoomctl"><button className="zbtn" onClick={() => zoomAt(0.6, 0.5, 0.5)}>+</button><button className="zbtn" onClick={() => zoomAt(1 / 0.6, 0.5, 0.5)}>−</button><button className="zbtn" title="Vue Europe" style={{ fontSize: 16 }} onClick={() => setView(MAP_VIEW_EUROPE)}>⟲</button><button className="zbtn" title="Vue monde" style={{ fontSize: 14 }} onClick={() => setView({ x: 0, y: 0, w: MAP_VBW, h: MAP_VBH })}>🌍</button></div>
-          <svg ref={svgRef} viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} width="100%" height="100%" style={{ display: "block", cursor: drag.current ? "grabbing" : "grab", touchAction: "none" }}>
-            <rect x={0} y={0} width={MAP_VBW} height={MAP_VBH} fill="transparent" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={onUp} />
-            {FRANCE_PATHS.map((d, i) => <path key={i} d={d} fill="#e4ecfa" stroke="#b9c8e8" strokeWidth={1.2 * z} strokeLinejoin="round" pointerEvents="none" />)}
-            {routesByDest.map((group) => { const dest = group[0].dest; const cnt = group.length; const a = mapProject(entrepot.lng, entrepot.lat); const b = mapProject(dest.lng, dest.lat); const col = enseigneColor(accOf(dest.accountId)) || "#F8B133"; const key = `${entrepot.lat},${entrepot.lng}>${dest.lat},${dest.lng}`; const osrm = useOSRM ? osrmCache[key] : null; const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2; return (<g key={dest.id + "_rt"} pointerEvents="none">{osrm && osrm.coords ? <path d={"M" + osrm.coords.map(([lon, lat]) => { const p = mapProject(lon, lat); return `${p.x.toFixed(2)} ${p.y.toFixed(2)}`; }).join(" L")} stroke={col} strokeWidth={1.8} fill="none" className="route" opacity={0.85} /> : <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={col} strokeWidth={1.8} className="route" opacity={0.85} />}<circle cx={b.x} cy={b.y} r={dotR} fill={col} />{cnt > 1 && (<g transform={`translate(${midX},${midY}) scale(${markScale(0.7)})`}><circle r={6} fill={col} stroke="#fff" strokeWidth={1.3} /><text textAnchor="middle" dominantBaseline="central" fontSize={7} fontWeight="800" fill="#fff">{cnt}</text></g>)}</g>); })}
-            {shown.map((p) => { const { x, y } = mapProject(p.lng, p.lat); const col = siteColor(p, accOf(p.accountId)); const on = p.id === sel; const tp = SITE_TYPES[p.type].shape; return (<g key={p.id} className="ping" transform={`translate(${x},${y}) scale(${markScale(on ? 1.15 : 1)})`} onClick={() => setSel(p.id)}>{on && <circle className="halo" r={6} fill={col} />}<path d={shapePath(tp)} fill={col} stroke="#fff" strokeWidth={1.4} />{tp === "pin" && <circle cx={0} cy={-9} r={2.4} fill="#fff" />}{on && <text x={0} y={tp === "pin" ? -12 : -10} textAnchor="middle" fontSize={5} fontWeight="700" fill="#16203a" style={{ pointerEvents: "none", paintOrder: "stroke", stroke: "#fff", strokeWidth: 1.2, strokeLinejoin: "round" }}>{p.label}</text>}</g>); })}
-          </svg>
-          <div className="tnum" style={{ position: "absolute", left: 12, top: 12, zIndex: 4, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 7, padding: "3px 8px", fontSize: 11, fontWeight: 700, color: "var(--ink)", pointerEvents: "none", boxShadow: "0 2px 6px rgba(20,32,58,.12)" }} title="Niveau de zoom (×1 = vue monde)">Zoom ×{zoomLevel.toFixed(1)}</div>
-          <div style={{ position: "absolute", left: 12, bottom: 12, zIndex: 4, width: scaleBarPct + "%", maxWidth: "45%", pointerEvents: "none" }}>
-            <span className="tnum" style={{ display: "inline-block", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", fontSize: 10.5, fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>{scaleLabel}</span>
-            <div style={{ height: 7, borderLeft: "2px solid var(--ink)", borderRight: "2px solid var(--ink)", borderBottom: "2px solid var(--ink)" }} />
+          <div ref={mapEl} style={{ position: "absolute", inset: 0 }} />
+          <div className="zoomctl" style={{ right: "auto", left: 12 }}>
+            <button className="zbtn" title="Recadrer sur tous les sites" onClick={() => { const pts = sites.filter((p) => p.lat && p.lng).map((p) => [p.lat, p.lng]); if (!mapInst.current) return; if (pts.length === 1) mapInst.current.setView(pts[0], 12); else if (pts.length > 1) mapInst.current.fitBounds(pts, { padding: [40, 40], maxZoom: 13 }); }} style={{ fontSize: 15 }}>⤢</button>
           </div>
         </div>
         <div className="card" style={{ marginTop: 12, padding: "12px 14px" }}><div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12 }}>
