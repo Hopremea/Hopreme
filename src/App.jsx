@@ -160,6 +160,8 @@ const SAV_CANAL = { livraison: "Livraison", produit: "Produit", client: "Client 
 const SAV_STATUT = { ouvert: { label: "Ouvert", color: "#FF5A45" }, en_cours: { label: "En cours", color: "#F8B133" }, resolu: { label: "Résolu", color: "#2bb673" }, clos: { label: "Clos", color: "#9aa6bd" } };
 const SAV_GRAV = { mineur: { label: "Mineur", color: "#9aa6bd" }, majeur: { label: "Majeur", color: "#F8B133" }, critique: { label: "Critique", color: "#CD2A24" } };
 const TYPE_SURFACE = ["Petite surface", "Moyenne surface", "Grande surface", "Très grande surface", "Association", "Crèche / Petite enfance", "École / Médiathèque", "Centre de loisirs"];
+// Couleur de marqueur par type de surface (dégradé de bleus pour la taille, teintes dédiées pour le hors-retail).
+const SURFACE_COLOR = { "Petite surface": "#9ec9f5", "Moyenne surface": "#4f86d6", "Grande surface": "#2b59a8", "Très grande surface": "#16306b", "Association": "#e0567b", "Crèche / Petite enfance": "#f0883c", "École / Médiathèque": "#8c5bd6", "Centre de loisirs": "#2bb673" };
 const FORMAT_OPTIONS = ["Centre-ville", "Centre-ville haut de gamme", "Périphérie (zone commerciale)", "Périphérie (zone industrielle)", "Centre commercial", "Galerie marchande", "Retail park", "Gare / transport", "Concept store", "Grand établissement", "Boutique éphémère / pop-up"];
 const ENSEIGNES_SUGG = ["Cultura", "Fnac", "Fnac Darty", "King Jouet", "JouéClub", "La Grande Récré", "Maxi Toys", "PicWicToys", "Nature & Découvertes", "Oxybul éveil et jeux", "Bureau Vallée", "Système U", "E.Leclerc", "Carrefour", "Auchan", "Un sourire en plus"];
 const FONCTIONS = ["Président(e)", "Chef(fe) de produit", "Responsable de catégorie", "Acheteur(se)", "Directeur(rice) des achats", "Directeur(rice) d'établissement", "Directeur(rice) commercial(e)", "Dirigeant(e)", "Gérant(e)", "Responsable réseau", "Responsable de rayon", "Responsable marchéage", "Responsable e-commerce", "Chargé(e) d'achats", "Assistant(e) commercial(e)", "Responsable développement", "Franchisé(e)", "Indépendant(e)", "Responsable de structure", "Directeur(rice) d'établissement"];
@@ -2118,7 +2120,7 @@ const shapePath = (type) => type === "pin" ? "M0,0 C-6.5,-8 -6.5,-15 0,-15 C6.5,
   // Siège : deux tours accolées, une grande et une petite.
   : type === "towers" ? "M-9,9 L-9,-10 L-1,-10 L-1,9 Z M-1,9 L-1,-2 L8,-2 L8,9 Z"
   : "M0,-10 L2.9,-3.1 L10,-3.1 L4.2,1.6 L6.4,9 L0,4.6 L-6.4,9 L-4.2,1.6 L-10,-3.1 L-2.9,-3.1 Z";
-const siteColor = (s, account) => s.type === "penup" || s.type === "usine" || s.type === "entrepot" ? "#FFD212" : enseigneColor(account);
+const siteColor = (s, account) => s.type === "penup" || s.type === "usine" || s.type === "entrepot" ? "#FFD212" : (SURFACE_COLOR[s.typeSurface] || "#9aa6bd");
 function Carte({ data, persist, go, focus }) {
   const { sites, accounts } = data;
   const accOf = (id) => accounts.find((x) => x.id === id);
@@ -2254,9 +2256,9 @@ function Carte({ data, persist, go, focus }) {
           </div>
         </div>
         <div className="card" style={{ marginTop: 12, padding: "12px 14px" }}><div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12 }}>
-          <div style={{ flex: "1 1 100%", fontSize: 11.5, color: "var(--muted)", marginBottom: 2 }}>La <strong style={{ color: "var(--ink)" }}>forme</strong> indique le type de site, la <strong style={{ color: "var(--ink)" }}>couleur</strong> le groupe d'appartenance.</div>
+          <div style={{ flex: "1 1 100%", fontSize: 11.5, color: "var(--muted)", marginBottom: 2 }}>La <strong style={{ color: "var(--ink)" }}>forme</strong> indique le type de site, la <strong style={{ color: "var(--ink)" }}>couleur</strong> le type de surface.</div>
           <div><div style={{ fontWeight: 800, color: "var(--muted)", fontSize: 10.5, letterSpacing: ".04em", marginBottom: 6 }}>FORME = TYPE DE SITE</div><div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{[{ s: "pin", c: "#6b7589", vb: "-10 -16 20 20", l: "Point de vente" }, { s: "towers", c: "#6b7589", vb: "-12 -12 24 24", l: "Siège / décision" }, { s: "warehouse", c: "#6b7589", vb: "-11 -12 22 22", l: "Entrepôt" }, { s: "factory", c: "#6b7589", vb: "-12 -11 24 22", l: "Usine / fabricant" }, { s: "star", c: "#FFD212", vb: "-11 -11 22 22", l: "Siège PEN'UP" }].map((it) => <span key={it.s} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><svg width="17" height="17" viewBox={it.vb}><path d={shapePath(it.s)} fill={it.c} stroke="#fff" strokeWidth={1} /></svg>{it.l}</span>)}</div></div>
-          <div><div style={{ fontWeight: 800, color: "var(--muted)", fontSize: 10.5, letterSpacing: ".04em", marginBottom: 6 }}>COULEUR = GROUPE</div><div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{usedAccounts.map((a) => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: enseigneColor(a) }} />{a.enseigne}</span>)}<span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#FFD212" }} />PEN'UP 3D · entrepôt · usine</span></div></div>
+          <div><div style={{ fontWeight: 800, color: "var(--muted)", fontSize: 10.5, letterSpacing: ".04em", marginBottom: 6 }}>COULEUR = TYPE DE SURFACE</div><div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{TYPE_SURFACE.map((t) => <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: SURFACE_COLOR[t] }} />{t}</span>)}<span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#FFD212" }} />PEN'UP 3D · entrepôt · usine</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#9aa6bd" }} />Non précisé</span></div></div>
         </div></div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
