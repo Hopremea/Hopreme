@@ -398,7 +398,7 @@ function buildSeed() { return { products: seedProducts(), accounts: seedAccounts
 // Etat de depart REEL : tout vide, et toutes les migrations de demo neutralisees
 // (drapeaux a true) pour ne jamais reinjecter de donnees fictives. Le seed n'est
 // charge que volontairement via le bouton "Demo".
-function emptyData() { return { products: [], accounts: [], contacts: [], interactions: [], deals: [], tickets: [], sites: [], prospects: [], attachments: {}, events: [], rotations: {}, savedCalcs: [], claudeUsage: { calls: 0, inputTokens: 0, outputTokens: 0 }, settings: { ...SETTINGS, coefBasisTTC: true, _tarif2026: true, _kind: true, _pdvMono: true, _migrated_sourire: true, _migrated_jer: true, _fresh: true }, _imported: "" }; }
+function emptyData() { return { products: [], accounts: [], contacts: [], interactions: [], deals: [], tickets: [], sites: [], prospects: [], attachments: {}, events: [], rotations: {}, savedCalcs: [], claudeUsage: { calls: 0, inputTokens: 0, outputTokens: 0 }, settings: { ...SETTINGS, coefBasisTTC: true, _tarif2026: true, _kind: true, _pdvMono: true, _migrated_sourire: true, _migrated_jer: true, _unifyOrphans: true, _fresh: true }, _imported: "" }; }
 function normalize(d) {
   const __secured = securedFrom({ ...SETTINGS, ...(d.settings || {}) });
   d.products = (d.products || seedProducts()).map((p) => { const o = { cout: null, ...p }; if (o.vendable === undefined) { const unitaire = /^PU3D-FIL-/.test(o.code) && !/^lot/i.test(o.designation || ""); const kit = (o.code || "").includes("-KIT-"); o.vendable = !(unitaire || kit); } if (o.poidsG === undefined || o.poidsG === null) { if (o.poidsKg != null) { o.poidsG = Math.round(o.poidsKg * 1000); } else { o.poidsG = Math.round(poidsProvisoire(o.code, o.designation) * 1000); o.poidsEstime = true; } } delete o.poidsKg; if (o.coutInit === undefined) { const parts = coutRevientParts(o.code, o.designation); if (parts) { o.coutUsd = parts.usd; o.coutEurFixe = parts.eur; } o.coutInit = true; } if (o.coutUsd != null) o.cout = deriveCout(o, __secured); return o; });
@@ -454,6 +454,26 @@ function normalize(d) {
       d.sites.push({ id: "s_jer", accountId: null, label: "JER Education Technology, usine partenaire", type: "usine", adresse: "Guangzhou, Chine (adresse précise à compléter)", lat: 23.1291, lng: 113.2644 });
     }
     d.settings._migrated_jer = true;
+  }
+  // Unification du modèle : un « établissement sans groupe » (site pdv/décision sans compte —
+  // ex. créé via la carte) devient une vraie fiche établissement indépendante, toujours visible
+  // dans l'onglet Établissements. Migration unique, sans perte : on conserve l'id du site (les
+  // contacts/échanges liés restent valides) et on relie leur contact au nouveau compte.
+  if (!d.settings._unifyOrphans) {
+    try {
+      const orphans = (d.sites || []).filter((s) => !s.accountId && (s.type === "pdv" || s.type === "decision"));
+      orphans.forEach((s) => {
+        const accId = "acc_etab_" + s.id;
+        if (!d.accounts.some((a) => a.id === accId)) {
+          const loc = parseLocality(s.adresse || "");
+          d.accounts.push({ id: accId, enseigne: s.label || "Établissement", kind: "établissement", stage: "prospect", magasins: 1, nature: "DV", code: buildClientCode(d.accounts, "DV"), siren: "", formeJuridique: "", typeSurface: s.typeSurface || "", ville: loc.ville || "", lat: s.lat ?? null, lng: s.lng ?? null, pipeline: 0, prochaineAction: "", dateAction: "", notes: "Établissement indépendant (anciennement site sans groupe).", adressePostale: s.adresse || "", adresseLivraison: s.adresseLivraison || s.adresse || "", livraisonIdentique: s.livraisonIdentique !== false, stageLog: [{ stage: "prospect", date: TODAY() }] });
+        }
+        s.accountId = accId;
+        if (s.type === "decision") s.type = "pdv";
+      });
+      (d.contacts || []).forEach((c) => { if (!c.accountId && c.siteId) { const st = (d.sites || []).find((x) => x.id === c.siteId); if (st && st.accountId) c.accountId = st.accountId; } });
+      d.settings._unifyOrphans = true;
+    } catch (e) { /* en cas de souci, on ne bloque pas le chargement */ }
   }
   return d;
 }
