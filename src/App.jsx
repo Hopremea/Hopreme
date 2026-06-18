@@ -430,6 +430,7 @@ function normalize(d) {
   if (!d.settings.coefBasisTTC) { d.settings.coefTarget = Math.round((d.settings.coefTarget || 1.8) * 1.2 * 100) / 100; d.settings.coefMax = Math.round((d.settings.coefMax || 2.0) * 1.2 * 100) / 100; if (d.settings.coefTarget < 2.2) d.settings.coefTarget = 2.2; if (d.settings.coefMax <= d.settings.coefTarget) d.settings.coefMax = Math.round((d.settings.coefTarget + 0.2) * 100) / 100; d.settings.coefBasisTTC = true; }
   if (!d.settings._tarif2026) { d.products = (d.products || []).map((p) => p.code === "PU3D-KIT-MECA" ? { ...p, code: "PU3D-KIT-MECANIQUE" } : p); d.settings._tarif2026 = true; }
   if (!d.settings._kind) { d.accounts = (d.accounts || []).map((a) => a.kind ? a : { ...a, kind: isCentraleOuChaine(a) ? "groupe" : "établissement" }); d.settings._kind = true; }
+  if (!d.settings._renamePros) { d.interactions = (d.interactions || []).map((i) => (i.sujet && /prospection/i.test(i.sujet)) ? { ...i, sujet: "Prise de contact" } : i); d.accounts = (d.accounts || []).map((a) => (a.prochaineAction && /issu de la prospection/i.test(a.prochaineAction)) ? { ...a, prochaineAction: "Prise de contact" } : a); d.settings._renamePros = true; }
   if (!d.settings._pdvMono) {
     const sites2 = d.sites || []; const toAdd = [];
     (d.accounts || []).forEach((a) => {
@@ -615,6 +616,24 @@ const fullName = (c) => `${c.prenom || ""} ${c.nom || ""}`.trim() || c.fonction 
 const initials = (c) => (((c.prenom || c.nom || "?")[0] || "") + ((c.nom && c.prenom ? c.nom[0] : "") || "")).toUpperCase();
 const AVC = ["#3F60AA", "#7c5cf0", "#2bb673", "#F8B133", "#5b8def", "#FF5A45"];
 const avColor = (s) => AVC[((s || "").split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % AVC.length];
+// Devine le genre à partir du prénom (liste de prénoms courants + terminaison) pour afficher une silhouette homme/femme.
+const PRENOMS_F = new Set(["marie", "nathalie", "isabelle", "sylvie", "catherine", "sophie", "christine", "martine", "sandrine", "celine", "valerie", "stephanie", "veronique", "julie", "aurelie", "emilie", "laetitia", "camille", "lea", "chloe", "manon", "emma", "sarah", "laura", "laure", "anne", "claire", "helene", "virginie", "caroline", "delphine", "audrey", "elodie", "amelie", "pauline", "charlotte", "oceane", "ines", "lucie", "clara", "jeanne", "alice", "louise", "margaux", "melanie", "fanny", "justine", "morgane", "coralie", "elise", "agnes", "brigitte", "monique", "francoise", "jacqueline", "danielle", "nicole", "patricia", "corinne", "florence", "beatrice", "carole", "myriam", "leila", "fatima", "fatma", "khadija", "amina", "nadia", "aicha", "yasmine", "sonia", "samira", "lena", "mila", "jade", "lina", "rose", "eva", "zoe", "lola", "ambre", "capucine", "juliette", "victoria", "alix", "maelys", "romane", "gabrielle", "adele", "anais", "maeva", "noemie"]);
+const PRENOMS_M = new Set(["jean", "pierre", "michel", "alain", "philippe", "bernard", "andre", "jacques", "daniel", "rene", "claude", "marcel", "christian", "gerard", "patrick", "nicolas", "julien", "david", "sebastien", "stephane", "laurent", "pascal", "eric", "frederic", "thierry", "olivier", "christophe", "vincent", "franck", "fabrice", "sylvain", "cedric", "jerome", "guillaume", "alexandre", "maxime", "antoine", "thomas", "romain", "florian", "jonathan", "kevin", "mathieu", "matthieu", "damien", "benjamin", "arnaud", "bruno", "didier", "herve", "yann", "loic", "hugo", "lucas", "louis", "jules", "gabriel", "raphael", "arthur", "nathan", "ethan", "sacha", "theo", "enzo", "clement", "quentin", "valentin", "baptiste", "corentin", "mohamed", "mohammed", "ahmed", "karim", "mehdi", "rachid", "said", "youssef", "omar", "ali", "hassan", "samir", "mustapha", "matthis", "dimitri", "regis", "georges", "henri", "paul", "marc", "denis", "francois", "xavier", "emmanuel", "ludovic", "anthony", "dylan", "axel", "noah", "liam", "adam", "aaron", "ismael", "bilal", "anael"]);
+function guessGender(c) {
+  const raw = (c && c.prenom ? String(c.prenom) : "").split(/[\s-]/)[0];
+  const p = normStr(raw);
+  if (!p) return "n";
+  if (PRENOMS_F.has(p)) return "f";
+  if (PRENOMS_M.has(p)) return "m";
+  if (/(a|ia|ina|ine|elle|ette|ee|nne|lyn)$/.test(p)) return "f";
+  return "n";
+}
+// Silhouette buste : femme (chevelure évasée), homme, ou neutre.
+function Silhouette({ gender = "n", size = 22, color = "#fff" }) {
+  if (gender === "f") return (<svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true"><circle cx="12" cy="7.5" r="3.7" /><path d="M6.4 8.4C5.3 5 8.2 2.2 12 2.2s6.7 2.8 5.6 6.2c-.7-2.1-2.9-3.3-5.6-3.3S7.1 6.3 6.4 8.4z" /><path d="M5 22c0-4.3 3.1-6.8 7-6.8s7 2.5 7 6.8z" /></svg>);
+  if (gender === "m") return (<svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true"><circle cx="12" cy="7.5" r="3.8" /><path d="M5 22c0-3.9 3.1-6.4 7-6.4s7 2.5 7 6.4z" /></svg>);
+  return (<svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true"><circle cx="12" cy="8" r="3.6" /><path d="M5.5 21c0-3.7 2.9-6 6.5-6s6.5 2.3 6.5 6z" /></svg>);
+}
 const coverage = (p) => (!p.ventesMois || p.ventesMois <= 0) ? null : Math.round(p.dispo / (p.ventesMois / 30.44));
 const statusOf = (p) => p.dispo <= 0 ? "rupture" : p.dispo <= p.seuil ? "bas" : "ok";
 function nextRef(type, deals) { const pre = type === "Facture" ? "FA" : type === "Commande" ? "CMD" : "DV"; const y = new Date().getFullYear(); const rx = new RegExp("^" + pre + "-" + y + "-(\\d+)$"); const mx = (deals || []).reduce((m, d) => { const mt = rx.exec(d.ref || ""); return mt ? Math.max(m, parseInt(mt[1], 10)) : m; }, 0); return `${pre}-${y}-${String(mx + 1).padStart(3, "0")}`; }
@@ -714,7 +733,10 @@ const CSS = `
 .nav button.on{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;box-shadow:0 6px 18px rgba(63,96,170,.28);}
 .nav button.on svg{color:#fff;}.nav .cnt{margin-left:auto;font-size:11px;background:rgba(255,255,255,.25);padding:1px 7px;border-radius:9px;}.nav button:not(.on) .cnt{background:#eef1f7;color:var(--muted);}
 .sb-foot{margin-top:auto;padding:12px 8px 0;border-top:1px solid var(--line);color:var(--muted);font-size:11px;}
-.main{flex:1;min-width:0;padding:26px 30px 60px;}
+.main{flex:1;min-width:0;padding:26px 30px 60px;position:relative;z-index:1;}
+.sb{position:relative;z-index:2;}
+.pu-root::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='340'%20height='340'%3E%3Cg%20fill='none'%20stroke='%23FF5A45'%20stroke-width='3'%20stroke-linecap='round'%3E%3Cpath%20d='M-20%2078%20Q170%2018%20360%20104'%20stroke-dasharray='2%2015'/%3E%3Cpath%20d='M-20%20242%20Q170%20320%20360%20232'%20stroke-dasharray='17%2014'/%3E%3Cpath%20d='M58%20-20%20Q128%20168%2066%20360'%20stroke-dasharray='2%2015'/%3E%3Cpath%20d='M250%20-20%20Q300%20150%20240%20360'%20stroke-dasharray='15%2014'/%3E%3C/g%3E%3C/svg%3E");background-size:340px 340px;background-repeat:repeat;opacity:.42;}
+.pu-root.dark::before{opacity:.2;}
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:16px;flex-wrap:wrap;}
 .topbar h2{margin:0;font-size:23px;}.topbar p{margin:3px 0 0;color:var(--muted);font-size:13px;}
 .btn{display:inline-flex;align-items:center;gap:7px;border:0;cursor:pointer;font-family:inherit;font-weight:700;font-size:13px;padding:10px 15px;border-radius:11px;transition:.18s;}
@@ -941,7 +963,7 @@ function Avatar({ c, lg, fallback }) {
   const [err, setErr] = useState(false);
   useEffect(() => { setErr(false); }, [src]);
   if (src && !err) return (<div className={cx("av", lg && "lg")} style={{ background: "#fff", border: "1px solid var(--line)" }}><img src={src} alt="" onError={() => setErr(true)} /></div>);
-  return (<div className={cx("av", lg && "lg")} style={{ background: avColor(fullName(c)) }}>{initials(c) || <User size={lg ? 26 : 18} />}</div>);
+  return (<div className={cx("av", lg && "lg")} style={{ background: avColor(fullName(c)) }}><Silhouette gender={guessGender(c)} size={lg ? 32 : 24} /></div>);
 }
 // Construit des URLs de logo à partir d'un domaine (Clearbit en premier, favicon Google en repli via onError).
 function logoFromDomain(domain) {
@@ -1420,8 +1442,8 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
       </div>
     </div>
     {preview && <DevisPreview deal={preview} account={acc} settings={data.settings} products={data.products} onClose={() => setPreview(null)} />}
-    {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><AccountInteractionForm contactId={siteContacts[0]?.id || ""} accountId={s.accountId} contacts={siteContacts} onCancel={() => setAddInt(false)} onSave={(it) => { addInteraction({ ...it, siteId: s.id }); setAddInt(false); }} /></Modal>}
-    {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={s.accountId} contacts={siteContacts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction({ ...it, siteId: s.id }); setIntEdit(null); }} /></Modal>}
+    {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><AccountInteractionForm contactId={siteContacts[0]?.id || ""} accountId={s.accountId} contacts={siteContacts} onCancel={() => setAddInt(false)} onSave={(it) => { addInteraction({ ...it, siteId: s.id }); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} /></Modal>}
+    {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={s.accountId} contacts={siteContacts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction({ ...it, siteId: s.id }); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} /></Modal>}
     {dealEdit && <Modal title={(dealEdit.ref || "Document") + " · " + dealEdit.type} onClose={() => setDealEdit(null)} xl><DealForm deal={dealEdit} accounts={data.accounts} products={data.products} sites={data.sites} onPreview={(d) => setPreview(d)} onSave={(d) => { saveDeal(d); setDealEdit(null); }} /></Modal>}
     {edit && <Modal title="Modifier l'établissement" onClose={() => setEdit(null)} wide><SiteForm site={edit} accounts={data.accounts} contacts={data.contacts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onOpenContact={(cid) => { setEdit(null); go("repertoire", cid); }} onCreateContact={(c) => persist((p) => ({ ...p, contacts: [...p.contacts, c] }))} known={collectKnownAddresses(data)} onSave={(x) => { saveSite(x); setEdit(null); }} /></Modal>}
     {addC && <Modal title="Nouveau contact" onClose={() => setAddC(null)} wide><ContactForm contact={addC} accounts={data.accounts} contacts={data.contacts} sites={data.sites} known={collectKnownAddresses(data)} onSave={(x) => { saveContact(x); setAddC(null); }} /></Modal>}
@@ -1505,20 +1527,44 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
       </div>
     </div>
     {preview && <DevisPreview deal={preview} account={a} settings={data.settings} products={data.products} onClose={() => setPreview(null)} />}
-    {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><AccountInteractionForm contactId={conts[0]?.id || ""} accountId={a.id} contacts={conts} onCancel={() => setAddInt(false)} onSave={(it) => { addInteraction(it); setAddInt(false); }} /></Modal>}
-    {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={a.id} contacts={conts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} /></Modal>}
+    {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><AccountInteractionForm contactId={conts[0]?.id || ""} accountId={a.id} contacts={conts} onCancel={() => setAddInt(false)} onSave={(it) => { addInteraction(it); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} /></Modal>}
+    {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={a.id} contacts={conts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} /></Modal>}
     {siteEdit && <Modal title={data.sites.some((x) => x.id === siteEdit.id) ? "Modifier le site" : (siteEdit.type === "decision" ? "Nouveau siège" : "Nouvel établissement")} onClose={() => setSiteEdit(null)} wide><SiteForm site={siteEdit} accounts={data.accounts} contacts={data.contacts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onOpenContact={(cid) => { setSiteEdit(null); go("repertoire", cid); }} onCreateContact={(c) => persist((p) => ({ ...p, contacts: [...p.contacts, c] }))} known={collectKnownAddresses(data)} onSave={(x) => { saveSite(x); setSiteEdit(null); }} /></Modal>}
     {eventEdit && <Modal title={(data.events || []).some((e) => e.id === eventEdit.id) ? "Modifier l'événement" : "Nouvel événement"} onClose={() => setEventEdit(null)}><EventForm event={eventEdit} accounts={data.accounts} onSave={(ev) => { saveEvent(ev); setEventEdit(null); }} onDelete={() => { delEvent(eventEdit.id); setEventEdit(null); }} isExisting={(data.events || []).some((e) => e.id === eventEdit.id)} /></Modal>}
   </div>);
 }
-function AccountInteractionForm({ contactId, accountId, contacts, onCancel, onSave, interaction }) {
+// Reformulation IA d'une note libre en compte rendu clair et professionnel (sans inventer de faits).
+async function aiRephrase(text, persistUsage) {
+  const res = await fetch(CLAUDE_URL, { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 500, system: "Tu reformules des notes de compte rendu commercial B2B en français : style clair, professionnel et concis. Tu conserves TOUS les faits, dates, chiffres, noms et décisions sans rien inventer ni ajouter. Tu renvoies UNIQUEMENT le texte reformulé, sans préambule, sans guillemets, sans Markdown.", messages: [{ role: "user", content: text }] }) });
+  if (!res.ok) throw new Error("API " + res.status);
+  const dt = await res.json();
+  if (dt && dt.usage && persistUsage) persistUsage(dt.usage);
+  return (dt.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+}
+// Champ « Résumé » avec bouton de reformulation IA (réutilisé par les deux formulaires d'échange).
+function ResumeField({ value, onChange, onUsage, rows = 3 }) {
+  const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(null);
+  const reformuler = async () => {
+    if (!value || !value.trim()) { setMsg("Écrivez d'abord quelques mots à reformuler."); return; }
+    setBusy(true); setMsg(null);
+    try { const out = await aiRephrase(value, onUsage); if (out) onChange(out); else setMsg("Reformulation vide, texte conservé."); }
+    catch (e) { setMsg("Reformulation IA indisponible ici (fonctionne dans l'app Claude)."); }
+    finally { setBusy(false); }
+  };
+  return (<div className="fld">
+    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>Résumé<button type="button" className="btn btn-g btn-s" onClick={reformuler} disabled={busy} style={{ fontWeight: 700 }}><Sparkles size={13} className={busy ? "spin" : ""} /> {busy ? "Reformulation…" : "Reformuler (IA)"}</button></label>
+    <textarea rows={rows} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Points clés, décisions, prochaines étapes" />
+    {msg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>{msg}</div>}
+  </div>);
+}
+function AccountInteractionForm({ contactId, accountId, contacts, onCancel, onSave, interaction, onUsage }) {
   const [f, setF] = useState(interaction ? { ...interaction } : { id: "i_" + Date.now(), accountId, contactId: contactId || "", type: "appel", direction: "sortant", date: new Date().toISOString().slice(0, 10), sujet: "", resume: "" });
   const up = (k, v) => setF((p) => ({ ...p, [k]: v }));
   return (<>
     <div className="row2"><div className="fld"><label>Type</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{Object.entries(INT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div></div>
     <div className="row2"><div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option></select></div><div className="fld"><label>Contact</label><select value={f.contactId} onChange={(e) => up("contactId", e.target.value)}><option value="">Aucun précis</option>{contacts.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></div></div>
     <div className="fld"><label>Sujet</label><Combo value={f.sujet} onChange={(v) => up("sujet", v)} options={SUJET_PRESETS} placeholder="Choisir ou saisir l'objet de l'échange" /></div>
-    <div className="fld"><label>Résumé</label><textarea rows={3} value={f.resume} onChange={(e) => up("resume", e.target.value)} placeholder="Points clés, décisions, prochaines étapes" /></div>
+    <ResumeField value={f.resume} onChange={(v) => up("resume", v)} onUsage={onUsage} rows={3} />
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><button className="btn btn-ghost" onClick={onCancel}>Annuler</button><button className="btn btn-p" onClick={() => onSave(f)} disabled={!f.sujet}>Enregistrer</button></div>
   </>);
 }
@@ -1663,7 +1709,7 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
   return (<div className="fade">
     <button className="back" onClick={onBack}><ChevronLeft size={16} /> Retour à l'annuaire</button>
     <div className="card" style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}><EntityPhoto value={c.photo || ""} onChange={(url) => onSaveContact({ ...c, photo: url })} initials={initials(c)} bg={avColor(fullName(c))} round size={68} enseigne={[fullName(c), ens].filter(Boolean).join(" ")} groupLogo={account && account.logo} fallback={account && account.logo} persistUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} />
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}><EntityPhoto value={c.photo || ""} onChange={(url) => onSaveContact({ ...c, photo: url })} initials={<Silhouette gender={guessGender(c)} size={36} />} bg={avColor(fullName(c))} round size={68} enseigne={[fullName(c), ens].filter(Boolean).join(" ")} groupLogo={account && account.logo} fallback={account && account.logo} persistUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} />
         <div style={{ flex: 1, minWidth: 200 }}><div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}><h2 className="pu-display" style={{ margin: 0, fontSize: 22 }}>{fullName(c)}</h2><button className="star" onClick={onTogglePrincipal}><Star size={18} fill={c.principal ? "var(--yellow)" : "none"} color={c.principal ? "var(--yellow)" : "var(--muted)"} /></button></div><div style={{ color: "var(--muted)", marginTop: 3 }}>{c.fonction || "—"} · <span className="lnk" onClick={onGoEnseigne}>{ens}</span></div><div style={{ marginTop: 9 }}><Badge color={rm.color}>{rm.label}</Badge></div></div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><a className="btn btn-g" href={linkedinSearch(c, ens)} target="_blank" rel="noreferrer"><Linkedin size={15} /> LinkedIn</a><button className="btn btn-g" onClick={enrichir} disabled={enr}><Sparkles size={15} className={enr ? "spin" : ""} /> {enr ? "Recherche…" : "Enrichir (web)"}</button><button className="btn btn-g" onClick={onEdit}><Pencil size={15} /></button><button className="btn btn-d" onClick={onDelete}><Trash2 size={15} /></button></div></div>
       {enrMsg && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>{enrMsg}</div>}
@@ -1681,20 +1727,20 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
         {interactions.length === 0 ? <div className="empty">Aucun échange.</div> : <div className="tl">{interactions.map((it) => { const m = INT_META[it.type] || INT_META.note; const Ic = m.icon; return (<div className="tl-item" key={it.id}><span className="tl-dot" style={{ background: m.color }} /><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 11.5, fontWeight: 700, color: m.color, display: "inline-flex", alignItems: "center", gap: 4 }}><Ic size={12} />{m.label}</span>{it.direction === "entrant" && <ArrowDownLeft size={13} color="var(--green)" />}{it.direction === "sortant" && <ArrowUpRight size={13} color="var(--blue)" />}{it.source === "gmail" && <span className="gtag">Gmail</span>}<span className="tnum" style={{ fontSize: 11.5, color: "var(--muted)" }}>{it.date}</span><button className="iconbtn" style={{ width: 24, height: 24, marginLeft: "auto" }} onClick={() => setIntEdit(it)} title="Modifier l'échange"><Pencil size={12} /></button><button className="iconbtn" style={{ width: 24, height: 24 }} onClick={() => delInteraction(it.id)} title="Supprimer"><X size={13} /></button></div><div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 3 }}>{it.sujet}</div>{it.resume && <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2, lineHeight: 1.5 }}>{it.resume}</div>}</div>); })}</div>}
       </div>
     </div>
-    {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><InteractionForm accountId={c.accountId} contactId={c.id} onSave={(it) => { addInteraction(it); setAddInt(false); }} /></Modal>}
-    {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><InteractionForm accountId={c.accountId} contactId={c.id} interaction={intEdit} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} /></Modal>}
+    {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><InteractionForm accountId={c.accountId} contactId={c.id} onSave={(it) => { addInteraction(it); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} /></Modal>}
+    {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><InteractionForm accountId={c.accountId} contactId={c.id} interaction={intEdit} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} /></Modal>}
     {preview && <DevisPreview deal={preview} account={account} settings={settings} onClose={() => setPreview(null)} />}
     {editModal}
   </div>);
 }
-function InteractionForm({ accountId, contactId, onSave, interaction }) {
+function InteractionForm({ accountId, contactId, onSave, interaction, onUsage }) {
   const [f, setF] = useState(interaction ? { ...interaction } : { id: "i_" + Date.now(), accountId, contactId, type: "email", direction: "sortant", date: TODAY(), sujet: "", resume: "" });
   const up = (k, v) => setF((p) => ({ ...p, [k]: v })); const showDir = f.type === "email" || f.type === "appel";
   return (<>
     <div className="row2"><div className="fld"><label>Type</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{Object.entries(INT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>{showDir ? <div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option></select></div> : <div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div>}</div>
     {showDir && <div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div>}
     <div className="fld"><label>Sujet</label><Combo value={f.sujet} onChange={(v) => up("sujet", v)} options={SUJET_PRESETS} placeholder="Choisir ou saisir l'objet de l'échange" /></div>
-    <div className="fld"><label>Résumé</label><textarea rows={4} value={f.resume} onChange={(e) => up("resume", e.target.value)} /></div>
+    <ResumeField value={f.resume} onChange={(v) => up("resume", v)} onUsage={onUsage} rows={4} />
     <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="btn btn-p" onClick={() => onSave(f)} disabled={!f.sujet}>Enregistrer</button></div>
   </>);
 }
@@ -2613,7 +2659,7 @@ function Prospection({ data, persist, go }) {
       if (p.notes) notesParts.push(p.notes);
       const adr = [p.adresse, ((p.cp || "") + " " + (p.ville || "")).trim()].filter(Boolean).join(", ");
       const hasContact = (p.contactNom || "").trim(); const cid = uid("c_"); const sid = "s_" + accId;
-      const acc = { id: accId, enseigne: p.enseigne || p.nom, kind, stage: "prospect", magasins: 1, nature, code, siren: p.siren || "", formeJuridique: p.formeJuridique || "", typeSurface: p.format || "", ville: p.ville, lat: null, lng: null, pipeline: 0, prochaineAction: "Premier contact (issu de la prospection)", dateAction: "", notes: notesParts.join(" · "), adressePostale: adr, adresseLivraison: "", livraisonIdentique: true, stageLog: [{ stage: "prospect", date: TODAY() }] };
+      const acc = { id: accId, enseigne: p.enseigne || p.nom, kind, stage: "prospect", magasins: 1, nature, code, siren: p.siren || "", formeJuridique: p.formeJuridique || "", typeSurface: p.format || "", ville: p.ville, lat: null, lng: null, pipeline: 0, prochaineAction: "Prise de contact", dateAction: "", notes: notesParts.join(" · "), adressePostale: adr, adresseLivraison: "", livraisonIdentique: true, stageLog: [{ stage: "prospect", date: TODAY() }] };
       const site = { id: sid, accountId: accId, label: p.nom, type: "pdv", typeSurface: p.format || "", siret: p.siret || "", adresse: adr, adresseLivraison: "", livraisonIdentique: true, lat: null, lng: null, contactId: hasContact ? cid : "", notes: "Point de vente issu de la prospection." };
       const out = { ...d, accounts: [...d.accounts, acc], sites: [...(d.sites || []), site], prospects: d.prospects.map((x) => x.id === p.id ? { ...x, statut: "converti", accountId: accId } : x) };
       if (hasContact) {
@@ -3134,33 +3180,44 @@ function Connexions({ data, persist }) {
     { n: "Shopify", c: "#95BF47", t: "Stock B2C (lecture seule)", s: "Synchronisation du stock disponible par SKU vers le catalogue MITMIT (carte « Synchronisation du stock Shopify » ci-dessus). Lecture seule : aucune écriture dans Shopify." },
     { n: "Pennylane", c: "#3F60AA", t: "Flux financiers", s: "Reçoit les virements agrégés Stripe/PayPal. Pas de données personnelles, hors RGPD au sens strict." },
   ];
+  const Section = ({ children, note }) => (<div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "26px 0 10px", borderBottom: "1px solid var(--line)", paddingBottom: 6 }}><h2 className="pu-display" style={{ fontSize: 16, margin: 0 }}>{children}</h2>{note && <span style={{ fontSize: 12, color: "var(--muted)" }}>{note}</span>}</div>);
   return (<div className="fade">
     <EtatLogiciel data={data} />
+
+    <Section note="courriel, boutique et partenaires">Connexions & synchronisations</Section>
     <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
-      <div className="card"><div className="sec-h"><h3 className="pu-display">Boîte courriel de suivi</h3></div><p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4 }}>Adresse Gmail interrogée pour rapprocher les échanges avec vos contacts.</p>
+      <div className="card"><div className="sec-h"><h3 className="pu-display">Boîte courriel de suivi</h3><span>Gmail</span></div><p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4 }}>Adresse Gmail interrogée pour rapprocher les échanges avec vos contacts.</p>
         <div style={{ display: "flex", gap: 8 }}><input value={email} onChange={(e) => setEmail(e.target.value)} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontFamily: "inherit", fontSize: 13.5 }} /><button className="btn btn-p" onClick={saveEmail}>Enregistrer</button></div>
         <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10 }}>La synchronisation Gmail utilise votre connexion Google (via Clerk) : elle lit en lecture seule les échanges avec l'adresse de chaque contact. Si elle échoue, déconnectez-vous puis reconnectez-vous avec Google pour accorder l'autorisation Gmail.</p>
       </div>
-      <div className="card"><div className="sec-h"><h3 className="pu-display">Import de stock (entrepôt)</h3></div><p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4 }}>Glissez un export WMS (.xlsx ou .csv). Rapprochement automatique sur le code article.</p>
-        <label className="drop"><input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={(e) => onFile(e.target.files[0])} /><Upload size={22} /><div style={{ marginTop: 6, fontWeight: 600 }}>Déposer ou choisir un fichier</div></label>
-        {msg && <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 600, color: "var(--blue)" }}>{msg}</div>}
-        <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--muted)" }}>Dernier import : {data._imported || "—"}</div>
+      <div className="card" style={{ borderLeft: "4px solid #95BF47" }}>
+        <div className="sec-h"><h3 className="pu-display">Stock Shopify</h3><span>lecture seule</span></div>
+        <p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4, lineHeight: 1.5 }}>Lit l'inventaire disponible de votre boutique Shopify (quantité par SKU) et met à jour la colonne « Dispo » du catalogue. Ce stock alimente ensuite tous les onglets internes : Stock entrepôt, Réassort clients, alertes et KPIs du tableau de bord. Aucune donnée n'est écrite dans Shopify.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
+          <button className="btn btn-p" disabled={shopBusy} onClick={() => runShopify("sync")}><RefreshCw size={15} /> {shopBusy ? "Synchronisation…" : "Synchroniser le stock"}</button>
+          <button className="btn btn-ghost" disabled={shopBusy} onClick={() => runShopify("test")}><Plug size={15} /> Tester la connexion</button>
+        </div>
+        {shopMsg && <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 600, color: shopMsg.startsWith("Échec") ? "var(--red)" : "var(--blue)" }}>{shopMsg}</div>}
+        <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--muted)" }}>Dernière synchro Shopify : {shopSync && shopSync.at ? (new Date(shopSync.at).toLocaleString("fr-FR") + " · " + shopSync.matched + "/" + shopSync.total + " référence(s) appariée(s)") : "—"}</div>
+        <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>Configuration (Vercel → Settings → Environment Variables) : <code>SHOPIFY_STORE_DOMAIN</code> (ex. <code>ma-boutique.myshopify.com</code>) et <code>SHOPIFY_ADMIN_TOKEN</code> (jeton d'accès Admin d'une app personnalisée Shopify, scopes <code>read_products</code> + <code>read_inventory</code>). Le rapprochement se fait sur le SKU Shopify = code article MITMIT.</div>
       </div>
     </div>
-    <div className="card" style={{ marginTop: 16, borderLeft: "4px solid #95BF47" }}>
-      <div className="sec-h"><h3 className="pu-display">Synchronisation du stock Shopify</h3><span>lecture seule</span></div>
-      <p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4, lineHeight: 1.5 }}>Lit l'inventaire disponible de votre boutique Shopify (quantité par SKU) et met à jour la colonne « Dispo » du catalogue. Ce stock alimente ensuite tous les onglets internes : Stock entrepôt, Réassort clients, alertes et KPIs du tableau de bord. Aucune donnée n'est écrite dans Shopify.</p>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
-        <button className="btn btn-p" disabled={shopBusy} onClick={() => runShopify("sync")}><RefreshCw size={15} /> {shopBusy ? "Synchronisation…" : "Synchroniser le stock"}</button>
-        <button className="btn btn-ghost" disabled={shopBusy} onClick={() => runShopify("test")}><Plug size={15} /> Tester la connexion</button>
-      </div>
-      {shopMsg && <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 600, color: shopMsg.startsWith("Échec") ? "var(--red)" : "var(--blue)" }}>{shopMsg}</div>}
-      <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--muted)" }}>Dernière synchro Shopify : {shopSync && shopSync.at ? (new Date(shopSync.at).toLocaleString("fr-FR") + " · " + shopSync.matched + "/" + shopSync.total + " référence(s) appariée(s)") : "—"}</div>
-      <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>Configuration (Vercel → Settings → Environment Variables) : <code>SHOPIFY_STORE_DOMAIN</code> (ex. <code>ma-boutique.myshopify.com</code>) et <code>SHOPIFY_ADMIN_TOKEN</code> (jeton d'accès Admin d'une app personnalisée Shopify, scopes <code>read_products</code> + <code>read_inventory</code>). Le rapprochement se fait sur le SKU Shopify = code article MITMIT.</div>
+    <div style={{ marginTop: 16 }}><div className="sec-h"><h3 className="pu-display">Partenaires & écosystème</h3><span>écosystème français</span></div>
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))" }}>{integrations.map((it) => (<div className="conn" key={it.n}><div className="logo" style={{ background: it.c }}>{it.n[0]}</div><div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>{it.n}</div><div style={{ fontSize: 11.5, color: "var(--blue)", fontWeight: 600 }}>{it.t}</div><div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, lineHeight: 1.45 }}>{it.s}</div></div></div>))}</div>
     </div>
-    <div style={{ marginTop: 16 }}><div className="sec-h"><h3 className="pu-display">Crédits Claude consommés par l'application</h3><span>cumul depuis le début</span></div>
+
+    <Section note="catalogue & stock entrepôt">Imports de données</Section>
+    <div className="card"><div className="sec-h"><h3 className="pu-display">Import de stock (entrepôt)</h3></div><p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4 }}>Glissez un export WMS (.xlsx ou .csv). Rapprochement automatique sur le code article.</p>
+      <label className="drop"><input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={(e) => onFile(e.target.files[0])} /><Upload size={22} /><div style={{ marginTop: 6, fontWeight: 600 }}>Déposer ou choisir un fichier</div></label>
+      {msg && <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 600, color: "var(--blue)" }}>{msg}</div>}
+      <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--muted)" }}>Dernier import : {data._imported || "—"}</div>
+    </div>
+
+    <Section note="usage de l'API Claude">Intelligence artificielle</Section>
+    <div>
       {(() => { const u = data.claudeUsage || { calls: 0, inputTokens: 0, outputTokens: 0 }; const eur = claudeEur(u); const usd = claudeUsd(u); const reset = () => { appConfirm("Remettre le compteur de crédits Claude à zéro ?", { title: "Réinitialiser le compteur ?", confirmLabel: "Réinitialiser" }).then((ok) => { if (ok) persist((p) => ({ ...p, claudeUsage: { calls: 0, inputTokens: 0, outputTokens: 0 } })); }); }; return (
         <div className="card">
+          <div className="sec-h"><h3 className="pu-display">Crédits Claude consommés</h3><span>cumul depuis le début</span></div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
             <div style={{ fontSize: 30, fontWeight: 800, color: "var(--blue)" }} className="tnum">{eur.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} €</div>
             <div style={{ fontSize: 13, color: "var(--muted)" }} className="tnum">≈ {usd.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} $</div>
@@ -3170,21 +3227,22 @@ function Connexions({ data, persist }) {
             <div><div style={{ color: "var(--muted)" }}>Tokens entrée</div><div style={{ fontWeight: 700 }} className="tnum">{num(u.inputTokens)}</div></div>
             <div><div style={{ color: "var(--muted)" }}>Tokens sortie</div><div style={{ fontWeight: 700 }} className="tnum">{num(u.outputTokens)}</div></div>
           </div>
-          <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>Cumul réel des appels que <strong>cette application</strong> adresse à l'API Claude (recherche IA de prospects, synchronisation Gmail), valorisés au tarif Claude Sonnet 4 (3 $ / million de tokens en entrée, 15 $ / million en sortie) et convertis à 1 $ = {CLAUDE_USD_EUR} €. Le compteur augmente à chaque appel. Il ne reflète pas vos autres usages d'Anthropic (conversations, autres outils) : aucune API publique de facturation ne permet de les lire depuis l'application. Pour votre facturation réelle et complète, référez-vous à la console Anthropic.</p>
+          <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>Cumul réel des appels que <strong>cette application</strong> adresse à l'API Claude (recherche IA de prospects, reformulation, synchronisation Gmail), valorisés au tarif Claude Sonnet 4 (3 $ / million de tokens en entrée, 15 $ / million en sortie) et convertis à 1 $ = {CLAUDE_USD_EUR} €. Le compteur augmente à chaque appel. Il ne reflète pas vos autres usages d'Anthropic (conversations, autres outils) : aucune API publique de facturation ne permet de les lire depuis l'application. Pour votre facturation réelle et complète, référez-vous à la console Anthropic.</p>
           <div style={{ marginTop: 8 }}><button className="btn btn-g btn-s" onClick={reset}><RefreshCw size={13} /> Réinitialiser le compteur</button></div>
         </div>
       ); })()}
     </div>
-    <div style={{ marginTop: 16 }}><div className="sec-h"><h3 className="pu-display">Intégrations</h3><span>écosystème français</span></div>
-      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))" }}>{integrations.map((it) => (<div className="conn" key={it.n}><div className="logo" style={{ background: it.c }}>{it.n[0]}</div><div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>{it.n}</div><div style={{ fontSize: 11.5, color: "var(--blue)", fontWeight: 600 }}>{it.t}</div><div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, lineHeight: 1.45 }}>{it.s}</div></div></div>))}</div>
-    </div>
-    <div style={{ marginTop: 16 }}><div className="sec-h"><h3 className="pu-display">Paramètres commerciaux</h3></div>
+
+    <Section>Paramètres commerciaux</Section>
+    <div>
       <div className="card">
         <div className="row2"><div className="fld"><label>Coefficient minimum B2B (plancher)</label><input type="number" step="0.05" value={settings.coefTarget || 2.2} onChange={(e) => persist((p) => ({ ...p, settings: { ...p.settings, coefTarget: +e.target.value || 2.2 } }))} /></div><div className="fld"><label>Repère haut (offre généreuse)</label><input type="number" step="0.05" value={settings.coefMax != null ? settings.coefMax : 2.4} onChange={(e) => persist((p) => ({ ...p, settings: { ...p.settings, coefMax: +e.target.value || 2.4 } }))} /></div></div>
         <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>Ces seuils pilotent l'alerte du Calculateur. Coefficient = PVC TTC / PA HT. À TVA 20 %, la marge distributeur (HT) vaut 1 − 1,2/coef. Plancher B2B 2,2 (~45,5%) : c'est le minimum offert au distributeur pour rester attractif ; en dessous, le produit risque de ne pas être référencé (alerte). Repère haut 2,4 (~50%).</div>
       </div>
     </div>
-    <div style={{ marginTop: 16 }}><div className="sec-h"><h3 className="pu-display">Stockage et évolutions</h3></div>
+
+    <Section note="sauvegarde & multi-utilisateurs">Données & stockage</Section>
+    <div>
       <div className="card">
         <div style={{ fontSize: 13, lineHeight: 1.55, color: "var(--muted)" }}>
           <strong style={{ color: "var(--ink)" }}>Stockage.</strong> Les données sont mises en cache dans ce navigateur (localStorage) et, quand la base Supabase est configurée, synchronisées dans une base PostgreSQL partagée (hébergement européen) accessible à toute l'équipe authentifiée via Clerk. Si Supabase est indisponible, l'app continue de fonctionner en local. Faites tout de même des sauvegardes JSON régulières via le bouton « Sauvegarde » en haut.
