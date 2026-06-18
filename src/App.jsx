@@ -172,7 +172,7 @@ const linkedinSearch = (c, ens) => "https://www.linkedin.com/search/results/peop
 const ENSEIGNE_PALETTE = ["#3F60AA", "#FF5A45", "#2bb673", "#7c5cf0", "#F8B133", "#0ea5b7", "#d6336c", "#F8B133"];
 const ENSEIGNE_FIXED = { acc_cultura: "#3F60AA", acc_kingjouet: "#FF5A45", acc_fnac: "#2bb673", acc_joueclub: "#7c5cf0", acc_eenymeeny: "#F8B133" };
 function enseigneColor(account) { if (!account) return "#16203a"; if (account.color) return account.color; if (ENSEIGNE_FIXED[account.id]) return ENSEIGNE_FIXED[account.id]; const i = Math.abs((account.id || "").split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % ENSEIGNE_PALETTE.length; return ENSEIGNE_PALETTE[i]; }
-const SITE_TYPES = { penup: { label: "Siège PEN'UP 3D", shape: "star" }, usine: { label: "Usine / Fabricant", shape: "hex" }, entrepot: { label: "Entrepôt logistique", shape: "warehouse" }, decision: { label: "Siège décisionnaire", shape: "diamond" }, pdv: { label: "Point de vente", shape: "pin" } };
+const SITE_TYPES = { penup: { label: "Siège PEN'UP 3D", shape: "star" }, usine: { label: "Usine / Fabricant", shape: "factory" }, entrepot: { label: "Entrepôt logistique", shape: "warehouse" }, decision: { label: "Siège décisionnaire", shape: "towers" }, pdv: { label: "Point de vente", shape: "pin" } };
 const siteGmaps = (s) => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(s.adresse || s.label);
 function seedSites() {
   return [
@@ -2109,7 +2109,15 @@ function SavForm({ ticket, accounts, products, onSave }) {
     <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="btn btn-p" onClick={() => onSave(f)} disabled={!f.titre}>Enregistrer</button></div>
   </>);
 }
-const shapePath = (type) => type === "pin" ? "M0,0 C-6.5,-8 -6.5,-15 0,-15 C6.5,-15 6.5,-8 0,0 Z" : type === "diamond" ? "M0,-9 L9,0 L0,9 L-9,0 Z" : type === "warehouse" ? "M-9,7 L-9,-3 L0,-11 L9,-3 L9,7 Z" : type === "hex" ? "M0,-10 L8.66,-5 L8.66,5 L0,10 L-8.66,5 L-8.66,-5 Z" : "M0,-10 L2.9,-3.1 L10,-3.1 L4.2,1.6 L6.4,9 L0,4.6 L-6.4,9 L-4.2,1.6 L-10,-3.1 L-2.9,-3.1 Z";
+const shapePath = (type) => type === "pin" ? "M0,0 C-6.5,-8 -6.5,-15 0,-15 C6.5,-15 6.5,-8 0,0 Z"
+  : type === "diamond" ? "M0,-9 L9,0 L0,9 L-9,0 Z"
+  : type === "warehouse" ? "M-9,7 L-9,-3 L0,-11 L9,-3 L9,7 Z"
+  : type === "hex" ? "M0,-10 L8.66,-5 L8.66,5 L0,10 L-8.66,5 L-8.66,-5 Z"
+  // Usine « cliché » : corps + toit en dents de scie (3 pignons) + cheminée.
+  : type === "factory" ? "M-10,9 L-10,-1 L-6,-5 L-6,-1 L-2,-5 L-2,-1 L2,-5 L2,-1 L10,-1 L10,9 Z M4.5,-1 L4.5,-9 L7.5,-9 L7.5,-1 Z"
+  // Siège : deux tours accolées, une grande et une petite.
+  : type === "towers" ? "M-9,9 L-9,-10 L-1,-10 L-1,9 Z M-1,9 L-1,-2 L8,-2 L8,9 Z"
+  : "M0,-10 L2.9,-3.1 L10,-3.1 L4.2,1.6 L6.4,9 L0,4.6 L-6.4,9 L-4.2,1.6 L-10,-3.1 L-2.9,-3.1 Z";
 const siteColor = (s, account) => s.type === "penup" ? "#FFD212" : s.type === "usine" ? "#CD2A24" : s.type === "entrepot" ? "#16203a" : enseigneColor(account);
 function Carte({ data, persist, go, focus }) {
   const { sites, accounts } = data;
@@ -2172,15 +2180,17 @@ function Carte({ data, persist, go, focus }) {
     routesLayer.current = LF.layerGroup().addTo(map);
     markersLayer.current = LF.layerGroup().addTo(map);
     mapInst.current = map;
-    // Zoom molette maîtrisé : exactement UN niveau par cran. On désactive le zoom natif de
-    // Leaflet (qui additionne les événements et peut sauter 3-4 niveaux d'un coup avec
-    // certaines souris/pavés) et on applique un seul pas, avec un verrou qui absorbe la
-    // rafale d'événements émise par un même cran.
-    let wheelLock = false;
+    // Zoom molette maîtrisé : exactement UN niveau par cran. Le zoom natif de Leaflet
+    // additionne les événements d'un cran (rafale) et saute plusieurs niveaux. On applique
+    // un seul pas, puis on VERROUILLE tant que des événements continuent d'arriver : le
+    // verrou ne se relâche qu'après 110 ms sans aucun événement (fin réelle du cran), ce qui
+    // neutralise les rafales longues (souris/pavés à défilement lissé).
+    let zoomBusy = false; let idleT = null;
     const onWheel = (e) => {
       e.preventDefault();
-      if (wheelLock) return;
-      wheelLock = true; setTimeout(() => { wheelLock = false; }, 150);
+      clearTimeout(idleT); idleT = setTimeout(() => { zoomBusy = false; }, 110);
+      if (zoomBusy) return;
+      zoomBusy = true;
       const dir = e.deltaY < 0 ? 1 : -1;
       const at = map.containerPointToLatLng(map.mouseEventToContainerPoint(e));
       map.setZoomAround(at, map.getZoom() + dir, { animate: true });
@@ -2191,7 +2201,7 @@ function Carte({ data, persist, go, focus }) {
     const pts = sites.filter((p) => p.lat && p.lng).map((p) => [p.lat, p.lng]);
     if (pts.length === 1) map.setView(pts[0], 12); else if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
     setMapReady(true);
-    return () => { try { wheelEl.removeEventListener("wheel", onWheel); } catch (e) { } try { map.remove(); } catch (e) { } mapInst.current = null; markersLayer.current = null; routesLayer.current = null; setMapReady(false); };
+    return () => { clearTimeout(idleT); try { wheelEl.removeEventListener("wheel", onWheel); } catch (e) { } try { map.remove(); } catch (e) { } mapInst.current = null; markersLayer.current = null; routesLayer.current = null; setMapReady(false); };
   }, [LF]);
   // Marqueurs : un divIcon SVG par site (forme = type, couleur = enseigne), surbrillance + étiquette sur le sélectionné.
   const markerKey = useMemo(() => shown.map((p) => p.id + ":" + p.lat + ":" + p.lng + ":" + siteColor(p, accOf(p.accountId))).join("|") + "#" + sel, [shown, sel]);
@@ -2244,8 +2254,9 @@ function Carte({ data, persist, go, focus }) {
           </div>
         </div>
         <div className="card" style={{ marginTop: 12, padding: "12px 14px" }}><div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12 }}>
-          <div><div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 11, marginBottom: 5 }}>ENSEIGNES</div><div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{usedAccounts.map((a) => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: enseigneColor(a) }} />{a.enseigne}</span>)}<span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#FFD212" }} />PEN'UP 3D</span></div></div>
-          <div><div style={{ fontWeight: 700, color: "var(--muted)", fontSize: 11, marginBottom: 5 }}>TYPES</div><div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><svg width="16" height="16" viewBox="-10 -16 20 20"><path d={shapePath("pin")} fill="#6b7589" /></svg>Point de vente</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><svg width="16" height="16" viewBox="-11 -11 22 22"><path d={shapePath("diamond")} fill="#6b7589" /></svg>Siège décisionnaire</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><svg width="16" height="16" viewBox="-11 -12 22 22"><path d={shapePath("warehouse")} fill="#6b7589" /></svg>Entrepôt</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><svg width="16" height="16" viewBox="-11 -11 22 22"><path d={shapePath("hex")} fill="#CD2A24" /></svg>Usine / Fabricant</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><svg width="16" height="16" viewBox="-11 -11 22 22"><path d={shapePath("star")} fill="#FFD212" /></svg>Siège PEN'UP</span></div></div>
+          <div style={{ flex: "1 1 100%", fontSize: 11.5, color: "var(--muted)", marginBottom: 2 }}>La <strong style={{ color: "var(--ink)" }}>forme</strong> indique le type de site, la <strong style={{ color: "var(--ink)" }}>couleur</strong> le groupe d'appartenance.</div>
+          <div><div style={{ fontWeight: 800, color: "var(--muted)", fontSize: 10.5, letterSpacing: ".04em", marginBottom: 6 }}>FORME = TYPE DE SITE</div><div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{[{ s: "pin", c: "#6b7589", vb: "-10 -16 20 20", l: "Point de vente" }, { s: "towers", c: "#6b7589", vb: "-12 -12 24 24", l: "Siège / décision" }, { s: "warehouse", c: "#6b7589", vb: "-11 -12 22 22", l: "Entrepôt" }, { s: "factory", c: "#6b7589", vb: "-12 -11 24 22", l: "Usine / fabricant" }, { s: "star", c: "#FFD212", vb: "-11 -11 22 22", l: "Siège PEN'UP" }].map((it) => <span key={it.s} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><svg width="17" height="17" viewBox={it.vb}><path d={shapePath(it.s)} fill={it.c} stroke="#fff" strokeWidth={1} /></svg>{it.l}</span>)}</div></div>
+          <div><div style={{ fontWeight: 800, color: "var(--muted)", fontSize: 10.5, letterSpacing: ".04em", marginBottom: 6 }}>COULEUR = GROUPE</div><div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{usedAccounts.map((a) => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: enseigneColor(a) }} />{a.enseigne}</span>)}<span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#16203a" }} />Entrepôt</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#CD2A24" }} />Usine</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#FFD212" }} />PEN'UP 3D</span></div></div>
         </div></div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
