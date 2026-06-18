@@ -2164,7 +2164,7 @@ function Carte({ data, persist, go, focus }) {
   // La couche « Boundaries & Places » ajoute les noms de villes/pays par-dessus (rendu hybride type Google).
   useEffect(() => {
     if (!LF || !mapEl.current || mapInst.current) return;
-    const map = LF.map(mapEl.current, { zoomControl: false, attributionControl: true, worldCopyJump: true, wheelPxPerZoomLevel: 120, wheelDebounceTime: 25 }).setView([46.6, 2.4], 6);
+    const map = LF.map(mapEl.current, { zoomControl: false, attributionControl: true, worldCopyJump: true, scrollWheelZoom: false }).setView([46.6, 2.4], 6);
     LF.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, maxNativeZoom: 19, attribution: "Imagerie © Esri, Maxar, Earthstar Geographics" }).addTo(map);
     LF.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, maxNativeZoom: 19 }).addTo(map);
     LF.control.zoom({ position: "topright" }).addTo(map);
@@ -2172,11 +2172,26 @@ function Carte({ data, persist, go, focus }) {
     routesLayer.current = LF.layerGroup().addTo(map);
     markersLayer.current = LF.layerGroup().addTo(map);
     mapInst.current = map;
+    // Zoom molette maîtrisé : exactement UN niveau par cran. On désactive le zoom natif de
+    // Leaflet (qui additionne les événements et peut sauter 3-4 niveaux d'un coup avec
+    // certaines souris/pavés) et on applique un seul pas, avec un verrou qui absorbe la
+    // rafale d'événements émise par un même cran.
+    let wheelLock = false;
+    const onWheel = (e) => {
+      e.preventDefault();
+      if (wheelLock) return;
+      wheelLock = true; setTimeout(() => { wheelLock = false; }, 150);
+      const dir = e.deltaY < 0 ? 1 : -1;
+      const at = map.containerPointToLatLng(map.mouseEventToContainerPoint(e));
+      map.setZoomAround(at, map.getZoom() + dir, { animate: true });
+    };
+    const wheelEl = mapEl.current;
+    wheelEl.addEventListener("wheel", onWheel, { passive: false });
     setTimeout(() => { try { map.invalidateSize(); } catch (e) { } }, 60);
     const pts = sites.filter((p) => p.lat && p.lng).map((p) => [p.lat, p.lng]);
     if (pts.length === 1) map.setView(pts[0], 12); else if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40], maxZoom: 13 });
     setMapReady(true);
-    return () => { try { map.remove(); } catch (e) { } mapInst.current = null; markersLayer.current = null; routesLayer.current = null; setMapReady(false); };
+    return () => { try { wheelEl.removeEventListener("wheel", onWheel); } catch (e) { } try { map.remove(); } catch (e) { } mapInst.current = null; markersLayer.current = null; routesLayer.current = null; setMapReady(false); };
   }, [LF]);
   // Marqueurs : un divIcon SVG par site (forme = type, couleur = enseigne), surbrillance + étiquette sur le sélectionné.
   const markerKey = useMemo(() => shown.map((p) => p.id + ":" + p.lat + ":" + p.lng + ":" + siteColor(p, accOf(p.accountId))).join("|") + "#" + sel, [shown, sel]);
