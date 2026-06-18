@@ -2511,7 +2511,11 @@ function SiteForm({ site, accounts, onSave, known = [], contacts = [], onOpenCon
 async function aiSearchStores(zone, kind) {
   const sys = "Tu es un agent de prospection B2B retail pour PEN'UP 3D, marque française de stylos 3D et loisirs créatifs pour enfants. Tu recherches des établissements physiques de jouets, jeux et loisirs créatifs en France (chaînes, coopératives, franchises, indépendants, concept stores) ET tu enrichis chaque fiche avec l'identité légale de la société exploitante en t'appuyant sur les registres et sources officielles. Tu ne fournis QUE des données factuelles et vérifiables ; en cas de doute tu laisses le champ vide plutôt que d'inventer. Tu ne fabriques jamais un courriel, un téléphone, un nom de dirigeant ou un SIREN.";
   const kindTxt = kind === "chaine" ? "Privilégie les groupes nationaux, coopératives et franchises." : kind === "independant" ? "Privilégie les établissements indépendants et concept stores." : "Tous comptes confondus.";
-  const user = `Zone de recherche : ${zone}. ${kindTxt}
+  const user = `Requête : "${zone}". ${kindTxt}
+
+Cette requête peut être SOIT une zone géographique (ville, département, région, pays), SOIT le nom précis d'un établissement ou d'une enseigne.
+- Si c'est une ZONE géographique : recherche des établissements de jouets, jeux et loisirs créatifs situés dans cette zone.
+- Si c'est le NOM d'un établissement ou d'une enseigne précis (ex. « L'Atelier chez soi ») : identifie CET établissement précis et, si l'enseigne possède plusieurs points de vente, ses différentes adresses ; renvoie uniquement la ou les fiches qui y correspondent, sans inventer d'autres établissements sans rapport.
 
 Pour CHAQUE établissement, procède en deux temps :
 1) Identifie l'établissement physique (nom, enseigne, adresse réelle) via le web et les annuaires.
@@ -2527,7 +2531,7 @@ Renvoie UNIQUEMENT un tableau JSON valide (aucun texte ni balise autour). Chaque
 - siren, siret, raisonSociale, formeJuridique (chaînes ; depuis les registres officiels ; vide si non trouvé ; siret = établissement de l'établissement, 14 chiffres)
 - contact : objet { prenom, nom, fonction, email, telephone, source } ; le contact est le dirigeant ou le responsable identifié, avec ses coordonnées issues de la meilleure source publique disponible (registre, site, ou fiche Google en dernier recours).
 
-Donne entre 6 et 10 établissements avec des adresses réelles. Mieux vaut moins de fiches mais fiables.`;
+Si la requête est une zone, donne entre 6 et 10 établissements ; si c'est un établissement ou une enseigne précis, ne renvoie que la ou les fiches correspondantes (ne complète pas avec d'autres établissements). Toujours des adresses réelles : mieux vaut moins de fiches mais fiables.`;
   const res = await fetch(CLAUDE_URL, {
     method: "POST", headers: await claudeHeaders(),
     body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 3000, system: sys, messages: [{ role: "user", content: user }], tools: [{ type: "web_search_20250305", name: "web_search" }] }),
@@ -2653,7 +2657,7 @@ function Prospection({ data, persist, go }) {
     <div className="card" style={{ marginBottom: 14 }}>
       <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Sparkles size={17} style={{ color: "var(--orange)" }} /> Recherche IA de prospects</h3></div>
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <div className="fld" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}><label>Zone (ville, département ou région)</label><input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Ex. Occitanie, Tarn-et-Garonne, Bordeaux…" onKeyDown={(e) => { if (e.key === "Enter" && !busy) runAI(); }} /></div>
+        <div className="fld" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}><label>Zone ou établissement précis</label><input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Ex. Occitanie, Bordeaux… ou « L'Atelier chez soi »" onKeyDown={(e) => { if (e.key === "Enter" && !busy) runAI(); }} /></div>
         <div className="fld" style={{ minWidth: 170, marginBottom: 0 }}><label>Cible</label><select value={kind} onChange={(e) => setKind(e.target.value)}><option value="toutes">Tous</option><option value="chaine">Chaînes & franchises</option><option value="independant">Indépendants & concept stores</option></select></div>
         <button className="btn-save" disabled={busy} onClick={runAI} style={busy ? { opacity: .7, cursor: "wait" } : {}}>{busy ? "Recherche en cours…" : (<><Sparkles size={15} /> Lancer la recherche IA</>)}</button>
       </div>
