@@ -874,7 +874,8 @@ body:not(.doc-print) .print-area{position:absolute!important;left:0;top:0;width:
 `;
 
 const Badge = ({ color, children }) => (<span className="badge" style={{ background: color + "18", color: darkenHex(color) }}><i className="dot" style={{ background: color }} />{children}</span>);
-function Modal({ title, onClose, children, wide, xl }) {
+let _modalGuards = 0; // nombre de fenêtres d'édition ouvertes : sert à prévenir la perte de saisie au rechargement.
+function Modal({ title, onClose, children, wide, xl, guard = true }) {
   const w = xl ? "min(820px,100%)" : wide ? "min(640px,100%)" : "min(560px,100%)";
   const ref = useRef(null);
   // Accessibilité : Échap pour fermer, focus initial sur la fenêtre.
@@ -884,6 +885,8 @@ function Modal({ title, onClose, children, wide, xl }) {
     const t = setTimeout(() => { try { ref.current && ref.current.focus(); } catch (e) { } }, 0);
     return () => { window.removeEventListener("keydown", onKey); clearTimeout(t); };
   }, [onClose]);
+  // Garde anti-perte : compte cette fenêtre comme « édition ouverte » le temps de son affichage.
+  useEffect(() => { if (!guard) return; _modalGuards++; return () => { _modalGuards = Math.max(0, _modalGuards - 1); }; }, [guard]);
   return (<div className="ov no-print" onClick={onClose}><div className="modal" ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined} style={{ width: w, outline: "none" }} onClick={(e) => e.stopPropagation()}><div className="modal-h"><h3 className="pu-display">{title}</h3><button className="iconbtn" onClick={onClose} aria-label="Fermer"><X size={18} /></button></div><div className="modal-b">{children}</div></div></div>);
 }
 const Avatar = ({ c, lg }) => (<div className={cx("av", lg && "lg")} style={{ background: avColor(fullName(c)) }}>{initials(c) || <User size={lg ? 26 : 18} />}</div>);
@@ -3516,6 +3519,12 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("keydown", onKey); clearTimeout(gTimer); };
   }, []);
+  // Garde anti-perte : prévient avant de quitter/recharger si une fenêtre d'édition est ouverte.
+  useEffect(() => {
+    const onBeforeUnload = (e) => { if (_modalGuards > 0) { e.preventDefault(); e.returnValue = ""; return ""; } };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
   const counts = useMemo(() => {
     const stockAl = data.products.filter((p) => statusOf(p) !== "ok").length;
     const reAl = pdvForecast(data).filter((f) => f.daysLeft != null && f.daysLeft <= 21).length;
@@ -3584,7 +3593,7 @@ export default function App() {
       </div>
     </main>
     {cmdkOpen && <SearchPalette data={data} onClose={() => setCmdkOpen(false)} onPick={(target) => { setCmdkOpen(false); go(target.tab, target.id); }} />}
-    {helpOpen && <Modal title="Raccourcis clavier" onClose={() => setHelpOpen(false)}>
+    {helpOpen && <Modal title="Raccourcis clavier" onClose={() => setHelpOpen(false)} guard={false}>
       {(() => { const Kbd = ({ children }) => <kbd style={{ fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 6, padding: "2px 7px", color: "var(--ink)", whiteSpace: "nowrap" }}>{children}</kbd>;
         const Row = ({ keys, label }) => <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 0", borderBottom: "1px solid var(--line)" }}><span style={{ fontSize: 13 }}>{label}</span><span style={{ display: "inline-flex", gap: 5, flexShrink: 0 }}>{keys.map((k, i) => <Kbd key={i}>{k}</Kbd>)}</span></div>;
         return (<div>
