@@ -2112,8 +2112,24 @@ function Carte({ data, persist, go, focus }) {
   useEffect(() => { if (focus && focus.id) { const byId = sites.find((s) => s.id === focus.id); const target = byId || sites.find((s) => s.accountId === focus.id && s.lat != null); if (target) { setSel(target.id); if (target.lat != null && target.lng != null) { const { x, y } = mapProject(target.lng, target.lat); const w = 90; const h = w * (MAP_VBH / MAP_VBW); setView({ x: Math.min(Math.max(0, x - w / 2), MAP_VBW - w), y: Math.min(Math.max(0, y - h / 2), MAP_VBH - h), w, h }); } } } }, [focus && focus.n]);
   const clampView = (v) => { let w = Math.min(MAP_VBW, Math.max(4, v.w)); const h = w * (MAP_VBH / MAP_VBW); let x = Math.min(Math.max(0, v.x), MAP_VBW - w); let y = Math.min(Math.max(0, v.y), MAP_VBH - h); return { x, y, w, h }; };
   const zoomAt = (factor, fx, fy) => setView((v) => { let w = v.w * factor; w = Math.min(MAP_VBW, Math.max(4, w)); const h = w * (MAP_VBH / MAP_VBW); return clampView({ x: v.x + (v.w - w) * fx, y: v.y + (v.h - h) * fy, w, h }); });
-  // Molette : pas de zoom doux (0.92) pour pouvoir séparer finement des points très proches (ex. agglomération).
-  useEffect(() => { const el = svgRef.current; if (!el) return; const onWheel = (e) => { e.preventDefault(); const r = el.getBoundingClientRect(); zoomAt(e.deltaY < 0 ? 0.92 : 1 / 0.92, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }; el.addEventListener("wheel", onWheel, { passive: false }); return () => el.removeEventListener("wheel", onWheel); }, []);
+  // Molette : zoom proportionnel à la DISTANCE de défilement, pas au nombre d'événements
+  // (une souris/pavé peut émettre des dizaines d'événements par cran, ce qui faisait
+  // exploser le zoom). Normalisé par deltaMode + borné à un cran : 1 cran ≈ ×10.
+  useEffect(() => {
+    const el = svgRef.current; if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      let d = e.deltaY;
+      if (e.deltaMode === 1) d *= 33;                        // défilement en lignes → pixels
+      else if (e.deltaMode === 2) d *= el.clientHeight;      // en pages → pixels
+      d = Math.max(-100, Math.min(100, d));                  // un seul événement ne dépasse pas un cran
+      const r = el.getBoundingClientRect();
+      const factor = Math.exp(d * 0.02303);                  // |d| = 100 px ⇒ ×10 (zoom in si d < 0)
+      zoomAt(factor, (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
   const onDown = (e) => { drag.current = { px: e.clientX, py: e.clientY, v: { ...view } }; e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId); };
   const onMove = (e) => { if (!drag.current) return; const r = svgRef.current.getBoundingClientRect(); const dx = (e.clientX - drag.current.px) / r.width * drag.current.v.w; const dy = (e.clientY - drag.current.py) / r.height * drag.current.v.h; setView(clampView({ ...drag.current.v, x: drag.current.v.x - dx, y: drag.current.v.y - dy })); };
   // Sélection depuis la liste latérale : recentre si le site est hors-vue
