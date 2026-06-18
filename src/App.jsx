@@ -2120,13 +2120,13 @@ const shapePath = (type) => type === "pin" ? "M0,0 C-6.5,-8 -6.5,-15 0,-15 C6.5,
   // Siège : deux tours accolées, une grande et une petite.
   : type === "towers" ? "M-9,9 L-9,-10 L-1,-10 L-1,9 Z M-1,9 L-1,-2 L8,-2 L8,9 Z"
   : "M0,-10 L2.9,-3.1 L10,-3.1 L4.2,1.6 L6.4,9 L0,4.6 L-6.4,9 L-4.2,1.6 L-10,-3.1 L-2.9,-3.1 Z";
-const siteColor = (s, account) => s.type === "penup" || s.type === "usine" || s.type === "entrepot" ? "#FFD212" : (SURFACE_COLOR[s.typeSurface] || "#9aa6bd");
+const siteColor = (s, account) => s.type === "penup" || s.type === "usine" || s.type === "entrepot" ? "#FFD212" : s.type === "decision" ? enseigneColor(account) : (SURFACE_COLOR[s.typeSurface] || "#9aa6bd");
 function Carte({ data, persist, go, focus }) {
   const { sites, accounts } = data;
   const accOf = (id) => accounts.find((x) => x.id === id);
   const placed = sites.filter((s) => s.lat && s.lng);
   const [sel, setSel] = useState(placed[0]?.id || null); const [edit, setEdit] = useState(null);
-  const [filtEns, setFiltEns] = useState([]); const [filtTypes, setFiltTypes] = useState([]);
+  const [filtEns, setFiltEns] = useState([]); const [filtCat, setFiltCat] = useState([]);
   const [useOSRM, setUseOSRM] = useState(false);
   const [osrmCache, setOsrmCache] = useState({});
   const mapEl = useRef(null); const mapInst = useRef(null); const markersLayer = useRef(null); const routesLayer = useRef(null);
@@ -2146,7 +2146,9 @@ function Carte({ data, persist, go, focus }) {
   const delSite = (id) => { persist((p) => { const att = { ...(p.attachments || {}) }; delete att[id]; return ({ ...p, sites: p.sites.filter((x) => x.id !== id), contacts: (p.contacts || []).map((c) => c.siteId === id ? { ...c, siteId: "" } : c), deals: (p.deals || []).map((d) => { const nd = d.siteId === id ? { ...d, siteId: "" } : d; return nd.livraisonSiteId === id ? { ...nd, livraisonSiteId: "" } : nd; }), interactions: (p.interactions || []).map((i) => i.siteId === id ? { ...i, siteId: "" } : i), attachments: att }); }); if (sel === id) setSel(null); };
   const usedAccounts = accounts.filter((a) => sites.some((x) => x.accountId === a.id));
   const tog = (arr, set, val) => set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
-  const visible = (st) => st.type === "penup" || st.type === "entrepot" || st.type === "usine" ? true : (filtEns.length === 0 || filtEns.includes(st.accountId)) && (filtTypes.length === 0 || filtTypes.includes(st.type));
+  // Catégorie de rattachement : « groupe » si le compte parent est un groupe (sièges + magasins rattachés), sinon « indépendant ».
+  const siteCat = (st) => isGroupe(accOf(st.accountId)) ? "groupe" : "independant";
+  const visible = (st) => st.type === "penup" || st.type === "entrepot" || st.type === "usine" ? true : (filtEns.length === 0 || filtEns.includes(st.accountId)) && (filtCat.length === 0 || filtCat.includes(siteCat(st)));
   const shown = placed.filter(visible); const visibleIds = new Set(shown.map((x) => x.id));
   const entrepot = placed.find((x) => x.type === "entrepot");
   const routes = entrepot ? data.deals.filter((d) => d.statut === "expediee" && d.livraisonSiteId).map((d) => { const dest = placed.find((x) => x.id === d.livraisonSiteId); return dest && visibleIds.has(dest.id) ? { d, dest } : null; }).filter(Boolean) : [];
@@ -2243,7 +2245,7 @@ function Carte({ data, persist, go, focus }) {
     <div className="card" style={{ marginBottom: 14, borderLeft: "4px solid var(--blue)" }}><div style={{ display: "flex", gap: 12, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" }}><div style={{ fontSize: 13, lineHeight: 1.55, flex: 1, minWidth: 240 }}>La <strong>couleur</strong> indique le groupe / établissement, la <strong>forme</strong> le type d'établissement. Zoomez à la molette ou avec les boutons, déplacez en glissant. Une <strong>ligne pointillée animée</strong> relie l'entrepôt à un établissement quand une commande est en cours de livraison ; un badge indique le nombre de commandes simultanées vers la même destination.</div><div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}><button className="btn btn-p btn-s" onClick={() => setEdit({ id: "s_" + Date.now(), accountId: accounts[0]?.id || null, label: "", type: "pdv", adresse: "", lat: null, lng: null, siret: "", typeSurface: "", adresseLivraison: "", livraisonIdentique: true, contactId: "" })}><Plus size={15} /> Ajouter un site</button><label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600 }}><input type="checkbox" checked={useOSRM} onChange={(e) => setUseOSRM(e.target.checked)} style={{ width: 14, height: 14 }} />Itinéraires réels (OSRM)</label></div></div></div>
     <div className="filtbar">
       <div className="grp"><span className="lbl">Groupes / établissements</span><AllChip active={filtEns.length === 0} onClick={() => setFiltEns([])}>Toutes</AllChip>{usedAccounts.map((a) => <button key={a.id} className={cx("chip", filtEns.includes(a.id) && "on")} onClick={() => tog(filtEns, setFiltEns, a.id)} style={filtEns.includes(a.id) ? { background: enseigneColor(a), borderColor: enseigneColor(a) } : { borderLeft: `4px solid ${enseigneColor(a)}` }}>{a.enseigne}</button>)}</div>
-      <div className="grp"><span className="lbl">Types</span><AllChip active={filtTypes.length === 0} onClick={() => setFiltTypes([])}>Tous</AllChip><button className={cx("chip", filtTypes.includes("pdv") && "on")} onClick={() => tog(filtTypes, setFiltTypes, "pdv")}>Points de vente</button><button className={cx("chip", filtTypes.includes("decision") && "on")} onClick={() => tog(filtTypes, setFiltTypes, "decision")}>Sièges décisionnaires</button></div>
+      <div className="grp"><span className="lbl">Rattachement</span><AllChip active={filtCat.length === 0} onClick={() => setFiltCat([])}>Tous</AllChip><button className={cx("chip", filtCat.includes("groupe") && "on")} onClick={() => tog(filtCat, setFiltCat, "groupe")}>Groupe</button><button className={cx("chip", filtCat.includes("independant") && "on")} onClick={() => tog(filtCat, setFiltCat, "independant")}>Indépendant</button></div>
       <span style={{ fontSize: 11, color: "var(--muted)" }}>Siège PEN'UP et entrepôt restent toujours affichés.</span>
     </div>
     <div className="grid" style={{ gridTemplateColumns: "1.5fr 1fr", alignItems: "start" }}>
@@ -2256,9 +2258,10 @@ function Carte({ data, persist, go, focus }) {
           </div>
         </div>
         <div className="card" style={{ marginTop: 12, padding: "12px 14px" }}><div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12 }}>
-          <div style={{ flex: "1 1 100%", fontSize: 11.5, color: "var(--muted)", marginBottom: 2 }}>La <strong style={{ color: "var(--ink)" }}>forme</strong> indique le type de site, la <strong style={{ color: "var(--ink)" }}>couleur</strong> le type de surface.</div>
+          <div style={{ flex: "1 1 100%", fontSize: 11.5, color: "var(--muted)", marginBottom: 2 }}>La <strong style={{ color: "var(--ink)" }}>forme</strong> indique le type de site. La <strong style={{ color: "var(--ink)" }}>couleur</strong> : le type de surface pour les magasins, la couleur du groupe pour les sièges.</div>
           <div><div style={{ fontWeight: 800, color: "var(--muted)", fontSize: 10.5, letterSpacing: ".04em", marginBottom: 6 }}>FORME = TYPE DE SITE</div><div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{[{ s: "pin", c: "#6b7589", vb: "-10 -16 20 20", l: "Point de vente" }, { s: "towers", c: "#6b7589", vb: "-12 -12 24 24", l: "Siège / décision" }, { s: "warehouse", c: "#6b7589", vb: "-11 -12 22 22", l: "Entrepôt" }, { s: "factory", c: "#6b7589", vb: "-12 -11 24 22", l: "Usine / fabricant" }, { s: "star", c: "#FFD212", vb: "-11 -11 22 22", l: "Siège PEN'UP" }].map((it) => <span key={it.s} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><svg width="17" height="17" viewBox={it.vb}><path d={shapePath(it.s)} fill={it.c} stroke="#fff" strokeWidth={1} /></svg>{it.l}</span>)}</div></div>
           <div><div style={{ fontWeight: 800, color: "var(--muted)", fontSize: 10.5, letterSpacing: ".04em", marginBottom: 6 }}>COULEUR = TYPE DE SURFACE</div><div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{TYPE_SURFACE.map((t) => <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: SURFACE_COLOR[t] }} />{t}</span>)}<span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#FFD212" }} />PEN'UP 3D · entrepôt · usine</span><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#9aa6bd" }} />Non précisé</span></div></div>
+          {usedAccounts.some(isGroupe) && <div><div style={{ fontWeight: 800, color: "var(--muted)", fontSize: 10.5, letterSpacing: ".04em", marginBottom: 6 }}>SIÈGES = COULEUR DU GROUPE</div><div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>{usedAccounts.filter(isGroupe).map((a) => <span key={a.id} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: enseigneColor(a) }} />{a.enseigne}</span>)}</div></div>}
         </div></div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
