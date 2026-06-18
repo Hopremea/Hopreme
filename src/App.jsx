@@ -3553,6 +3553,17 @@ export default function App() {
         </div>
       </div>
       {importMsg && <div className="card" style={{ borderLeft: "4px solid var(--blue)", marginBottom: 14, fontSize: 13 }}>{importMsg}</div>}
+      {(!data.accounts || data.accounts.length === 0) && (
+        <div className="card no-print fade" style={{ marginBottom: 16, borderLeft: "4px solid var(--blue)", background: "linear-gradient(180deg,#ffffff, var(--blue-l))" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}><Sparkles size={20} style={{ color: "var(--orange)" }} /><h3 className="pu-display" style={{ margin: 0, fontSize: 18 }}>Bienvenue dans MITMIT</h3></div>
+          <p style={{ margin: "0 0 14px", color: "var(--muted)", fontSize: 13.5, lineHeight: 1.55 }}>Votre poste de pilotage commercial & logistique. Pour démarrer, choisissez une option :</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
+            <div className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}><div style={{ fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}><Sparkles size={15} style={{ color: "var(--orange)" }} />1 · Explorer la démo</div><div style={{ fontSize: 12.5, color: "var(--muted)", flex: 1, lineHeight: 1.5 }}>Chargez un jeu de données d'exemple pour découvrir l'outil sans risque.</div><button className="btn btn-y btn-s" style={{ alignSelf: "flex-start" }} onClick={loadDemo}><Sparkles size={14} /> Charger la démo</button></div>
+            <div className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}><div style={{ fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}><Upload size={15} style={{ color: "var(--blue)" }} />2 · Importer mes données</div><div style={{ fontSize: 12.5, color: "var(--muted)", flex: 1, lineHeight: 1.5 }}>Restaurez une sauvegarde JSON existante du cockpit.</div><button className="btn btn-g btn-s" style={{ alignSelf: "flex-start" }} onClick={() => fileImportRef.current && fileImportRef.current.click()}><Upload size={14} /> Restaurer une sauvegarde</button></div>
+            <div className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}><div style={{ fontWeight: 800, fontSize: 14, display: "flex", alignItems: "center", gap: 7 }}><Search size={15} style={{ color: "var(--green)" }} />3 · Partir de zéro</div><div style={{ fontSize: 12.5, color: "var(--muted)", flex: 1, lineHeight: 1.5 }}>Ajoutez votre premier prospect et laissez l'IA enrichir sa fiche.</div><button className="btn btn-p btn-s" style={{ alignSelf: "flex-start" }} onClick={() => go("prospection")}><Plus size={14} /> Ajouter un prospect</button></div>
+          </div>
+        </div>
+      )}
       <div className="print-area">
       {tab === "dash" && <Dashboard key={"dash-" + navKey} data={data} go={go} />}
       {tab === "performance" && <Performance key={"performance-" + navKey} data={data} go={go} />}
