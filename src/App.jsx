@@ -743,6 +743,15 @@ function findDuplicateAccount(accounts, enseigne, excludeId) {
   const norm = normStr(enseigne); if (!norm) return null;
   return accounts.find((a) => a.id !== excludeId && normStr(a.enseigne) === norm) || null;
 }
+// Trouve un GROUPE existant correspondant au réseau d'un prospect (ex. « E.Leclerc Bain-de-Bretagne »
+// rejoint le groupe « E.Leclerc ») : on l'y rattache comme établissement au lieu de créer un doublon de groupe.
+function findGroupForProspect(accounts, p) {
+  const groups = (accounts || []).filter(isGroupe);
+  if (!groups.length) return null;
+  const ens = normStr(p.enseigne || ""); const nom = normStr(p.nom || "");
+  if (ens) { const exact = groups.find((a) => normStr(a.enseigne) === ens); if (exact) return exact; }
+  return groups.find((a) => { const gn = normStr(a.enseigne); return gn && gn.length >= 4 && ((ens && (ens.includes(gn) || gn.includes(ens))) || (nom && nom.includes(gn))); }) || null;
+}
 function findDuplicateContact(contacts, prenom, nom, email, excludeId) {
   const ne = normStr(email);
   if (ne) { const byEmail = contacts.find((c) => c.id !== excludeId && normStr(c.email) === ne); if (byEmail) return byEmail; }
@@ -3238,25 +3247,35 @@ function Prospection({ data, persist, go }) {
   const del = (id) => { persist((d) => ({ ...d, prospects: d.prospects.filter((x) => x.id !== id) })); setEdit(null); };
   const NATURE_FROM_TYPE = { cooperative: "CA", chaine: "CA", franchise: "FC", independant: "MI", specialiste: "MI", gss: "CA", autre: "DV" };
   const convert = (p) => {
-    const accId = uid("acc_"); const nature = NATURE_FROM_TYPE[p.type] || "DV";
-    const kind = isCentraleOuChaine({ nature, magasins: 1 }) ? "groupe" : "établissement";
+    const grp = findGroupForProspect(data.accounts, p);
+    const nature = NATURE_FROM_TYPE[p.type] || "DV";
+    const contactRole = (fon) => /acheteur|achat/.test(fon) ? "acheteur" : /g[ée]rant|dirigeant|pr[ée]sident|fondat|propri[ée]taire/.test(fon) ? "decideur" : "autre";
     persist((d) => {
+      const adr = [p.adresse, ((p.cp || "") + " " + (p.ville || "")).trim()].filter(Boolean).join(", ");
+      const hasContact = (p.contactNom || "").trim();
+      // Cas 1 : un groupe correspondant existe → on crée une fiche établissement rattachée à ce groupe.
+      if (grp) {
+        const sid = uid("s_"); const cid = uid("c_");
+        const site = { id: sid, accountId: grp.id, label: p.nom, type: "pdv", typeSurface: p.format || "", siret: p.siret || "", adresse: adr, adresseLivraison: "", livraisonIdentique: true, lat: null, lng: null, contactId: hasContact ? cid : "", notes: "Établissement issu de la prospection, rattaché au groupe " + (grp.enseigne || "") + "." };
+        const out = { ...d, sites: [...(d.sites || []), site], prospects: d.prospects.map((x) => x.id === p.id ? { ...x, statut: "converti", accountId: grp.id } : x) };
+        const cnt = (out.sites || []).filter((s) => s.accountId === grp.id && (s.type === "pdv" || s.type === "decision")).length;
+        out.accounts = out.accounts.map((a) => a.id === grp.id ? { ...a, magasins: Math.max(Number(a.magasins) || 0, cnt) } : a);
+        if (hasContact) out.contacts = [...d.contacts, { id: cid, accountId: grp.id, siteId: sid, prenom: p.contactPrenom || "", nom: (p.contactNom || "").toUpperCase(), fonction: p.contactFonction || "", role: contactRole((p.contactFonction || "").toLowerCase()), email: p.contactEmail || p.email || "", mobile: p.contactTel || "", fixe: "", linkedin: "", ville: p.ville || "", departement: p.departement || "", adresse: p.adresse || "", principal: false, notes: p.contactSource ? ("Identité issue de : " + p.contactSource + " · à vérifier") : "", createdAt: TODAY() }];
+        return out;
+      }
+      // Cas 2 : aucun groupe correspondant → on crée un nouveau compte (groupe ou établissement selon la nature).
+      const accId = uid("acc_"); const kind = isCentraleOuChaine({ nature, magasins: 1 }) ? "groupe" : "établissement";
       const code = buildClientCode(d.accounts, nature);
       const notesParts = [p.nom, p.adresse, ((p.cp || "") + " " + (p.ville || "")).trim(), p.region, p.telephone, p.site].filter(Boolean);
       if (p.raisonSociale || p.siren || p.siret) notesParts.push("Société : " + [p.raisonSociale, p.formeJuridique, p.siren && ("SIREN " + p.siren), p.siret && ("SIRET " + p.siret)].filter(Boolean).join(", "));
       if (p.potentiel && POTENTIEL_META[p.potentiel]) notesParts.push("Potentiel : " + POTENTIEL_META[p.potentiel].label);
       if (p.email) notesParts.push("Courriel : " + p.email);
       if (p.notes) notesParts.push(p.notes);
-      const adr = [p.adresse, ((p.cp || "") + " " + (p.ville || "")).trim()].filter(Boolean).join(", ");
-      const hasContact = (p.contactNom || "").trim(); const cid = uid("c_"); const sid = "s_" + accId;
+      const cid = uid("c_"); const sid = "s_" + accId;
       const acc = { id: accId, enseigne: p.enseigne || p.nom, kind, stage: "prospect", magasins: 1, nature, code, siren: p.siren || "", formeJuridique: p.formeJuridique || "", typeSurface: p.format || "", ville: p.ville, lat: null, lng: null, pipeline: 0, prochaineAction: "Prise de contact", dateAction: "", notes: notesParts.join(" · "), adressePostale: adr, adresseLivraison: "", livraisonIdentique: true, stageLog: [{ stage: "prospect", date: TODAY() }] };
       const site = { id: sid, accountId: accId, label: p.nom, type: "pdv", typeSurface: p.format || "", siret: p.siret || "", adresse: adr, adresseLivraison: "", livraisonIdentique: true, lat: null, lng: null, contactId: hasContact ? cid : "", notes: "Point de vente issu de la prospection." };
       const out = { ...d, accounts: [...d.accounts, acc], sites: [...(d.sites || []), site], prospects: d.prospects.map((x) => x.id === p.id ? { ...x, statut: "converti", accountId: accId } : x) };
-      if (hasContact) {
-        const fon = (p.contactFonction || "").toLowerCase();
-        const role = /acheteur|achat/.test(fon) ? "acheteur" : /g[ée]rant|dirigeant|pr[ée]sident|fondat|propri[ée]taire/.test(fon) ? "decideur" : "autre";
-        out.contacts = [...d.contacts, { id: cid, accountId: accId, siteId: sid, prenom: p.contactPrenom || "", nom: (p.contactNom || "").toUpperCase(), fonction: p.contactFonction || "", role, email: p.contactEmail || p.email || "", mobile: p.contactTel || "", fixe: "", linkedin: "", ville: p.ville || "", departement: p.departement || "", adresse: p.adresse || "", principal: true, notes: p.contactSource ? ("Identité issue de : " + p.contactSource + " · à vérifier") : "", createdAt: TODAY() }];
-      }
+      if (hasContact) out.contacts = [...d.contacts, { id: cid, accountId: accId, siteId: sid, prenom: p.contactPrenom || "", nom: (p.contactNom || "").toUpperCase(), fonction: p.contactFonction || "", role: contactRole((p.contactFonction || "").toLowerCase()), email: p.contactEmail || p.email || "", mobile: p.contactTel || "", fixe: "", linkedin: "", ville: p.ville || "", departement: p.departement || "", adresse: p.adresse || "", principal: true, notes: p.contactSource ? ("Identité issue de : " + p.contactSource + " · à vérifier") : "", createdAt: TODAY() }];
       return out;
     });
     setEdit(null);
