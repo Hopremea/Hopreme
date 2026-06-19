@@ -643,17 +643,21 @@ function normalize(d) {
   }
   // Dédoublonnage des événements (exécuté à chaque normalisation : chargement, écriture, sync).
   // Cause des doublons : la planification auto depuis les échanges tournait en parallèle dans
-  // plusieurs sessions/onglets et fusionnait des événements distincts via Supabase. On supprime :
-  //  - les identifiants en double (ids déterministes des événements auto qui se recroisent),
-  //  - les événements auto issus du même échange à la même date et de même type,
-  //  - les événements strictement identiques (mêmes date/heure/titre/type/rattachements).
+  // plusieurs sessions/onglets (titres variables selon l'IA) et se cumulait via Supabase. On supprime :
+  //  - les identifiants en double ;
+  //  - les événements AUTO-planifiés (tag fromInteraction ou note « Planifié automatiquement »)
+  //    redondants pour un même rattachement (contact / établissement / groupe), à la même date et de
+  //    même type — quel que soit le titre ou l'échange d'origine : on ne relance qu'une fois par jour ;
+  //  - les événements manuels strictement identiques (mêmes date/heure/titre/type/rattachements).
   {
     const seenId = new Set(); const seenSig = new Set(); const out = [];
     for (const e of (d.events || [])) {
       if (!e) continue;
       if (e.id && seenId.has(e.id)) continue;
-      const sig = e.fromInteraction
-        ? ("A|" + e.fromInteraction + "|" + (e.date || "") + "|" + (e.type || ""))
+      const isAuto = !!e.fromInteraction || /^Planifié automatiquement/.test(e.notes || "");
+      const key = e.contactId || e.siteId || e.accountId || "";
+      const sig = isAuto
+        ? ("AUTO|" + key + "|" + (e.date || "") + "|" + (e.type || ""))
         : ("C|" + (e.date || "") + "|" + (e.heure || "") + "|" + (e.titre || "") + "|" + (e.type || "") + "|" + (e.accountId || "") + "|" + (e.siteId || "") + "|" + (e.contactId || ""));
       if (seenSig.has(sig)) continue;
       if (e.id) seenId.add(e.id);
@@ -4383,6 +4387,15 @@ export default function App() {
       autoScanRef.current.running = false;
     })();
   }, [loading, data.interactions, persist]);
+  // Nettoyage durable des doublons : après le chargement, on réécrit une fois la version normalisée
+  // (dédoublonnée) dans la base partagée, pour que les doublons disparaissent aussi côté serveur et
+  // sur les autres appareils, pas seulement à l'affichage local.
+  const cleanedRef = useRef(false);
+  useEffect(() => {
+    if (loading || cleanedRef.current) return;
+    cleanedRef.current = true;
+    persist((p) => p, { snapshot: false });
+  }, [loading, persist]);
   // Synchronisation temps réel : applique les modifications enregistrées par d'autres sessions
   // (autre utilisateur, autre onglet), sauf si une écriture locale est en attente (on ne perd jamais une saisie en cours).
   useEffect(() => {
