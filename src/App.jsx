@@ -743,6 +743,12 @@ const BG_THEMES = [
   { id: "creamdash", label: "Crème tirets rouges", sw: "#fff8ea" },
   { id: "plain", label: "Sobre (uni)", sw: "#f4f6fb" },
 ];
+// Sur les thèmes de fond foncés, le texte hors carte passe en clair ; il redevient
+// sombre dans toute surface claire (cartes, lignes, champs, tuiles blanches, menus).
+const DARK_BG_TEXT = ["blue", "bluedots", "red"].map((t) => `
+.pu-root.bg-${t} .main{color:#fff;--ink:#fff;--muted:rgba(255,255,255,.82);--line:rgba(255,255,255,.30);}
+.pu-root.bg-${t} .main .card,.pu-root.bg-${t} .main .crow,.pu-root.bg-${t} .main .conn,.pu-root.bg-${t} .modal,.pu-root.bg-${t} .main input,.pu-root.bg-${t} .main select,.pu-root.bg-${t} .main textarea,.pu-root.bg-${t} .main [style*="#fff"],.pu-root.bg-${t} .main [style*="--card"],.pu-root.bg-${t} .main [style*="--bg"]{color:var(--ink);--ink:#16203a;--muted:#5b6478;--line:#ece3d2;}
+`).join("");
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 :root{--blue:#3F60AA;--blue-d:#2f4c86;--blue-l:#eef2fb;--yellow:#FFD212;--yellow-d:#F8B133;--orange:#F8B133;--red:#FF5A45;--red-mid:#E94D44;--red-d:#CD2A24;--red-l:#ffe9e5;--cream:#FFF8EA;--green:#2bb673;--amber:#F8B133;--ink:#16203a;--muted:#5b6478;--bg:#fff8ea;--card:#fff;--line:#ece3d2;}
@@ -783,6 +789,7 @@ const CSS = `
 .pu-root.bg-yellow .topbar .btn-ghost:hover{background:#34528f;border-color:#2c4582;}
 .pu-root.bg-cream .topbar .btn-ghost,.pu-root.bg-creamdash .topbar .btn-ghost,.pu-root.bg-plain .topbar .btn-ghost{background:#FF5A45;color:#fff;border-color:#e94d44;}
 .pu-root.bg-cream .topbar .btn-ghost:hover,.pu-root.bg-creamdash .topbar .btn-ghost:hover,.pu-root.bg-plain .topbar .btn-ghost:hover{background:#e94d44;border-color:#cd2a24;}
+${DARK_BG_TEXT}
 .pu-root.dark::before{opacity:.2;}
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:16px;flex-wrap:wrap;}
 .topbar h2{margin:0;font-size:23px;}.topbar p{margin:3px 0 0;color:var(--muted);font-size:13px;}
