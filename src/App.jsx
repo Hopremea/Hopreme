@@ -996,7 +996,7 @@ const THEME_BG_CSS = THEME_COLORS.map((c) => `.pu-root.color-${c.id}{background:
 // Texte clair hors carte sur les fonds foncés (revient sombre dans les surfaces claires).
 const DARK_BG_TEXT = THEME_COLORS.filter((c) => c.dark).map((c) => c.id).map((t) => `
 .pu-root.color-${t} .main{color:#fff;--ink:#fff;--muted:rgba(255,255,255,.82);--line:rgba(255,255,255,.30);}
-.pu-root.color-${t} .main .card,.pu-root.color-${t} .main .crow,.pu-root.color-${t} .main .conn,.pu-root.color-${t} .modal,.pu-root.color-${t} .main input,.pu-root.color-${t} .main select,.pu-root.color-${t} .main textarea,.pu-root.color-${t} .main .chip,.pu-root.color-${t} .main .chip-all,.pu-root.color-${t} .main [style*="#fff"],.pu-root.color-${t} .main [style*="--card"],.pu-root.color-${t} .main [style*="--bg"]{color:var(--ink);--ink:#16203a;--muted:#5b6478;--line:#ece3d2;}
+.pu-root.color-${t} .main .card,.pu-root.color-${t} .main .crow,.pu-root.color-${t} .main .conn,.pu-root.color-${t} .modal,.pu-root.color-${t} .main input,.pu-root.color-${t} .main select,.pu-root.color-${t} .main textarea,.pu-root.color-${t} .main .chip,.pu-root.color-${t} .main .chip-all,.pu-root.color-${t} .main .btn-g,.pu-root.color-${t} .main .iconbtn,.pu-root.color-${t} .main [style*="#fff"],.pu-root.color-${t} .main [style*="--card"],.pu-root.color-${t} .main [style*="--bg"]{color:var(--ink);--ink:#16203a;--muted:#5b6478;--line:#ece3d2;}
 .pu-root.color-${t} .main .chip.on{color:#fff;}
 .pu-root.color-${t} .topbar h2{color:#fff;}
 .pu-root.color-${t} .topbar p{color:rgba(255,255,255,.85);}
