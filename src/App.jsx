@@ -1265,7 +1265,7 @@ function ActivityChart({ deals }) {
     while (n < 60) {
       const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`;
       const label = cur.toLocaleDateString("fr-FR", { month: "short" }).replace(".", "") + " " + String(cur.getFullYear()).slice(2);
-      const cmds = deals.filter((x) => x.type === "Commande" && (x.statut === "accepte" || x.statut === "livre") && (x.date || "").startsWith(key));
+      const cmds = deals.filter((x) => x.type === "Commande" && isCaSigne(x) && (x.date || "").startsWith(key));
       arr.push({ key, label, ca: cmds.reduce((s, x) => s + (x.montant || 0), 0), qte: cmds.reduce((s, x) => s + (x.qte || 0), 0), cmd: cmds.length });
       if (key === endKey) break;
       cur.setMonth(cur.getMonth() + 1);
@@ -3992,7 +3992,7 @@ export default function App() {
           {(() => {
             const SS = { saving: { l: "Enregistrement…", c: "#a06a06", I: RefreshCw }, saved: { l: supabaseEnabled ? "Synchronisé" : "Enregistré", c: "#1d8956", I: CheckCircle2 }, remote: { l: "Mis à jour par un collègue", c: "var(--blue)", I: Users }, offline: { l: "Hors ligne", c: "var(--red)", I: AlertTriangle } };
             const m = SS[syncState] || SS.saved; const Ic = m.I;
-            return <span title="État de la synchronisation des données" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: m.c, background: m.c + "14", border: "1px solid " + m.c + "33", borderRadius: 20, padding: "5px 10px", whiteSpace: "nowrap" }}><Ic size={13} className={syncState === "saving" ? "spin" : undefined} />{m.l}</span>;
+            return <span title="État de la synchronisation des données" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: "#fff", background: m.c, border: "1px solid " + m.c, borderRadius: 20, padding: "5px 11px", whiteSpace: "nowrap" }}><Ic size={13} className={syncState === "saving" ? "spin" : undefined} />{m.l}</span>;
           })()}
           <button className="btn btn-ghost btn-s" onClick={() => setCmdkOpen(true)} title="Recherche (Ctrl/Cmd+K)"><Search size={15} /> Rechercher <span style={{ fontSize: 10, opacity: .6, marginLeft: 4 }}>⌘K</span></button>
           <button className="btn btn-ghost btn-s" onClick={exportAll} title="Exporter toutes les données"><Download size={15} /> Sauvegarde</button>
