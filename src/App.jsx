@@ -776,6 +776,11 @@ const CSS = `
 .pu-root.bg-plain{background:#f4f6fb;}
 .pu-root.bg-blue .topbar h2,.pu-root.bg-bluedots .topbar h2,.pu-root.bg-red .topbar h2{color:#fff;}
 .pu-root.bg-blue .topbar p,.pu-root.bg-bluedots .topbar p,.pu-root.bg-red .topbar p{color:rgba(255,255,255,.85);}
+/* Boutons de la barre du haut : fond contrasté selon le thème de page */
+.pu-root.bg-blue .topbar .btn-ghost,.pu-root.bg-bluedots .topbar .btn-ghost,.pu-root.bg-red .topbar .btn-ghost{background:#FFD212;color:#16203a;border-color:#f0c200;}
+.pu-root.bg-blue .topbar .btn-ghost:hover,.pu-root.bg-bluedots .topbar .btn-ghost:hover,.pu-root.bg-red .topbar .btn-ghost:hover{background:#f6c200;border-color:#dcae00;}
+.pu-root.bg-yellow .topbar .btn-ghost{background:#3F60AA;color:#fff;border-color:#34528f;}
+.pu-root.bg-yellow .topbar .btn-ghost:hover{background:#34528f;border-color:#2c4582;}
 .pu-root.dark::before{opacity:.2;}
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:16px;flex-wrap:wrap;}
 .topbar h2{margin:0;font-size:23px;}.topbar p{margin:3px 0 0;color:var(--muted);font-size:13px;}
