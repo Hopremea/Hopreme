@@ -575,6 +575,21 @@ function normalize(d) {
     });
     d.settings._dedupEstab = true;
   }
+  // Association des échanges : un échange rattaché à un contact hérite de l'établissement (site)
+  // et du groupe de ce contact, pour qu'il apparaisse sur la fiche établissement et la fiche groupe,
+  // pas seulement sur la fiche répertoire. Idempotent : ne renseigne que les champs manquants.
+  if (!d.settings._intAssoc) {
+    const cById = {}; (d.contacts || []).forEach((c) => { cById[c.id] = c; });
+    d.interactions = (d.interactions || []).map((i) => {
+      if (!i || !i.contactId) return i;
+      const c = cById[i.contactId]; if (!c) return i;
+      const patch = {};
+      if ((!i.siteId || i.siteId === "") && c.siteId) patch.siteId = c.siteId;
+      if ((!i.accountId || i.accountId === "") && c.accountId) patch.accountId = c.accountId;
+      return Object.keys(patch).length ? { ...i, ...patch } : i;
+    });
+    d.settings._intAssoc = true;
+  }
   { const coefNorm = d.settings.coefTarget || 2.2; const catCoef = (code) => { const c = (code || "").toUpperCase(); if (c.includes("-PACK-")) return 2.25; if (c.includes("-FIL-")) return 2.21; if (c.includes("-KIT-") || c.includes("-LIVRET-") || c.includes("-POCHOIRS")) return 2.23; return coefNorm; }; d.products = d.products.map((p) => { const off = PA_HT_OFFICIEL[p.code]; const cess = off != null ? off : ((p.pvc != null && p.pvc > 0) ? Math.round((p.pvc / catCoef(p.code)) * 100) / 100 : null); return { ...p, cessionHT: cess }; }); }
   // Migration douce : ajoute « Un sourire en plus » + Carine Bois la première fois, sans les recréer si supprimés ensuite
   if (!d.settings._migrated_sourire) {
@@ -1663,7 +1678,8 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
   const siteContacts = indep ? data.contacts.filter((c) => c.accountId === acc.id) : data.contacts.filter((c) => c.siteId === s.id);
   const deals = (indep ? data.deals.filter((d) => d.accountId === acc.id) : data.deals.filter((d) => d.siteId === s.id)).sort((x, y) => (y.date || "").localeCompare(x.date || ""));
   const caSigne = sumMontant(deals.filter(isCaSigne)); const caAttente = sumMontant(deals.filter(isDevisEnAttente));
-  const ints = (indep ? data.interactions.filter((i) => i.accountId === acc.id) : data.interactions.filter((i) => i.siteId === s.id)).sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+  const siteContactIds = new Set(siteContacts.map((c) => c.id));
+  const ints = (indep ? data.interactions.filter((i) => i.accountId === acc.id) : data.interactions.filter((i) => i.siteId === s.id || (i.contactId && siteContactIds.has(i.contactId)))).sort((x, y) => (y.date || "").localeCompare(x.date || ""));
   const atts = (data.attachments && data.attachments[attKey]) || [];
   const [edit, setEdit] = useState(null);
   const [addC, setAddC] = useState(null);
@@ -1947,11 +1963,15 @@ function MessageComposer({ contact, account, onUsage, onClose }) {
   </Modal>);
 }
 function AccountInteractionForm({ contactId, accountId, contacts, onCancel, onSave, interaction, onUsage, onPlanEvents }) {
-  const [f, setF] = useState(interaction ? { ...interaction } : { id: "i_" + Date.now(), accountId, contactId: contactId || "", type: "appel", direction: "sortant", date: new Date().toISOString().slice(0, 10), sujet: "", resume: "" });
+  const initCt = (contacts || []).find((c) => c.id === (interaction ? interaction.contactId : contactId));
+  const [f, setF] = useState(interaction ? { ...interaction } : { id: "i_" + Date.now(), accountId, contactId: contactId || "", siteId: (initCt && initCt.siteId) || "", type: "appel", direction: "sortant", date: new Date().toISOString().slice(0, 10), sujet: "", resume: "" });
   const up = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  // Choisir un contact rattache l'échange à son établissement (site) : il apparaîtra sur la fiche
+  // de l'établissement, et sur celle du groupe si l'établissement en fait partie.
+  const onContact = (cid) => setF((p) => { const ct = (contacts || []).find((c) => c.id === cid); return { ...p, contactId: cid, siteId: ct && ct.siteId ? ct.siteId : (p.siteId || "") }; });
   return (<>
     <div className="row2"><div className="fld"><label>Type</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{Object.entries(INT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div></div>
-    <div className="row2"><div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option></select></div><div className="fld"><label>Contact</label><select value={f.contactId} onChange={(e) => up("contactId", e.target.value)}><option value="">Aucun précis</option>{contacts.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></div></div>
+    <div className="row2"><div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option></select></div><div className="fld"><label>Contact</label><select value={f.contactId} onChange={(e) => onContact(e.target.value)}><option value="">Aucun précis</option>{contacts.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></div></div>
     <div className="fld"><label>Sujet</label><Combo value={f.sujet} onChange={(v) => up("sujet", v)} options={SUJET_PRESETS} placeholder="Choisir ou saisir l'objet de l'échange" /></div>
     <ResumeField value={f.resume} onChange={(v) => up("resume", v)} onUsage={onUsage} rows={3} baseDate={f.date} onPlan={onPlanEvents ? (evs) => onPlanEvents(evs, f) : undefined} />
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><button className="btn btn-ghost" onClick={onCancel}>Annuler</button><button className="btn btn-p" onClick={() => onSave(f)} disabled={!f.sujet}>Enregistrer</button></div>
@@ -2119,8 +2139,8 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
         {interactions.length === 0 ? <div className="empty">Aucun échange.</div> : <div className="tl">{interactions.map((it) => { const m = INT_META[it.type] || INT_META.note; const Ic = m.icon; return (<div className="tl-item" key={it.id}><span className="tl-dot" style={{ background: m.color }} /><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 11.5, fontWeight: 700, color: m.color, display: "inline-flex", alignItems: "center", gap: 4 }}><Ic size={12} />{m.label}</span>{it.direction === "entrant" && <ArrowDownLeft size={13} color="var(--green)" />}{it.direction === "sortant" && <ArrowUpRight size={13} color="var(--blue)" />}{it.source === "gmail" && <span className="gtag">Gmail</span>}<span className="tnum" style={{ fontSize: 11.5, color: "var(--muted)" }}>{it.date}</span><button className="iconbtn" style={{ width: 24, height: 24, marginLeft: "auto" }} onClick={() => setIntEdit(it)} title="Modifier l'échange"><Pencil size={12} /></button><button className="iconbtn" style={{ width: 24, height: 24 }} onClick={() => delInteraction(it.id)} title="Supprimer"><X size={13} /></button></div><div style={{ fontWeight: 700, fontSize: 13.5, marginTop: 3 }}>{it.sujet}</div>{it.resume && <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2, lineHeight: 1.5 }}>{it.resume}</div>}</div>); })}</div>}
       </div>
     </div>
-    {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><InteractionForm accountId={c.accountId} contactId={c.id} onSave={(it) => { addInteraction(it); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: c.accountId, siteId: c.siteId || "", contactId: c.id })] }))} /></Modal>}
-    {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><InteractionForm accountId={c.accountId} contactId={c.id} interaction={intEdit} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: c.accountId, siteId: c.siteId || "", contactId: c.id })] }))} /></Modal>}
+    {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><InteractionForm accountId={c.accountId} contactId={c.id} siteId={c.siteId || ""} onSave={(it) => { addInteraction(it); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: c.accountId, siteId: c.siteId || "", contactId: c.id })] }))} /></Modal>}
+    {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><InteractionForm accountId={c.accountId} contactId={c.id} siteId={c.siteId || ""} interaction={intEdit} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: c.accountId, siteId: c.siteId || "", contactId: c.id })] }))} /></Modal>}
     {preview && <DevisPreview deal={preview} account={account} settings={settings} onClose={() => setPreview(null)} />}
     {vcardOpen && (() => { const vcf = contactVCard(c, account); const dl = () => { const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" }); const url = URL.createObjectURL(blob); const a2 = document.createElement("a"); a2.href = url; a2.download = fullName(c).replace(/\s+/g, "_") + ".vcf"; document.body.appendChild(a2); a2.click(); document.body.removeChild(a2); URL.revokeObjectURL(url); }; return (<Modal title={"Carte de visite — " + fullName(c)} onClose={() => setVcardOpen(false)}>
       <div style={{ textAlign: "center" }}><img src={"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(vcf)} alt="QR contact" width={220} height={220} style={{ borderRadius: 12, border: "1px solid var(--line)" }} /><div style={{ fontSize: 12.5, color: "var(--muted)", margin: "10px 0 14px", lineHeight: 1.5 }}>Scannez ce QR code avec l'appareil photo de votre téléphone pour enregistrer {fullName(c)} dans vos contacts, ou téléchargez la fiche vCard.</div><button className="btn btn-p" onClick={dl}><Download size={15} /> Télécharger .vcf</button></div>
@@ -2129,8 +2149,8 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
     {editModal}
   </div>);
 }
-function InteractionForm({ accountId, contactId, onSave, interaction, onUsage, onPlanEvents }) {
-  const [f, setF] = useState(interaction ? { ...interaction } : { id: "i_" + Date.now(), accountId, contactId, type: "email", direction: "sortant", date: TODAY(), sujet: "", resume: "" });
+function InteractionForm({ accountId, contactId, siteId, onSave, interaction, onUsage, onPlanEvents }) {
+  const [f, setF] = useState(interaction ? { siteId: siteId || "", ...interaction } : { id: "i_" + Date.now(), accountId, contactId, siteId: siteId || "", type: "email", direction: "sortant", date: TODAY(), sujet: "", resume: "" });
   const up = (k, v) => setF((p) => ({ ...p, [k]: v })); const showDir = f.type === "email" || f.type === "appel";
   return (<>
     <div className="row2"><div className="fld"><label>Type</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{Object.entries(INT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>{showDir ? <div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option></select></div> : <div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div>}</div>
