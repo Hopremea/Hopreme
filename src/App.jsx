@@ -3701,15 +3701,25 @@ function SearchPalette({ data, onClose, onPick }) {
   const [sel, setSel] = useState(0);
   const inputRef = useRef(null);
   useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+  const ACTIONS = [
+    { label: "Créer un devis", sub: "Documents commerciaux", tab: "deals", kw: "devis document nouveau creer" },
+    { label: "Nouvelle commande", sub: "Documents commerciaux", tab: "deals", kw: "commande document creer" },
+    { label: "Ajouter un contact", sub: "Répertoire", tab: "repertoire", kw: "contact ajouter nouveau repertoire" },
+    { label: "Nouvel établissement / groupe", sub: "Groupes & établissements", tab: "accounts", kw: "etablissement groupe nouveau compte enseigne" },
+    { label: "Ajouter un événement", sub: "Calendrier", tab: "agenda", kw: "evenement rdv agenda calendrier rappel action" },
+    { label: "Recherche IA de prospects", sub: "Prospection", tab: "prospection", kw: "prospect prospection recherche ia" },
+    { label: "Ouvrir la carte", sub: "Carte", tab: "carte", kw: "carte map tournee itineraire" },
+  ];
   const results = useMemo(() => {
     const nq = normStr(q);
-    if (!nq) return { Enseignes: [], Contacts: [], Deals: [], Sites: [], Produits: [] };
+    if (!nq) return { Actions: [], Enseignes: [], Contacts: [], Deals: [], Sites: [], Produits: [] };
+    const acts = ACTIONS.filter((a) => normStr(a.label + " " + a.kw).includes(nq)).slice(0, 6).map((a) => ({ label: a.label, sub: a.sub, tab: a.tab, action: true }));
     const accs = data.accounts.filter((a) => normStr(a.enseigne).includes(nq) || normStr(a.ville).includes(nq) || normStr(a.notes).includes(nq)).slice(0, 5).map((a) => ({ id: a.id, label: a.enseigne, sub: a.ville || a.typeSurface || "", tab: "accounts" }));
     const cts = data.contacts.filter((c) => normStr(c.prenom + c.nom).includes(nq) || normStr(c.email).includes(nq) || normStr(c.fonction).includes(nq)).slice(0, 5).map((c) => { const acc = data.accounts.find((a) => a.id === c.accountId); return { id: c.id, label: fullName(c), sub: (c.fonction || "") + (acc ? " · " + acc.enseigne : ""), tab: "repertoire" }; });
     const dls = data.deals.filter((d) => normStr(d.ref).includes(nq) || normStr(d.type).includes(nq)).slice(0, 5).map((d) => { const acc = data.accounts.find((a) => a.id === d.accountId); return { id: d.id, label: d.ref || d.type, sub: (acc ? acc.enseigne + " · " : "") + eur(d.montant), tab: "deals" }; });
     const sts = data.sites.filter((s) => normStr(s.label).includes(nq) || normStr(s.adresse).includes(nq) || normStr(s.ville).includes(nq)).slice(0, 5).map((s) => ({ id: s.id, label: s.label, sub: s.adresse || "", tab: "carte" }));
     const prods = data.products.filter((p) => normStr(p.designation).includes(nq) || normStr(p.code).includes(nq)).slice(0, 5).map((p) => ({ id: p.code, label: p.designation, sub: p.code + " · " + p.famille, tab: "stock" }));
-    return { Enseignes: accs, Contacts: cts, Deals: dls, Sites: sts, Produits: prods };
+    return { Actions: acts, Enseignes: accs, Contacts: cts, Deals: dls, Sites: sts, Produits: prods };
   }, [q, data]);
   const flat = useMemo(() => { const f = []; Object.entries(results).forEach(([k, v]) => v.forEach((it) => f.push({ ...it, cat: k }))); return f; }, [results]);
   useEffect(() => { setSel(0); }, [q]);
@@ -3980,6 +3990,7 @@ function ConfirmHost() {
 }
 export default function App() {
   const [data, setData] = useState(() => normalize(emptyData()));
+  const undoRef = useRef(null); const [canUndo, setCanUndo] = useState(false);
   const [tab, setTab] = useState("dash"); const [focus, setFocus] = useState(null); const [navKey, setNavKey] = useState(0);
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -4024,8 +4035,10 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
   // Persistance : ecrit le cache localStorage immediatement, puis pousse vers Supabase (anti-rebond 800 ms).
-  const persist = useCallback((updater) => {
+  const persist = useCallback((updater, opts) => {
+    const snap = !opts || opts.snapshot !== false;
     setData((prev) => {
+      if (snap) undoRef.current = clone(prev);
       const next = normalize(typeof updater === "function" ? updater(clone(prev)) : updater);
       try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) { }
       if (supabaseEnabled && supabase) {
@@ -4039,7 +4052,9 @@ export default function App() {
       }
       return next;
     });
+    if (snap) setCanUndo(true);
   }, []);
+  const undo = useCallback(() => { if (!undoRef.current) return; const snap = undoRef.current; undoRef.current = null; setCanUndo(false); persist(() => snap, { snapshot: false }); }, [persist]);
   // Synchronisation temps réel : applique les modifications enregistrées par d'autres sessions
   // (autre utilisateur, autre onglet), sauf si une écriture locale est en attente (on ne perd jamais une saisie en cours).
   useEffect(() => {
@@ -4138,6 +4153,7 @@ export default function App() {
             return <span title="État de la synchronisation des données" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: "#fff", background: m.c, border: "1px solid " + m.c, borderRadius: 20, padding: "5px 11px", whiteSpace: "nowrap" }}><Ic size={13} className={syncState === "saving" ? "spin" : undefined} />{m.l}</span>;
           })()}
           <button className="btn btn-ghost btn-s" onClick={() => setCmdkOpen(true)} title="Recherche (Ctrl/Cmd+K)"><Search size={15} /> Rechercher <span style={{ fontSize: 10, opacity: .6, marginLeft: 4 }}>⌘K</span></button>
+          {canUndo && <button className="btn btn-ghost btn-s" onClick={undo} title="Annuler la dernière modification (suppression, édition…)"><RefreshCw size={15} style={{ transform: "scaleX(-1)" }} /> Annuler</button>}
           <button className="btn btn-ghost btn-s" onClick={exportAll} title="Exporter toutes les données"><Download size={15} /> Sauvegarde</button>
           <input ref={fileImportRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) importAll(f); e.target.value = ""; }} />
           <button className="btn btn-ghost btn-s" onClick={() => fileImportRef.current && fileImportRef.current.click()} title="Restaurer depuis une sauvegarde"><Upload size={15} /> Restaurer</button>
