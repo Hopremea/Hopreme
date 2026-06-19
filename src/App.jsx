@@ -890,11 +890,18 @@ const BG_THEMES = [
   { id: "red", label: "Rouge Memphis", sw: "#FF5A45" },
   { id: "bluedots", label: "Bleu pointillé blanc", sw: "#3F60AA" },
   { id: "creamdash", label: "Crème tirets rouges", sw: "#fff8ea" },
+  { id: "sage", label: "Vert sauge", sw: "#eaf2e6" },
+  { id: "peach", label: "Pêche", sw: "#fdeadf" },
+  { id: "lavender", label: "Lavande", sw: "#efeafb" },
+  { id: "mint", label: "Menthe pointillé", sw: "#e2f3ec" },
+  { id: "forest", label: "Vert forêt", sw: "#1f5e44" },
+  { id: "plum", label: "Prune", sw: "#5b3a6e" },
+  { id: "midnight", label: "Bleu nuit", sw: "#1b2440" },
   { id: "plain", label: "Sobre (uni)", sw: "#f4f6fb" },
 ];
 // Sur les thèmes de fond foncés, le texte hors carte passe en clair ; il redevient
 // sombre dans toute surface claire (cartes, lignes, champs, tuiles blanches, menus).
-const DARK_BG_TEXT = ["blue", "bluedots", "red"].map((t) => `
+const DARK_BG_TEXT = ["blue", "bluedots", "red", "forest", "plum", "midnight"].map((t) => `
 .pu-root.bg-${t} .main{color:#fff;--ink:#fff;--muted:rgba(255,255,255,.82);--line:rgba(255,255,255,.30);}
 .pu-root.bg-${t} .main .card,.pu-root.bg-${t} .main .crow,.pu-root.bg-${t} .main .conn,.pu-root.bg-${t} .modal,.pu-root.bg-${t} .main input,.pu-root.bg-${t} .main select,.pu-root.bg-${t} .main textarea,.pu-root.bg-${t} .main .chip,.pu-root.bg-${t} .main .chip-all,.pu-root.bg-${t} .main [style*="#fff"],.pu-root.bg-${t} .main [style*="--card"],.pu-root.bg-${t} .main [style*="--bg"]{color:var(--ink);--ink:#16203a;--muted:#5b6478;--line:#ece3d2;}
 .pu-root.bg-${t} .main .chip.on{color:#fff;}
@@ -931,12 +938,26 @@ body{background:var(--bg);}
 .pu-root.bg-red::before{background-image:${memphisSVG("#ec4533")};background-size:220px 220px;opacity:.8;}
 .pu-root.bg-bluedots{background:#3F60AA;}
 .pu-root.bg-bluedots::before{background-image:${dashSVG("#ffffff")};background-size:340px 340px;opacity:.5;}
+.pu-root.bg-sage{background:#eaf2e6;}
+.pu-root.bg-sage::before{background-image:${dashSVG("#6fa564")};background-size:340px 340px;opacity:.40;}
+.pu-root.bg-peach{background:#fdeadf;}
+.pu-root.bg-peach::before{background-image:${dashSVG("#e8916b")};background-size:340px 340px;opacity:.42;}
+.pu-root.bg-lavender{background:#efeafb;}
+.pu-root.bg-lavender::before{background-image:${dashSVG("#9b87d4")};background-size:340px 340px;opacity:.40;}
+.pu-root.bg-mint{background:#e2f3ec;}
+.pu-root.bg-mint::before{background-image:${dashSVG("#3fb68a")};background-size:340px 340px;opacity:.38;}
+.pu-root.bg-forest{background:#1f5e44;}
+.pu-root.bg-forest::before{background-image:${memphisSVG("#194f3a")};background-size:220px 220px;opacity:.85;}
+.pu-root.bg-plum{background:#5b3a6e;}
+.pu-root.bg-plum::before{background-image:${memphisSVG("#4d3060")};background-size:220px 220px;opacity:.85;}
+.pu-root.bg-midnight{background:#1b2440;}
+.pu-root.bg-midnight::before{background-image:${memphisSVG("#2a3760")};background-size:220px 220px;opacity:.8;}
 .pu-root.bg-plain{background:#f4f6fb;}
-.pu-root.bg-blue .topbar h2,.pu-root.bg-bluedots .topbar h2,.pu-root.bg-red .topbar h2{color:#fff;}
-.pu-root.bg-blue .topbar p,.pu-root.bg-bluedots .topbar p,.pu-root.bg-red .topbar p{color:rgba(255,255,255,.85);}
+.pu-root.bg-blue .topbar h2,.pu-root.bg-bluedots .topbar h2,.pu-root.bg-red .topbar h2,.pu-root.bg-forest .topbar h2,.pu-root.bg-plum .topbar h2,.pu-root.bg-midnight .topbar h2{color:#fff;}
+.pu-root.bg-blue .topbar p,.pu-root.bg-bluedots .topbar p,.pu-root.bg-red .topbar p,.pu-root.bg-forest .topbar p,.pu-root.bg-plum .topbar p,.pu-root.bg-midnight .topbar p{color:rgba(255,255,255,.85);}
 /* Boutons de la barre du haut : fond contrasté selon le thème de page */
-.pu-root.bg-blue .topbar .btn-ghost,.pu-root.bg-bluedots .topbar .btn-ghost,.pu-root.bg-red .topbar .btn-ghost{background:#FFD212;color:#16203a;border-color:#f0c200;}
-.pu-root.bg-blue .topbar .btn-ghost:hover,.pu-root.bg-bluedots .topbar .btn-ghost:hover,.pu-root.bg-red .topbar .btn-ghost:hover{background:#f6c200;border-color:#dcae00;}
+.pu-root.bg-blue .topbar .btn-ghost,.pu-root.bg-bluedots .topbar .btn-ghost,.pu-root.bg-red .topbar .btn-ghost,.pu-root.bg-forest .topbar .btn-ghost,.pu-root.bg-plum .topbar .btn-ghost,.pu-root.bg-midnight .topbar .btn-ghost{background:#FFD212;color:#16203a;border-color:#f0c200;}
+.pu-root.bg-blue .topbar .btn-ghost:hover,.pu-root.bg-bluedots .topbar .btn-ghost:hover,.pu-root.bg-red .topbar .btn-ghost:hover,.pu-root.bg-forest .topbar .btn-ghost:hover,.pu-root.bg-plum .topbar .btn-ghost:hover,.pu-root.bg-midnight .topbar .btn-ghost:hover{background:#f6c200;border-color:#dcae00;}
 .pu-root.bg-yellow .topbar .btn-ghost{background:#3F60AA;color:#fff;border-color:#34528f;}
 .pu-root.bg-yellow .topbar .btn-ghost:hover{background:#34528f;border-color:#2c4582;}
 .pu-root.bg-cream .topbar .btn-ghost,.pu-root.bg-creamdash .topbar .btn-ghost,.pu-root.bg-plain .topbar .btn-ghost{background:#FF5A45;color:#fff;border-color:#e94d44;}
@@ -996,7 +1017,7 @@ ${DARK_BG_TEXT}
 .pu-root.dark .chip-all{background:var(--blue-l);color:var(--ink);}
 .pu-root.dark .chip-all.on{background:#e8edf5;color:#16203a;border-color:#e8edf5;}
 /* Chips actifs : couleur d'accent contrastée avec le fond du thème (jamais la même couleur que la page) */
-.pu-root.bg-blue .main .chip.on,.pu-root.bg-bluedots .main .chip.on,.pu-root.bg-red .main .chip.on,.pu-root.bg-blue .main .chip-all.on,.pu-root.bg-bluedots .main .chip-all.on,.pu-root.bg-red .main .chip-all.on{background:#FFD212;color:#16203a;border-color:#f0c200;}
+.pu-root.bg-blue .main .chip.on,.pu-root.bg-bluedots .main .chip.on,.pu-root.bg-red .main .chip.on,.pu-root.bg-forest .main .chip.on,.pu-root.bg-plum .main .chip.on,.pu-root.bg-midnight .main .chip.on,.pu-root.bg-blue .main .chip-all.on,.pu-root.bg-bluedots .main .chip-all.on,.pu-root.bg-red .main .chip-all.on,.pu-root.bg-forest .main .chip-all.on,.pu-root.bg-plum .main .chip-all.on,.pu-root.bg-midnight .main .chip-all.on{background:#FFD212;color:#16203a;border-color:#f0c200;}
 .pu-root.bg-yellow .main .chip.on,.pu-root.bg-yellow .main .chip-all.on{background:#3F60AA;color:#fff;border-color:#34528f;}
 .av{border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;flex-shrink:0;width:44px;height:44px;overflow:hidden;}.av.lg{width:64px;height:64px;border-radius:18px;font-size:23px;}.av img{width:100%;height:100%;object-fit:cover;display:block;}
 .photo-edit{position:absolute!important;right:-6px;bottom:-6px;width:26px!important;height:26px!important;background:#fff;border:1px solid var(--line);box-shadow:0 2px 6px rgba(20,32,58,.18);border-radius:50%;}
@@ -1621,7 +1642,7 @@ function Accounts({ data, persist, go, focus }) {
   if (detailId) { const acc = accounts.find((a) => a.id === detailId); if (!acc) { setDetailId(null); return null; }
     if (!isGroupe(acc)) { const pdv = (data.sites || []).find((s) => s.accountId === acc.id && s.type === "pdv"); if (pdv) { setSiteDetailId(pdv.id); setDetailId(null); return null; } }
     return (<><AccountDetail account={acc} data={data} persist={persist} go={go} openSiteId={openSite} onOpenSite={(sid) => { setSiteDetailId(sid); setDetailId(null); }} onDelete={() => delAccount(acc)} onBack={() => { setDetailId(null); setOpenSite(null); }} onEdit={() => setEdit(acc)} onAddContact={() => setAddC({ id: "c_" + Date.now(), accountId: acc.id, prenom: "", nom: "", fonction: "", role: "autre", email: "", mobile: "", fixe: "", linkedin: "", ville: acc.ville || "", departement: "", adresse: "", principal: contacts.filter((c) => c.accountId === acc.id).length === 0, notes: "", createdAt: TODAY() })} />
-      {edit && <Modal title={"Modifier " + (edit.enseigne || "")} onClose={() => setEdit(null)} wide><AccountForm acc={edit} accounts={accounts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} known={collectKnownAddresses(data)} onSave={(a) => { saveAcc(a); setEdit(null); }} /></Modal>}
+      {edit && <Modal title={"Modifier " + (edit.enseigne || "")} onClose={() => setEdit(null)} wide><AccountForm acc={edit} accounts={accounts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} known={collectKnownAddresses(data)} onSave={(a, attachIds) => { saveAcc(a); if (attachIds && attachIds.length) persist((p) => attachIds.reduce((acc2, id) => attachAccountToGroup(acc2, id, a.id), p)); setEdit(null); }} /></Modal>}
       {addC && <Modal title="Nouveau contact" onClose={() => setAddC(null)} wide><ContactForm contact={addC} accounts={accounts} contacts={contacts} sites={data.sites} known={collectKnownAddresses(data)} onSave={(x) => { saveContact(x); setAddC(null); }} /></Modal>}</>);
   }
   const isMulti = (a) => isGroupe(a);
@@ -1662,7 +1683,7 @@ function Accounts({ data, persist, go, focus }) {
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 2 }}>{surf && <Badge color="#3F60AA">{surf}</Badge>}{st && <Badge color={st.color}>{st.label}</Badge>}{r.kind === "acc" && <Badge color="#9aa6bd">point de vente unique</Badge>}</div>
         </button>); })}</div>}
     </div>
-    {edit && <Modal title={accounts.some((a) => a.id === edit.id) ? (accountKind(edit) === "établissement" ? "Modifier l'établissement" : "Modifier le groupe") : "Nouveau groupe"} onClose={() => setEdit(null)} wide><AccountForm acc={edit} accounts={accounts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} known={collectKnownAddresses(data)} onSave={(a) => { saveAcc(a); setEdit(null); }} /></Modal>}
+    {edit && <Modal title={accounts.some((a) => a.id === edit.id) ? (accountKind(edit) === "établissement" ? "Modifier l'établissement" : "Modifier le groupe") : "Nouveau groupe"} onClose={() => setEdit(null)} wide><AccountForm acc={edit} accounts={accounts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} known={collectKnownAddresses(data)} onSave={(a, attachIds) => { saveAcc(a); if (attachIds && attachIds.length) persist((p) => attachIds.reduce((acc2, id) => attachAccountToGroup(acc2, id, a.id), p)); setEdit(null); }} /></Modal>}
     {siteAdd && <Modal title="Nouvel établissement" onClose={() => setSiteAdd(null)} wide><SiteForm site={siteAdd} accounts={accounts} contacts={contacts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onOpenContact={(cid) => { setSiteAdd(null); go("repertoire", cid); }} onCreateContact={(c) => persist((p) => ({ ...p, contacts: [...p.contacts, c] }))} known={collectKnownAddresses(data)} onSave={(x) => { saveSite(x); setSiteAdd(null); if (x.accountId) { setOpenSite(x.id); setDetailId(x.accountId); } }} /></Modal>}
   </div>);
 }
@@ -1690,6 +1711,12 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
   const [eventEdit, setEventEdit] = useState(null);
   const fileRef = useRef(null);
   const saveSite = (s2) => persist((p) => ({ ...p, sites: p.sites.map((x) => x.id === s2.id ? s2 : x) }));
+  // Transforme un établissement indépendant en groupe / chaîne, puis ouvre la fiche du groupe pour
+  // y rattacher d'autres établissements. L'établissement actuel en devient le premier point de vente.
+  const promoteIndepToGroup = () => {
+    if (!acc) return;
+    appConfirm("Transformer « " + (acc.enseigne || s.label || "cet établissement") + " » en groupe / chaîne ?\n\nL'établissement actuel devient le premier point de vente du groupe. Vous pourrez ensuite y rattacher les autres établissements. Aucune donnée n'est perdue.", { title: "Transformer en groupe ?", confirmLabel: "Transformer en groupe" }).then((ok) => { if (!ok) return; const n = (data.sites || []).filter((x) => x.accountId === acc.id && (x.type === "pdv" || x.type === "decision")).length; persist((p) => ({ ...p, accounts: p.accounts.map((x) => x.id === acc.id ? { ...x, kind: "groupe", magasins: Math.max(Number(x.magasins) || 0, n, 2) } : x) })); if (onGoAccount) onGoAccount(acc.id); });
+  };
   const siteEvents = (data.events || []).filter((e) => e.siteId === s.id);
   const saveEvent = (ev) => persist((p) => { const ex = (p.events || []).some((x) => x.id === ev.id); return { ...p, events: ex ? p.events.map((x) => x.id === ev.id ? ev : x) : [...(p.events || []), ev] }; });
   const delEvent = (id) => persist((p) => ({ ...p, events: (p.events || []).filter((x) => x.id !== id) }));
@@ -1718,7 +1745,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
           {s.adresse && <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6 }}><MapPin size={14} />{s.adresse}</div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9, alignItems: "center" }}>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{s.siret && <span className="tnum" style={{ fontSize: 12, color: "var(--muted)" }}>SIRET {s.siret}</span>}{!s.lat && <Badge color="#c0392b">à géolocaliser</Badge>}</div>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{s.lat != null && <button className="btn btn-g" onClick={() => go("carte", s.id)}><MapIcon size={15} /> Carte</button>}<a className="btn btn-g" href={siteGmaps(s)} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Google Maps</a><button className="btn btn-g" onClick={() => openPrint("Fiche " + (s.label || ""), ficheBody(s.label || "Établissement", [acc ? acc.enseigne : "Indépendant", s.adresse].filter(Boolean).join(" · "), [s.type === "decision" ? "Siège" : "Établissement", s.typeSurface].filter(Boolean), [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(siteContacts.length) }, { l: "Documents", v: num(deals.length) }], siteContacts, deals, ints, acc))}><Printer size={15} /> PDF</button><button className="btn btn-g" onClick={() => setEdit({ ...s })}><Pencil size={15} /> Modifier</button><button className="btn btn-g" style={{ color: "var(--red)" }} onClick={delThis}><Trash2 size={15} /> Supprimer</button></div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{indep && <button className="btn btn-p" onClick={promoteIndepToGroup} title="Faire de cet établissement une chaîne / un groupe, pour y rattacher d'autres établissements"><GitBranch size={15} /> Transformer en groupe</button>}{s.lat != null && <button className="btn btn-g" onClick={() => go("carte", s.id)}><MapIcon size={15} /> Carte</button>}<a className="btn btn-g" href={siteGmaps(s)} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Google Maps</a><button className="btn btn-g" onClick={() => openPrint("Fiche " + (s.label || ""), ficheBody(s.label || "Établissement", [acc ? acc.enseigne : "Indépendant", s.adresse].filter(Boolean).join(" · "), [s.type === "decision" ? "Siège" : "Établissement", s.typeSurface].filter(Boolean), [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(siteContacts.length) }, { l: "Documents", v: num(deals.length) }], siteContacts, deals, ints, acc))}><Printer size={15} /> PDF</button><button className="btn btn-g" onClick={() => setEdit({ ...s })}><Pencil size={15} /> Modifier</button><button className="btn btn-g" style={{ color: "var(--red)" }} onClick={delThis}><Trash2 size={15} /> Supprimer</button></div>
       </div>
       <div style={{ display: "flex", gap: 26, marginTop: 16, flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 14 }}><Stat label="Contacts" value={num(siteContacts.length)} />{caAttente > 0 && <Stat label="CA HT en attente" value={eur(caAttente)} />}<Stat label="CA HT signé" value={eur(caSigne)} /><Stat label="Échanges" value={num(ints.length)} /><Stat label="Documents" value={num(deals.length)} /></div>
     </div>
@@ -1986,6 +2013,12 @@ function AccountInteractionForm({ contactId, accountId, contacts, onCancel, onSa
 function AccountForm({ acc, accounts, onSave, known = [], onUsage }) {
   const [f, setF] = useState(acc); const up = (k, v) => setF((p) => ({ ...p, [k]: v })); const seg = networkSeg(f.magasins);
   const [aiBusy, setAiBusy] = useState(false); const [aiMsg, setAiMsg] = useState(null);
+  // À la création d'un GROUPE, on peut directement y rattacher des établissements indépendants existants.
+  const isNewAcc = !(accounts || []).some((a) => a.id === f.id);
+  const canAttach = isNewAcc && accountKind(f) === "groupe";
+  const indepList = (accounts || []).filter((a) => !isGroupe(a)).sort((a, b) => (a.enseigne || "").localeCompare(b.enseigne || ""));
+  const [attachSel, setAttachSel] = useState([]);
+  const toggleAttach = (id) => setAttachSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
   const autofill = async () => {
     if (!f.enseigne) { setAiMsg({ ok: false, t: "Renseignez d'abord le nom du compte." }); return; }
     setAiBusy(true); setAiMsg(null);
@@ -2025,7 +2058,8 @@ function AccountForm({ acc, accounts, onSave, known = [], onUsage }) {
     <div className="row2"><div className="fld"><label>Site web</label><input value={f.site || ""} onChange={(e) => up("site", e.target.value)} placeholder="https://… (sinon laissez vide)" /></div><div className="fld"><label>Facebook</label><input value={f.facebook || ""} onChange={(e) => up("facebook", e.target.value)} placeholder="URL de la page" /></div></div>
     <div className="fld"><label>Instagram</label><input value={f.instagram || ""} onChange={(e) => up("instagram", e.target.value)} placeholder="URL du compte" /><span style={{ fontSize: 11, color: "var(--muted)" }}>Le lien de la fiche utilise le site web, sinon Facebook, sinon Instagram, sinon une recherche Google. La « Recherche IA » de la fiche peut les retrouver automatiquement.</span></div>
     <div className="fld"><label>Notes</label><textarea rows={2} value={f.notes} onChange={(e) => up("notes", e.target.value)} /></div>
-    <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="btn btn-p" onClick={() => onSave(f)}>Enregistrer</button></div>
+    {canAttach && indepList.length > 0 && <div className="fld"><label>Rattacher des établissements existants à ce groupe</label><div style={{ fontSize: 11, color: "var(--muted)", margin: "-2px 0 6px", lineHeight: 1.5 }}>Cochez les établissements indépendants qui font partie de cette chaîne : ils rejoindront le groupe avec leurs contacts, devis et échanges (le doublon est évité).</div><div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 220, overflowY: "auto", border: "1px solid var(--line)", borderRadius: 10, padding: 8 }}>{indepList.map((a) => (<label key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", padding: "4px 6px", borderRadius: 7, background: attachSel.includes(a.id) ? "var(--blue-l)" : "transparent" }}><input type="checkbox" checked={attachSel.includes(a.id)} onChange={() => toggleAttach(a.id)} /><span style={{ fontWeight: 600 }}>{a.enseigne || "Sans nom"}</span>{a.ville && <span style={{ color: "var(--muted)" }}>· {a.ville}</span>}</label>))}</div>{attachSel.length > 0 && <span style={{ fontSize: 11.5, color: "var(--blue)", fontWeight: 700, marginTop: 4, display: "inline-block" }}>{attachSel.length} établissement(s) à rattacher</span>}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="btn btn-p" onClick={() => onSave(f, attachSel)}>Enregistrer{canAttach && attachSel.length > 0 ? " et rattacher" : ""}</button></div>
   </>);
 }
 
@@ -4298,7 +4332,7 @@ export default function App() {
   // Peint la couleur du thème sur html/body (toute la fenêtre, y compris au scroll et en mode application)
   // pour éviter les bandes blanches sur les bords. Met aussi à jour la couleur de la barre de titre.
   useEffect(() => {
-    const c = theme === "dark" ? "#0e1422" : ({ blue: "#3F60AA", bluedots: "#3F60AA", yellow: "#FFD212", red: "#FF5A45", plain: "#f4f6fb" }[bgTheme] || "#fff8ea");
+    const c = theme === "dark" ? "#0e1422" : ({ blue: "#3F60AA", bluedots: "#3F60AA", yellow: "#FFD212", red: "#FF5A45", sage: "#eaf2e6", peach: "#fdeadf", lavender: "#efeafb", mint: "#e2f3ec", forest: "#1f5e44", plum: "#5b3a6e", midnight: "#1b2440", plain: "#f4f6fb" }[bgTheme] || "#fff8ea");
     try { document.documentElement.style.background = c; document.body.style.background = c; const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", c); } catch (e) { }
   }, [bgTheme, theme]);
   const setBgTheme = (id) => persist((p) => ({ ...p, settings: { ...p.settings, bgTheme: id } }));
