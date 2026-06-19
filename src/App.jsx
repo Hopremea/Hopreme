@@ -302,6 +302,63 @@ function accountKind(a) { return (a && a.kind) ? a.kind : (isCentraleOuChaine(a)
 function effLivraison(a) { if (!a) return ""; if (a.livraisonIdentique === false) return a.adresseLivraison || ""; return a.adressePostale || a.adresseLivraison || ""; }
 // Contact rattaché à un établissement par référence (lien vivant). Renvoie le contact à jour ou null.
 function resolveSiteContact(site, contacts) { if (site && site.contactId) { const c = (contacts || []).find((x) => x.id === site.contactId); if (c) return c; } return null; }
+// Rattache un établissement INDÉPENDANT (compte) à un groupe : déplace son site et tous ses
+// enregistrements (contacts, devis, échanges, tickets, événements, pièces jointes) vers le groupe,
+// puis supprime le compte indépendant désormais vide. Si targetSiteId est fourni, on FUSIONNE sur ce
+// site existant du groupe (dédoublonnage) et on enrichit ses champs vides depuis le site d'origine.
+function attachAccountToGroup(p, accId, groupId, targetSiteId) {
+  if (!accId || !groupId || accId === groupId) return p;
+  if (!(p.accounts || []).some((a) => a.id === groupId)) return p;
+  const ownSites = (p.sites || []).filter((s) => s.accountId === accId);
+  const ownSiteIds = new Set(ownSites.map((s) => s.id));
+  const primary = ownSites.find((s) => s.type === "pdv") || ownSites[0] || null;
+  const merge = !!targetSiteId;
+  const destSite = merge ? targetSiteId : (primary ? primary.id : "");
+  let sites;
+  if (merge) {
+    sites = (p.sites || []).filter((s) => !ownSiteIds.has(s.id));
+    if (primary) sites = sites.map((s) => s.id === targetSiteId ? {
+      ...s,
+      adresse: s.adresse || primary.adresse || "", adresseLivraison: s.adresseLivraison || primary.adresseLivraison || "",
+      lat: s.lat ?? primary.lat ?? null, lng: s.lng ?? primary.lng ?? null,
+      siret: s.siret || primary.siret || "", typeSurface: s.typeSurface || primary.typeSurface || "",
+      photo: s.photo || primary.photo || "", contactId: s.contactId || primary.contactId || "",
+      notes: s.notes || primary.notes || "",
+    } : s);
+  } else {
+    sites = (p.sites || []).map((s) => s.accountId === accId ? { ...s, accountId: groupId } : s);
+  }
+  const fixSite = (sid) => merge ? ((ownSiteIds.has(sid) || !sid) ? destSite : sid) : (sid || destSite);
+  const repoint = (arr) => (arr || []).map((x) => x.accountId === accId ? { ...x, accountId: groupId, siteId: fixSite(x.siteId) } : x);
+  const att = { ...(p.attachments || {}) };
+  if (merge && destSite) { let moved = att[destSite] || []; [accId, ...ownSiteIds].forEach((k) => { if (att[k]) { moved = [...moved, ...att[k]]; delete att[k]; } }); if (moved.length) att[destSite] = moved; }
+  else if (att[accId] && destSite) { att[destSite] = [...(att[destSite] || []), ...att[accId]]; delete att[accId]; }
+  const out = {
+    ...p, sites, attachments: att,
+    contacts: repoint(p.contacts), interactions: repoint(p.interactions), events: repoint(p.events),
+    deals: (p.deals || []).map((x) => { let d = x; if (d.accountId === accId) d = { ...d, accountId: groupId, siteId: fixSite(d.siteId) }; if (merge && ownSiteIds.has(d.livraisonSiteId)) d = { ...d, livraisonSiteId: destSite }; return d; }),
+    tickets: (p.tickets || []).map((x) => x.accountId === accId ? { ...x, accountId: groupId } : x),
+    accounts: (p.accounts || []).filter((a) => a.id !== accId),
+  };
+  out.accounts = out.accounts.map((a) => a.id === groupId ? { ...a, kind: "groupe", magasins: Math.max(Number(a.magasins) || 0, (out.sites || []).filter((s) => s.accountId === groupId && (s.type === "pdv" || s.type === "decision")).length) } : a);
+  return out;
+}
+// Déplace un site d'un groupe vers un autre groupe (réaffecte le site et ses enregistrements liés).
+function moveSiteToGroup(p, siteId, groupId) {
+  const s = (p.sites || []).find((x) => x.id === siteId); if (!s || s.accountId === groupId) return p;
+  const rp = (arr) => (arr || []).map((x) => x.siteId === siteId ? { ...x, accountId: groupId } : x);
+  return { ...p, sites: p.sites.map((x) => x.id === siteId ? { ...x, accountId: groupId } : x), contacts: rp(p.contacts), deals: rp(p.deals), interactions: rp(p.interactions), events: rp(p.events) };
+}
+// Détache un site d'un groupe pour en faire un établissement indépendant (nouveau compte).
+function detachSiteToIndependent(p, siteId) {
+  const s = (p.sites || []).find((x) => x.id === siteId); if (!s) return p;
+  const old = (p.accounts || []).find((a) => a.id === s.accountId) || null;
+  const newId = "acc_" + Date.now() + Math.random().toString(36).slice(2, 6);
+  const code = buildClientCode(p.accounts, "MI");
+  const acc = { id: newId, enseigne: s.label || "Établissement", kind: "établissement", stage: old ? old.stage : "prospect", magasins: 1, nature: "MI", code, siren: "", formeJuridique: "", typeSurface: s.typeSurface || "", ville: "", lat: s.lat ?? null, lng: s.lng ?? null, pipeline: 0, prochaineAction: "", dateAction: "", notes: "", adressePostale: s.adresse || "", adresseLivraison: s.adresseLivraison || "", livraisonIdentique: s.livraisonIdentique !== false, stageLog: [{ stage: old ? old.stage : "prospect", date: TODAY() }] };
+  const rp = (arr) => (arr || []).map((x) => x.siteId === siteId ? { ...x, accountId: newId } : x);
+  return { ...p, accounts: [...p.accounts, acc], sites: p.sites.map((x) => x.id === siteId ? { ...x, accountId: newId } : x), contacts: rp(p.contacts), deals: rp(p.deals), interactions: rp(p.interactions), events: rp(p.events) };
+}
 // Suivi de la dépense réelle des appels à l'API Claude faits PAR l'application (tarif Claude Sonnet 4).
 const CLAUDE_PRICE_USD = { in: 3, out: 15 }; // dollars par million de tokens (entrée / sortie)
 const CLAUDE_USD_EUR = 0.952; // taux sécurisé PEN'UP (spot +7%)
@@ -440,6 +497,19 @@ function normalize(d) {
     });
     if (toAdd.length) d.sites = [...sites2, ...toAdd];
     d.settings._pdvMono = true;
+  }
+  // Dédoublonnage : un établissement indépendant qui porte le même nom qu'un site déjà rattaché à un
+  // groupe est fusionné dans ce site (cas « Leclerc Yvetot » ajouté en double sous son groupe).
+  if (!d.settings._dedupEstab) {
+    const groups = (d.accounts || []).filter(isGroupe);
+    (d.accounts || []).filter((a) => !isGroupe(a)).forEach((A) => {
+      if (!d.accounts.some((x) => x.id === A.id)) return;
+      const nA = normStr(A.enseigne); if (!nA) return;
+      let hit = null;
+      for (const G of groups) { const s2 = (d.sites || []).find((s) => s.accountId === G.id && (s.type === "pdv" || s.type === "decision") && normStr(s.label) === nA); if (s2) { hit = { G, s2 }; break; } }
+      if (hit) d = attachAccountToGroup(d, A.id, hit.G.id, hit.s2.id);
+    });
+    d.settings._dedupEstab = true;
   }
   { const coefNorm = d.settings.coefTarget || 2.2; const catCoef = (code) => { const c = (code || "").toUpperCase(); if (c.includes("-PACK-")) return 2.25; if (c.includes("-FIL-")) return 2.21; if (c.includes("-KIT-") || c.includes("-LIVRET-") || c.includes("-POCHOIRS")) return 2.23; return coefNorm; }; d.products = d.products.map((p) => { const off = PA_HT_OFFICIEL[p.code]; const cess = off != null ? off : ((p.pvc != null && p.pvc > 0) ? Math.round((p.pvc / catCoef(p.code)) * 100) / 100 : null); return { ...p, cessionHT: cess }; }); }
   // Migration douce : ajoute « Un sourire en plus » + Carine Bois la première fois, sans les recréer si supprimés ensuite
@@ -1468,6 +1538,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><svg width="22" height="22" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(tm.shape)} fill={col} stroke="#fff" strokeWidth={1.5} /></svg><h2 className="pu-display" style={{ margin: 0, fontSize: 22 }}>{s.label || "Établissement"}</h2><Badge color={s.type === "decision" ? "#7c5cf0" : "#F8B133"}>{s.type === "decision" ? "Siège" : "Établissement"}</Badge>{acc && <Badge color={st.color}>{st.label}</Badge>}</div>
           {grp && <div style={{ marginTop: 7, fontSize: 13 }}><span style={{ color: "var(--muted)" }}>Groupe : </span><span className="lnk" style={{ fontWeight: 700 }} onClick={() => onGoAccount(acc.id)}>{grp.enseigne}</span>{acc.code ? <span className="tnum" style={{ color: "var(--muted)" }}> · {acc.code}</span> : null}</div>}
           {indep && <div style={{ marginTop: 7, fontSize: 12.5, color: "var(--muted)" }}>Établissement indépendant{acc.siren ? " · SIREN " + acc.siren : ""}{acc.formeJuridique ? " · " + acc.formeJuridique : ""}{acc.nature && NATURE_META[acc.nature] ? " · " + NATURE_META[acc.nature].label : ""}</div>}
+          {(s.type === "pdv" || s.type === "decision") && (() => { const groups = data.accounts.filter((x) => isGroupe(x)); const cur = (grp && acc) ? acc.id : "indep"; const onChange = (val) => { if (val === cur) return; if (val === "indep") { if (grp) persist((p) => detachSiteToIndependent(p, s.id)); } else if (indep && acc) persist((p) => attachAccountToGroup(p, acc.id, val)); else if (grp) persist((p) => moveSiteToGroup(p, s.id, val)); }; return (<div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}><Link2 size={13} /> Rattachement</span><select value={cur} onChange={(e) => onChange(e.target.value)} style={{ padding: "5px 9px", border: "1px solid var(--line)", borderRadius: 8, fontFamily: "inherit", fontSize: 12.5, background: "#fff" }}><option value="indep">— Indépendant (aucun groupe) —</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.enseigne}</option>)}</select></div>); })()}
           {s.adresse && <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6 }}><MapPin size={14} />{s.adresse}</div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9, alignItems: "center" }}>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{s.siret && <span className="tnum" style={{ fontSize: 12, color: "var(--muted)" }}>SIRET {s.siret}</span>}{!s.lat && <Badge color="#c0392b">à géolocaliser</Badge>}</div>
         </div>
@@ -1517,6 +1588,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   const [intEdit, setIntEdit] = useState(null);
   const [siteEdit, setSiteEdit] = useState(null);
   const [eventEdit, setEventEdit] = useState(null);
+  const [attachOpen, setAttachOpen] = useState(false);
   const [hlSite, setHlSite] = useState(null);
   const sitesRef = useRef(null);
   useEffect(() => { if (openSiteId) { setHlSite(openSiteId); if (sitesRef.current) { try { sitesRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {} } const t = setTimeout(() => setHlSite(null), 2600); return () => clearTimeout(t); } }, [openSiteId]);
@@ -1558,7 +1630,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
       {a.prochaineAction && <div style={{ marginTop: 14, fontSize: 13, display: "flex", gap: 8, alignItems: "center", color: "var(--muted)", flexWrap: "wrap" }}><Calendar size={14} /> Prochaine action : <strong style={{ color: "var(--ink)" }}>{a.prochaineAction}</strong>{a.dateAction && (() => { const n = daysFromToday(a.dateAction); const late = n != null && n < 0; return <span style={{ color: late ? "var(--red)" : "var(--muted)", fontWeight: late ? 700 : 400 }}>· {relDate(a.dateAction)} ({a.dateAction}){late ? " — en retard" : ""}</span>; })()}</div>}
     </div>
     <div ref={sitesRef} className="card" style={{ marginBottom: 16 }}>
-      <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MapPin size={15} />Établissements & sites rattachés</h3><div style={{ display: "flex", gap: 6 }}><button className="btn btn-g btn-s" onClick={() => setSiteEdit(newSite("decision"))} title="Ajouter le siège décisionnaire"><Plus size={14} /> Siège</button><button className="btn btn-y btn-s" onClick={() => setSiteEdit(newSite("pdv"))}><Plus size={14} /> Établissement</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit({ ...newSite("pdv"), adresse: a.adressePostale || a.adresseLivraison || "", adresseLivraison: a.adresseLivraison || "", livraisonIdentique: a.livraisonIdentique !== false, lat: a.lat ?? null, lng: a.lng ?? null, typeSurface: a.typeSurface || "" })} title="Créer un établissement reprenant l'adresse postale et les coordonnées du compte"><Plus size={14} /> Depuis l'adresse</button></div></div>
+      <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MapPin size={15} />Établissements & sites rattachés</h3><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button className="btn btn-g btn-s" onClick={() => setAttachOpen(true)} title="Rattacher à ce groupe un établissement indépendant qui existe déjà"><Link2 size={14} /> Rattacher un existant</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit(newSite("decision"))} title="Ajouter le siège décisionnaire"><Plus size={14} /> Siège</button><button className="btn btn-y btn-s" onClick={() => setSiteEdit(newSite("pdv"))}><Plus size={14} /> Établissement</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit({ ...newSite("pdv"), adresse: a.adressePostale || a.adresseLivraison || "", adresseLivraison: a.adresseLivraison || "", livraisonIdentique: a.livraisonIdentique !== false, lat: a.lat ?? null, lng: a.lng ?? null, typeSurface: a.typeSurface || "" })} title="Créer un établissement reprenant l'adresse postale et les coordonnées du compte"><Plus size={14} /> Depuis l'adresse</button></div></div>
       {accSites.length === 0 ? <div className="empty">Aucun site rattaché. Ajoutez le siège décisionnaire et/ou les établissements de ce groupe. Pour un indépendant ou une association, un seul site suffit : le siège et le local sont au même endroit.</div> : (<div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{accSites.slice().sort((x, y) => (x.type === "decision" ? 0 : 1) - (y.type === "decision" ? 0 : 1)).map((s) => { const tm = SITE_TYPES[s.type]; const col = siteColor(s, a); return (<div key={s.id} onClick={() => onOpenSite && onOpenSite(s.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid " + (s.id === hlSite ? "var(--blue)" : "var(--line)"), borderRadius: 11, background: s.id === hlSite ? "var(--blue-l)" : "#fff", boxShadow: s.id === hlSite ? "0 0 0 3px rgba(63,96,170,.15)" : "none", transition: "background .3s, border-color .3s, box-shadow .3s" }}><svg width="20" height="20" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(tm.shape)} fill={col} stroke="#fff" strokeWidth={1.5} /></svg><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{s.label}<Badge color={s.type === "decision" ? "#7c5cf0" : "#F8B133"}>{s.type === "decision" ? "Siège" : "Établissement"}</Badge>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{!s.lat && <span style={{ fontSize: 11, color: "var(--red)" }}>à géolocaliser</span>}</div>{s.adresse && <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.adresse}</div>}{s.siret && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 1 }} className="tnum">SIRET {s.siret}</div>}{(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.mobile || lc.fixe || "") : (s.contactTel || ""); if (!nm && !tel) return null; return <div style={{ fontSize: 11.5, color: "var(--blue)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}><Phone size={11} />{lc ? <span className="lnk" onClick={(e) => { e.stopPropagation(); go("repertoire", lc.id); }}>{nm}</span> : nm}{tel ? " · " + tel : ""}{lc ? <span style={{ color: "var(--muted)", fontWeight: 600 }}> · lié</span> : null}</div>; })()}</div><div style={{ display: "flex", gap: 4, flexShrink: 0 }}>{s.lat != null && <button className="iconbtn" title="Voir sur la carte" onClick={(e) => { e.stopPropagation(); go("carte", s.id); }}><MapIcon size={15} /></button>}<a className="iconbtn" href={siteGmaps(s)} target="_blank" rel="noreferrer" title="Google Maps" onClick={(e) => e.stopPropagation()}><ExternalLink size={15} /></a><button className="iconbtn" title="Modifier" onClick={(e) => { e.stopPropagation(); setSiteEdit(s); }}><Pencil size={15} /></button><button className="iconbtn" title="Supprimer" onClick={(e) => { e.stopPropagation(); appConfirm("Supprimer l'établissement « " + s.label + " » ?", { title: "Supprimer cet établissement ?" }).then((ok) => { if (ok) delSite(s.id); }); }}><Trash2 size={15} /></button></div></div>); })}</div>)}
     </div>
     <div style={{ marginBottom: 16 }}><EntityAgenda events={accEvents} onAdd={() => setEventEdit(newAccEvent())} onOpen={(e) => setEventEdit(e)} /></div>
@@ -1585,6 +1657,10 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
     {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={a.id} contacts={conts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} /></Modal>}
     {siteEdit && <Modal title={data.sites.some((x) => x.id === siteEdit.id) ? "Modifier le site" : (siteEdit.type === "decision" ? "Nouveau siège" : "Nouvel établissement")} onClose={() => setSiteEdit(null)} wide><SiteForm site={siteEdit} accounts={data.accounts} contacts={data.contacts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onOpenContact={(cid) => { setSiteEdit(null); go("repertoire", cid); }} onCreateContact={(c) => persist((p) => ({ ...p, contacts: [...p.contacts, c] }))} known={collectKnownAddresses(data)} onSave={(x) => { saveSite(x); setSiteEdit(null); }} /></Modal>}
     {eventEdit && <Modal title={(data.events || []).some((e) => e.id === eventEdit.id) ? "Modifier l'événement" : "Nouvel événement"} onClose={() => setEventEdit(null)}><EventForm event={eventEdit} accounts={data.accounts} onSave={(ev) => { saveEvent(ev); setEventEdit(null); }} onDelete={() => { delEvent(eventEdit.id); setEventEdit(null); }} isExisting={(data.events || []).some((e) => e.id === eventEdit.id)} /></Modal>}
+    {attachOpen && (() => { const indeps = data.accounts.filter((x) => x.id !== a.id && !isGroupe(x)); return (<Modal title={"Rattacher un établissement à " + (a.enseigne || "ce groupe")} onClose={() => setAttachOpen(false)}>
+      <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: -4, lineHeight: 1.5 }}>Choisissez un établissement indépendant existant : il rejoindra ce groupe avec ses contacts, devis, échanges et pièces jointes (le doublon est évité).</p>
+      {indeps.length === 0 ? <div className="empty">Aucun établissement indépendant à rattacher.</div> : <div style={{ display: "flex", flexDirection: "column", gap: 7, maxHeight: 360, overflowY: "auto" }}>{indeps.slice().sort((x, y) => (x.enseigne || "").localeCompare(y.enseigne || "")).map((x) => { const nc = data.contacts.filter((c) => c.accountId === x.id).length; return (<button key={x.id} className="crow" style={{ marginBottom: 0 }} onClick={() => { persist((p) => attachAccountToGroup(p, x.id, a.id)); setAttachOpen(false); }}><Store size={16} color="var(--blue)" /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700 }}>{x.enseigne || "Sans nom"}</div><div style={{ color: "var(--muted)", fontSize: 12 }}>{[x.ville, nc ? nc + " contact(s)" : ""].filter(Boolean).join(" · ") || "établissement indépendant"}</div></div><Link2 size={15} color="var(--muted)" /></button>); })}</div>}
+    </Modal>); })()}
   </div>);
 }
 // Reformulation IA d'une note libre en compte rendu clair et professionnel (sans inventer de faits).
@@ -2585,7 +2661,7 @@ function SiteForm({ site, accounts, onSave, known = [], contacts = [], onOpenCon
   };
   return (<>
     <div className="fld"><label>Libellé du site</label><input value={f.label} onChange={(e) => up("label", e.target.value)} placeholder="Cultura Montauban, King Jouet Cahors…" /></div>
-    <div className="row2"><div className="fld"><label>Rôle</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{roleChoices.map((k) => <option key={k} value={k}>{ROLE_LABELS[k]}</option>)}</select></div><div className="fld"><label>Groupe de rattachement (facultatif)</label><select value={f.accountId || ""} onChange={(e) => up("accountId", e.target.value || null)}><option value="">— Indépendant (aucun groupe) —</option>{accounts.filter((a) => isGroupe(a)).map((a) => <option key={a.id} value={a.id}>{a.enseigne}</option>)}</select></div></div>
+    <div className="row2"><div className="fld"><label>Rôle</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{roleChoices.map((k) => <option key={k} value={k}>{ROLE_LABELS[k]}</option>)}</select></div>{(parentAcc && !isGroupe(parentAcc)) ? <div className="fld"><label>Rattachement</label><div style={{ fontSize: 12, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", lineHeight: 1.4 }}>Établissement indépendant. Pour le rattacher à un groupe, utilisez le sélecteur « Rattachement » en haut de sa fiche (évite tout doublon).</div></div> : <div className="fld"><label>Groupe de rattachement (facultatif)</label><select value={f.accountId || ""} onChange={(e) => up("accountId", e.target.value || null)}><option value="">— Indépendant (aucun groupe) —</option>{accounts.filter((a) => isGroupe(a)).map((a) => <option key={a.id} value={a.id}>{a.enseigne}</option>)}</select></div>}</div>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button type="button" className="btn btn-ai btn-s" onClick={autofill} disabled={aiBusy || !(f.label || parentAcc)} title="Compléter type d'établissement, SIRET, adresse, note et coordonnées (ne remplit que les champs vides)"><Sparkles size={14} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Compléter les champs vides avec l'IA"}</button></div>
     {aiMsg && <div style={{ fontSize: 12, lineHeight: 1.5, padding: "8px 11px", borderRadius: 9, background: aiMsg.ok ? "#eef6ee" : "#fbf0ee", border: "1px solid " + (aiMsg.ok ? "#bfe0c0" : "#f0c8c0") }}>{aiMsg.t}</div>}
     {(f.type === "pdv" || f.type === "decision") && <div className="fld"><label>Type d'établissement</label><select value={f.typeSurface || ""} onChange={(e) => up("typeSurface", e.target.value)}><option value="">— à préciser —</option>{TYPE_SURFACE.map((t) => <option key={t} value={t}>{t}</option>)}</select></div>}
