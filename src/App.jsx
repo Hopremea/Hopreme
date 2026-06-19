@@ -976,9 +976,12 @@ ${DARK_BG_TEXT}
 .chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:7px 13px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s;}.chip:hover{border-color:var(--blue);}.chip.on{background:var(--blue);color:#fff;border-color:var(--blue);}
 .chip-all{display:inline-flex;align-items:center;gap:5px;border:1px dashed var(--blue);background:var(--blue-l);border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer;transition:.15s;}
 .chip-all:hover{border-color:var(--ink);}
-.chip-all.on{background:#3a3f47;color:#fff;border:1px solid #3a3f47;}
+.chip-all.on{background:var(--blue);color:#fff;border:1px solid var(--blue);}
 .pu-root.dark .chip-all{background:var(--blue-l);color:var(--ink);}
 .pu-root.dark .chip-all.on{background:#e8edf5;color:#16203a;border-color:#e8edf5;}
+/* Chips actifs : couleur d'accent contrastée avec le fond du thème (jamais la même couleur que la page) */
+.pu-root.bg-blue .main .chip.on,.pu-root.bg-bluedots .main .chip.on,.pu-root.bg-red .main .chip.on,.pu-root.bg-blue .main .chip-all.on,.pu-root.bg-bluedots .main .chip-all.on,.pu-root.bg-red .main .chip-all.on{background:#FFD212;color:#16203a;border-color:#f0c200;}
+.pu-root.bg-yellow .main .chip.on,.pu-root.bg-yellow .main .chip-all.on{background:#3F60AA;color:#fff;border-color:#34528f;}
 .av{border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;flex-shrink:0;width:44px;height:44px;overflow:hidden;}.av.lg{width:64px;height:64px;border-radius:18px;font-size:23px;}.av img{width:100%;height:100%;object-fit:cover;display:block;}
 .photo-edit{position:absolute!important;right:-6px;bottom:-6px;width:26px!important;height:26px!important;background:#fff;border:1px solid var(--line);box-shadow:0 2px 6px rgba(20,32,58,.18);border-radius:50%;}
 .photo-menu{position:absolute;z-index:30;top:calc(100% + 6px);left:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(20,32,58,.18);padding:6px;min-width:218px;}
