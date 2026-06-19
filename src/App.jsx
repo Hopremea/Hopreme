@@ -641,6 +641,26 @@ function normalize(d) {
       d.settings._unifyOrphans = true;
     } catch (e) { /* en cas de souci, on ne bloque pas le chargement */ }
   }
+  // Dédoublonnage des événements (exécuté à chaque normalisation : chargement, écriture, sync).
+  // Cause des doublons : la planification auto depuis les échanges tournait en parallèle dans
+  // plusieurs sessions/onglets et fusionnait des événements distincts via Supabase. On supprime :
+  //  - les identifiants en double (ids déterministes des événements auto qui se recroisent),
+  //  - les événements auto issus du même échange à la même date et de même type,
+  //  - les événements strictement identiques (mêmes date/heure/titre/type/rattachements).
+  {
+    const seenId = new Set(); const seenSig = new Set(); const out = [];
+    for (const e of (d.events || [])) {
+      if (!e) continue;
+      if (e.id && seenId.has(e.id)) continue;
+      const sig = e.fromInteraction
+        ? ("A|" + e.fromInteraction + "|" + (e.date || "") + "|" + (e.type || ""))
+        : ("C|" + (e.date || "") + "|" + (e.heure || "") + "|" + (e.titre || "") + "|" + (e.type || "") + "|" + (e.accountId || "") + "|" + (e.siteId || "") + "|" + (e.contactId || ""));
+      if (seenSig.has(sig)) continue;
+      if (e.id) seenId.add(e.id);
+      seenSig.add(sig); out.push(e);
+    }
+    d.events = out;
+  }
   return d;
 }
 
@@ -4349,7 +4369,7 @@ export default function App() {
           const ctx = { enseigne: acc ? acc.enseigne : "", contactName: ct ? fullName(ct) : "", sujet: it.sujet || "" };
           const evs = await aiExtractEvents(it.resume, it.date || TODAY(), (u) => { usageAcc = addUsage(usageAcc, u); }, ctx);
           scannedIds.push(it.id);
-          if (evs.length) collected.push(...plannedEvents(evs, { baseDate: it.date, accountId: it.accountId || "", siteId: it.siteId || "", contactId: it.contactId || "" }).map((e) => ({ ...e, fromInteraction: it.id })));
+          if (evs.length) collected.push(...plannedEvents(evs, { baseDate: it.date, accountId: it.accountId || "", siteId: it.siteId || "", contactId: it.contactId || "" }).map((e, i) => ({ ...e, id: "ev_int_" + it.id + "_" + i, fromInteraction: it.id })));
         }
       } catch (e) { autoScanRef.current.failed = true; } // IA indisponible : on réessaiera à la prochaine session
       if (scannedIds.length) {
