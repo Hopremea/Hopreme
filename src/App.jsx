@@ -781,6 +781,8 @@ const CSS = `
 .pu-root.bg-blue .topbar .btn-ghost:hover,.pu-root.bg-bluedots .topbar .btn-ghost:hover,.pu-root.bg-red .topbar .btn-ghost:hover{background:#f6c200;border-color:#dcae00;}
 .pu-root.bg-yellow .topbar .btn-ghost{background:#3F60AA;color:#fff;border-color:#34528f;}
 .pu-root.bg-yellow .topbar .btn-ghost:hover{background:#34528f;border-color:#2c4582;}
+.pu-root.bg-cream .topbar .btn-ghost,.pu-root.bg-creamdash .topbar .btn-ghost,.pu-root.bg-plain .topbar .btn-ghost{background:#FF5A45;color:#fff;border-color:#e94d44;}
+.pu-root.bg-cream .topbar .btn-ghost:hover,.pu-root.bg-creamdash .topbar .btn-ghost:hover,.pu-root.bg-plain .topbar .btn-ghost:hover{background:#e94d44;border-color:#cd2a24;}
 .pu-root.dark::before{opacity:.2;}
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:16px;flex-wrap:wrap;}
 .topbar h2{margin:0;font-size:23px;}.topbar p{margin:3px 0 0;color:var(--muted);font-size:13px;}
