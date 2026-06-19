@@ -9,7 +9,8 @@ import {
   LifeBuoy, Repeat, Zap, Map as MapIcon, Send, ExternalLink, Link2,
   Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon, Palette, Mic, MessageSquare,
   Download, Paperclip, Moon, Sun, ChevronRight, CalendarDays,
-  GitBranch, MoreHorizontal, Filter, Save, FileDown, Clock, ArrowDown, ArrowUp
+  GitBranch, MoreHorizontal, Filter, Save, FileDown, Clock, ArrowDown, ArrowUp,
+  Globe, Facebook, Instagram
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie,
@@ -524,7 +525,7 @@ function emptyData() { return { products: [], accounts: [], contacts: [], intera
 function normalize(d) {
   const __secured = securedFrom({ ...SETTINGS, ...(d.settings || {}) });
   d.products = (d.products || seedProducts()).map((p) => { const o = { cout: null, ...p }; if (o.vendable === undefined) { const unitaire = /^PU3D-FIL-/.test(o.code) && !/^lot/i.test(o.designation || ""); const kit = (o.code || "").includes("-KIT-"); o.vendable = !(unitaire || kit); } if (o.poidsG === undefined || o.poidsG === null) { if (o.poidsKg != null) { o.poidsG = Math.round(o.poidsKg * 1000); } else { o.poidsG = Math.round(poidsProvisoire(o.code, o.designation) * 1000); o.poidsEstime = true; } } delete o.poidsKg; if (o.coutInit === undefined) { const parts = coutRevientParts(o.code, o.designation); if (parts) { o.coutUsd = parts.usd; o.coutEurFixe = parts.eur; } o.coutInit = true; } if (o.coutUsd != null) o.cout = deriveCout(o, __secured); return o; });
-  d.accounts = (d.accounts || seedAccounts()).map((a) => ({ adresseLivraison: "", adressePostale: "", livraisonIdentique: true, ville: "", typeSurface: "", lat: null, lng: null, stageLog: [], nature: "", code: "", siren: "", formeJuridique: "", ...a }));
+  d.accounts = (d.accounts || seedAccounts()).map((a) => ({ adresseLivraison: "", adressePostale: "", livraisonIdentique: true, ville: "", typeSurface: "", lat: null, lng: null, stageLog: [], nature: "", code: "", siren: "", formeJuridique: "", raisonSociale: "", site: "", facebook: "", instagram: "", ...a }));
   d.accounts = d.accounts.map((a) => (!a.adressePostale && a.adresseLivraison) ? { ...a, adressePostale: a.adresseLivraison, livraisonIdentique: true } : a);
   d.accounts = d.accounts.map((a) => ({ ...a, nature: a.nature || guessNature(a) }));
   // Auto-réparation idempotente du champ « kind » (groupe / établissement) : couvre les comptes
@@ -931,14 +932,14 @@ ${DARK_BG_TEXT}
 .topbar h2{margin:0;font-size:23px;}.topbar p{margin:3px 0 0;color:var(--muted);font-size:13px;}
 .btn{display:inline-flex;align-items:center;gap:7px;border:0;cursor:pointer;font-family:inherit;font-weight:700;font-size:13px;padding:10px 15px;border-radius:11px;transition:.18s;}
 .btn:disabled{opacity:.5;cursor:not-allowed;}
-.btn-p{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;box-shadow:0 6px 16px rgba(63,96,170,.3);}.btn-p:hover{transform:translateY(-1px);box-shadow:0 9px 22px rgba(63,96,170,.4);}
-.btn-y{background:var(--yellow);color:#5a3d00;box-shadow:0 6px 16px rgba(248,187,32,.35);}.btn-y:hover{transform:translateY(-1px);background:var(--yellow-d);}
+.btn-p{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 6px 16px rgba(63,96,170,.3);}.btn-p:hover{transform:translateY(-1px);box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 9px 22px rgba(63,96,170,.4);}
+.btn-y{background:var(--yellow);color:#5a3d00;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 6px 16px rgba(248,187,32,.35);}.btn-y:hover{transform:translateY(-1px);background:var(--yellow-d);}
 .btn-g{background:#fff;color:var(--ink);border:1px solid var(--line);}.btn-g:hover{border-color:var(--blue);color:var(--blue);}
-.btn-ai{background:linear-gradient(120deg,var(--blue),var(--orange));color:#fff;border:0;font-weight:800;box-shadow:0 5px 16px rgba(248,177,51,.34);text-shadow:0 1px 2px rgba(22,32,58,.32);}.btn-ai:hover{transform:translateY(-1px);filter:brightness(1.05);box-shadow:0 8px 22px rgba(248,177,51,.44);}
+.btn-ai{background:linear-gradient(120deg,var(--blue),var(--orange));color:#fff;border:0;font-weight:800;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 5px 16px rgba(248,177,51,.34);text-shadow:0 1px 2px rgba(22,32,58,.32);}.btn-ai:hover{transform:translateY(-1px);filter:brightness(1.05);box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 8px 22px rgba(248,177,51,.44);}
 .btn-d{background:#fff;color:var(--red);border:1px solid #f3d2d6;}.btn-d:hover{background:#FFE9E5;}
 .btn-s{padding:7px 11px;font-size:12.5px;}
-.btn-save{display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;font-family:inherit;font-weight:800;font-size:14px;color:#fff;padding:12px 20px;border-radius:13px;background:linear-gradient(100deg,var(--blue) 0%,#5a78c4 45%,var(--orange) 100%);box-shadow:0 4px 16px rgba(63,96,170,.34);transition:transform .08s ease, box-shadow .18s ease;letter-spacing:.01em;white-space:nowrap;}
-.btn-save:hover{transform:translateY(-1.5px);box-shadow:0 8px 22px rgba(248,177,51,.42);}
+.btn-save{display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;font-family:inherit;font-weight:800;font-size:14px;color:#fff;padding:12px 20px;border-radius:13px;background:linear-gradient(100deg,var(--blue) 0%,#5a78c4 45%,var(--orange) 100%);box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 4px 16px rgba(63,96,170,.34);transition:transform .08s ease, box-shadow .18s ease;letter-spacing:.01em;white-space:nowrap;}
+.btn-save:hover{transform:translateY(-1.5px);box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 8px 22px rgba(248,177,51,.42);}
 .btn-save:active{transform:translateY(0);box-shadow:0 3px 12px rgba(63,96,170,.34);}
 .save-bar{border:1.5px dashed var(--blue) !important;background:linear-gradient(180deg,#ffffff 0%,var(--blue-l) 130%) !important;}
 .grid{display:grid;gap:16px;}.kpis{grid-template-columns:repeat(auto-fit,minmax(180px,1fr));}
@@ -1083,8 +1084,8 @@ ${DARK_BG_TEXT}
 .dup-warn{background:#fff3e0;border:1px solid #f8b133;color:#8a5a08;padding:8px 12px;border-radius:9px;font-size:12.5px;display:flex;align-items:center;gap:8px;}
 
 /* Boutons supplémentaires (red) */
-.btn-r{background:linear-gradient(135deg,var(--red),var(--red-d));color:#fff;}
-.btn-r:hover{filter:brightness(1.07);transform:translateY(-1px);}
+.btn-r{background:linear-gradient(135deg,var(--red),var(--red-d));color:#fff;box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 6px 16px rgba(255,90,69,.32);}
+.btn-r:hover{filter:brightness(1.07);transform:translateY(-1px);box-shadow:0 0 0 1.5px rgba(255,255,255,.55),0 9px 22px rgba(255,90,69,.42);}
 .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
 .btn-ghost:hover{background:var(--blue-l);border-color:var(--blue);}
 
@@ -1177,6 +1178,26 @@ async function webFindDomain(query, persistUsage) {
   const text = (dt.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
   const m = text.match(/\{[\s\S]*\}/); const o = m ? JSON.parse(m[0]) : {};
   return String(o.domaine || "").trim();
+}
+// Normalise une URL saisie sans protocole (« exemple.fr » → « https://exemple.fr »).
+function ensureHttp(u) { const s = String(u || "").trim(); if (!s) return ""; return /^https?:\/\//i.test(s) ? s : "https://" + s.replace(/^\/+/, ""); }
+// Lien intelligent d'une fiche : site web → sinon Facebook → sinon Instagram → sinon recherche Google.
+function smartLink(a) {
+  if (a.site) return { url: ensureHttp(a.site), label: "Site web", Icon: Globe };
+  if (a.facebook) return { url: ensureHttp(a.facebook), label: "Facebook", Icon: Facebook };
+  if (a.instagram) return { url: ensureHttp(a.instagram), label: "Instagram", Icon: Instagram };
+  return { url: "https://www.google.com/search?q=" + encodeURIComponent([a.enseigne, a.ville].filter(Boolean).join(" ")), label: "Rechercher", Icon: Search };
+}
+// Recherche web (via Claude) de la présence en ligne officielle : site web, Facebook, Instagram.
+async function aiFindLinks(query, persistUsage) {
+  const res = await fetch(CLAUDE_URL, { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 600, tools: [{ type: "web_search_20250305", name: "web_search" }], messages: [{ role: "user", content: "Recherche la présence en ligne officielle de cet établissement ou enseigne : \"" + query + "\". Donne, uniquement si tu les trouves de façon fiable : l'URL du site web officiel, l'URL de la page Facebook officielle, l'URL du compte Instagram officiel. N'invente RIEN : laisse une chaîne vide si tu n'es pas certain. Réponds UNIQUEMENT par un objet JSON sans texte ni Markdown : {\"site\":\"\",\"facebook\":\"\",\"instagram\":\"\"}." }] }) });
+  if (!res.ok) throw new Error("API " + res.status);
+  const dt = await res.json();
+  if (dt && dt.usage && persistUsage) persistUsage(dt.usage);
+  const text = (dt.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const m = text.match(/\{[\s\S]*\}/); const o = m ? JSON.parse(m[0]) : {};
+  const clean = (v) => (typeof v === "string" ? v.trim() : "");
+  return { site: clean(o.site), facebook: clean(o.facebook), instagram: clean(o.instagram) };
 }
 // Encart photo / logo éditable : téléversement, URL, logo automatique (web) ou logo du groupe.
 function EntityPhoto({ value, onChange, initials: ini, bg, round, size = 64, enseigne, groupLogo, fallback, persistUsage }) {
@@ -1729,11 +1750,34 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   const [eventEdit, setEventEdit] = useState(null);
   const [attachOpen, setAttachOpen] = useState(false);
   const [hlSite, setHlSite] = useState(null);
+  const [aiBusy, setAiBusy] = useState(false); const [aiMsg, setAiMsg] = useState(null);
   const sitesRef = useRef(null);
   useEffect(() => { if (openSiteId) { setHlSite(openSiteId); if (sitesRef.current) { try { sitesRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); } catch {} } const t = setTimeout(() => setHlSite(null), 2600); return () => clearTimeout(t); } }, [openSiteId]);
   const fileRef = useRef(null);
   const saveSite = (site) => persist((p) => { const ex = p.sites.some((x) => x.id === site.id); return { ...p, sites: ex ? p.sites.map((x) => x.id === site.id ? site : x) : [...p.sites, site] }; });
   const saveAccount = (patch) => persist((p) => ({ ...p, accounts: p.accounts.map((x) => x.id === a.id ? { ...x, ...patch } : x) }));
+  // Recherche IA sur la fiche (comme la prospection) : trouve la présence en ligne (site, Facebook,
+  // Instagram) et l'identité légale (SIREN, raison sociale, forme juridique, adresse), et complète
+  // les champs encore vides sans écraser ce qui est déjà renseigné à la main.
+  const runFicheAI = async () => {
+    setAiBusy(true); setAiMsg(null);
+    const usage = (u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }));
+    const q = [a.enseigne, a.ville].filter(Boolean).join(" ");
+    try {
+      const [links, info] = await Promise.all([
+        aiFindLinks(q, usage).catch(() => ({})),
+        aiAutofill({ kind: "enseigne", enseigne: a.enseigne, ville: a.ville, adresse: a.adressePostale }).then((r) => { if (r && r.usage) usage(r.usage); return r; }).catch(() => ({})),
+      ]);
+      const patch = {}; const got = [];
+      const fill = (k, v, label) => { if (v && !a[k]) { patch[k] = v; got.push(label); } };
+      fill("site", links.site, "site web"); fill("facebook", links.facebook, "Facebook"); fill("instagram", links.instagram, "Instagram");
+      fill("siren", info.siren, "SIREN"); fill("raisonSociale", info.raisonSociale, "raison sociale"); fill("formeJuridique", info.formeJuridique, "forme juridique");
+      fill("ville", info.ville, "ville"); fill("adressePostale", info.adresse, "adresse");
+      if (got.length) { saveAccount(patch); setAiMsg("Fiche enrichie par l'IA : " + got.join(", ") + "."); }
+      else setAiMsg("Aucune nouvelle information fiable trouvée par l'IA.");
+    } catch (e) { setAiMsg("Recherche IA indisponible ici (fonctionne dans l'app Claude)."); }
+    finally { setAiBusy(false); }
+  };
   const accEvents = (data.events || []).filter((e) => e.accountId === a.id && !e.siteId);
   const saveEvent = (ev) => persist((p) => { const ex = (p.events || []).some((x) => x.id === ev.id); return { ...p, events: ex ? p.events.map((x) => x.id === ev.id ? ev : x) : [...(p.events || []), ev] }; });
   const delEvent = (id) => persist((p) => ({ ...p, events: (p.events || []).filter((x) => x.id !== id) }));
@@ -1763,10 +1807,12 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
         <div style={{ flex: 1, minWidth: 220 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><h2 className="pu-display" style={{ margin: 0, fontSize: 23 }}>{a.enseigne}</h2>{a.code && <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: ".04em", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 8, padding: "3px 9px", color: "var(--ink)" }} className="tnum">{a.code}</span>}<Badge color={st.color}>{st.label}</Badge>{isGroupe(a) ? <Badge color="#3F60AA">Groupe</Badge> : <Badge color="#7a8699">Établissement</Badge>}</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9 }}><Badge color={(NATURE_META[a.nature] || NATURE_META.DV).color}>{(NATURE_META[a.nature] || NATURE_META.DV).label}</Badge><Badge color={seg.color}>{seg.label}</Badge>{a.ville && <span style={{ color: "var(--muted)", fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={13} />{a.ville}</span>}</div>
           {(a.siren || a.formeJuridique) && <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><Building2 size={13} />{[a.formeJuridique, a.siren && ("SIREN " + a.siren)].filter(Boolean).join(" · ")}</div>}</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><a className="btn btn-g" href={gmapsUrl(a)} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Fiche Google</a>{a.lat && <button className="btn btn-g" onClick={() => go("carte", a.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-g" onClick={() => openPrint("Fiche " + (a.enseigne || ""), ficheBody(a.enseigne || "Établissement", [a.code, (NATURE_META[a.nature] || {}).label, a.ville].filter(Boolean).join(" · "), [isGroupe(a) ? "Groupe" : "Établissement", stageMeta(a.stage).label], [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(conts.length) }, { l: "Documents", v: num(deals.length) }], conts, deals, accInteractions, a))}><Printer size={15} /> PDF</button><button className="btn btn-g" onClick={onEdit}><Pencil size={15} /> Modifier</button>{onDelete && <button className="btn btn-g" style={{ color: "var(--red)" }} onClick={onDelete}><Trash2 size={15} /> Supprimer</button>}</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{(() => { const sl = smartLink(a); const SI = sl.Icon; return <a className="btn btn-g" href={sl.url} target="_blank" rel="noreferrer" title={a.site || a.facebook || a.instagram ? sl.url : "Rechercher cet établissement sur Google"}><SI size={15} /> {sl.label}</a>; })()}<button className="btn btn-ai" onClick={runFicheAI} disabled={aiBusy} title="Rechercher en ligne le site, les réseaux sociaux et l'identité légale (comme la prospection)"><Sparkles size={15} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Recherche IA"}</button><a className="btn btn-g" href={gmapsUrl(a)} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Fiche Google</a>{a.lat && <button className="btn btn-g" onClick={() => go("carte", a.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-g" onClick={() => openPrint("Fiche " + (a.enseigne || ""), ficheBody(a.enseigne || "Établissement", [a.code, (NATURE_META[a.nature] || {}).label, a.ville].filter(Boolean).join(" · "), [isGroupe(a) ? "Groupe" : "Établissement", stageMeta(a.stage).label], [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(conts.length) }, { l: "Documents", v: num(deals.length) }], conts, deals, accInteractions, a))}><Printer size={15} /> PDF</button><button className="btn btn-g" onClick={onEdit}><Pencil size={15} /> Modifier</button>{onDelete && <button className="btn btn-g" style={{ color: "var(--red)" }} onClick={onDelete}><Trash2 size={15} /> Supprimer</button>}</div>
       </div>
       <div style={{ display: "flex", gap: 26, marginTop: 16, flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 14 }}><Stat label="Établissements suivis" value={num(pdvSites.length)} />{(a.magasins || 0) > pdvSites.length && <Stat label="Établissements du groupe" value={num(a.magasins)} />}<Stat label="CA HT en attente" value={eur(caAttente)} /><Stat label="CA HT signé" value={eur(caSigne)} /><Stat label="Contacts" value={conts.length} /><Stat label="Échanges" value={accInteractions.length} /><Stat label="Documents" value={deals.length} /></div>
       {a.prochaineAction && <div style={{ marginTop: 14, fontSize: 13, display: "flex", gap: 8, alignItems: "center", color: "var(--muted)", flexWrap: "wrap" }}><Calendar size={14} /> Prochaine action : <strong style={{ color: "var(--ink)" }}>{a.prochaineAction}</strong>{a.dateAction && (() => { const n = daysFromToday(a.dateAction); const late = n != null && n < 0; return <span style={{ color: late ? "var(--red)" : "var(--muted)", fontWeight: late ? 700 : 400 }}>· {relDate(a.dateAction)} ({a.dateAction}){late ? " — en retard" : ""}</span>; })()}</div>}
+      {(a.site || a.facebook || a.instagram) && <div style={{ marginTop: 12, display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12.5 }}>{a.site && <a className="lnk" href={ensureHttp(a.site)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Globe size={13} /> Site web</a>}{a.facebook && <a className="lnk" href={ensureHttp(a.facebook)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Facebook size={13} /> Facebook</a>}{a.instagram && <a className="lnk" href={ensureHttp(a.instagram)} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Instagram size={13} /> Instagram</a>}</div>}
+      {aiMsg && <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>{aiMsg}</div>}
     </div>
     <div ref={sitesRef} className="card" style={{ marginBottom: 16 }}>
       <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MapPin size={15} />Établissements & sites rattachés</h3><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><button className="btn btn-g btn-s" onClick={() => setAttachOpen(true)} title="Rattacher à ce groupe un établissement indépendant qui existe déjà"><Link2 size={14} /> Rattacher un existant</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit(newSite("decision"))} title="Ajouter le siège décisionnaire"><Plus size={14} /> Siège</button><button className="btn btn-y btn-s" onClick={() => setSiteEdit(newSite("pdv"))}><Plus size={14} /> Établissement</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit({ ...newSite("pdv"), adresse: a.adressePostale || a.adresseLivraison || "", adresseLivraison: a.adresseLivraison || "", livraisonIdentique: a.livraisonIdentique !== false, lat: a.lat ?? null, lng: a.lng ?? null, typeSurface: a.typeSurface || "" })} title="Créer un établissement reprenant l'adresse postale et les coordonnées du compte"><Plus size={14} /> Depuis l'adresse</button></div></div>
@@ -1828,11 +1874,12 @@ async function aiSuggestAction(ctxObj, persistUsage) {
   return { titre: (o.titre || "").trim(), jours: Math.max(0, parseInt(o.jours, 10) || 3), type, pourquoi: (o.pourquoi || "").trim() };
 }
 // Lit le compte rendu d'un échange (daté) et en extrait les suites à planifier au calendrier.
-async function aiExtractEvents(resume, baseDate, persistUsage) {
+async function aiExtractEvents(resume, baseDate, persistUsage, ctx) {
   if (!resume || !resume.trim()) return [];
-  const sys = "Tu analyses le compte rendu d'un échange commercial B2B (daté) et tu en extrais les SUITES À PLANIFIER dans un agenda. Règles strictes :\n- Si une date ou échéance précise est mentionnée (ex. « visio le 15 juillet », « rappel mardi prochain », « livraison le 3/09 », « rendez-vous le 12/08 à 14h »), crée un événement à CETTE date.\n- Si une documentation, une plaquette, un devis ou un catalogue a été ENVOYÉ sans date de relance précisée, crée un rappel de relance 7 jours après la date de l'échange.\n- N'invente AUCUN événement s'il n'y a pas de suite claire à planifier : renvoie alors une liste vide.\n- Dates au format AAAA-MM-JJ ; déduis l'année du contexte (l'échange est daté) ; si la date calculée est déjà passée, prends l'année suivante.\nRenvoie UNIQUEMENT un JSON sans texte autour : {\"events\":[{\"date\":\"AAAA-MM-JJ\",\"heure\":\"HH:MM ou vide\",\"titre\":\"intitulé court\",\"type\":\"rdv|relance|preparation|tache|echeance|livraison|autre\"}]}";
-  const user = `Date de l'échange : ${baseDate}.\nCompte rendu :\n"""\n${resume}\n"""`;
-  const txt = await aiGenerate(sys, user, persistUsage, 500);
+  const sys = "Tu analyses le compte rendu d'un échange commercial B2B (daté) et tu en extrais les SUITES À PLANIFIER dans un agenda. Sois PRÉCIS et exhaustif sur les suites réelles, sans jamais inventer.\nRègles :\n- Crée un événement pour CHAQUE échéance ou rendez-vous mentionné, même s'il y en a plusieurs.\n- Dates explicites (« visio le 15 juillet », « livraison le 3/09 », « salon du 12 au 14 octobre ») → événement à cette date (pour une plage, prends le premier jour).\n- Dates relatives : calcule-les à partir de la date de l'échange. « demain » = +1 j ; « après-demain » = +2 j ; « lundi/mardi… prochain » = le prochain jour de semaine correspondant ; « semaine prochaine » = +7 j ; « dans 15 jours » = +15 j ; « dans 3 semaines » = +21 j ; « le mois prochain » = même jour le mois suivant ; « début/mi/fin de mois » = le 1er / 15 / dernier jour du mois visé ; « début/fin d'année » = en conséquence.\n- Heure : si une heure est citée (« à 14h », « 9h30 »), renseigne-la au format HH:MM, sinon laisse vide.\n- Type le plus juste : rdv (rendez-vous physique/visio/appel planifié), relance (rappel à recontacter), preparation (préparer un devis, une offre, un échantillon), livraison (expédition/réception), echeance (paiement, deadline contractuelle), tache (autre action à faire), autre.\n- Si une documentation, plaquette, devis, échantillon ou catalogue a été ENVOYÉ sans relance datée → crée une relance 7 jours après la date de l'échange (type relance).\n- Si rien n'est promis ni daté, ne crée AUCUN événement (liste vide).\n- Titres courts, explicites et actionnables (ex. « Visio démo gamme », « Relancer suite envoi catalogue », « Préparer devis 200 stylos »). Réutilise le nom de l'enseigne et/ou du contact fourni dans le contexte quand c'est pertinent.\n- Dates au format AAAA-MM-JJ ; déduis l'année du contexte ; si la date calculée est antérieure à la date de l'échange, prends l'année suivante.\nRenvoie UNIQUEMENT un JSON sans texte autour : {\"events\":[{\"date\":\"AAAA-MM-JJ\",\"heure\":\"HH:MM ou vide\",\"titre\":\"intitulé court\",\"type\":\"rdv|relance|preparation|tache|echeance|livraison|autre\"}]}";
+  const ctxLine = ctx && (ctx.enseigne || ctx.contactName || ctx.sujet) ? `Contexte — Enseigne : ${ctx.enseigne || "?"} ; Contact : ${ctx.contactName || "?"} ; Sujet : ${ctx.sujet || "?"}.\n` : "";
+  const user = `Date de l'échange : ${baseDate}.\n${ctxLine}Compte rendu :\n"""\n${resume}\n"""`;
+  const txt = await aiGenerate(sys, user, persistUsage, 600);
   const m = txt.match(/\{[\s\S]*\}/); const o = m ? JSON.parse(m[0]) : {};
   return (o.events || []).filter((e) => e && /^\d{4}-\d{2}-\d{2}$/.test(e.date)).map((e) => ({ date: e.date, heure: /^\d{1,2}:\d{2}$/.test(e.heure || "") ? e.heure : "", titre: (e.titre || "Suivi").trim(), type: EVENT_TYPES[e.type] ? e.type : "relance" }));
 }
@@ -1949,6 +1996,8 @@ function AccountForm({ acc, accounts, onSave, known = [], onUsage }) {
     <div className="fld"><label>Prochaine action</label><input value={f.prochaineAction} onChange={(e) => up("prochaineAction", e.target.value)} /></div>
     <div className="row2"><div className="fld"><label>Latitude (carte)</label><input type="number" step="0.0001" value={f.lat ?? ""} onChange={(e) => up("lat", e.target.value === "" ? null : +e.target.value)} placeholder="44.84" /></div><div className="fld"><label>Longitude (carte)</label><input type="number" step="0.0001" value={f.lng ?? ""} onChange={(e) => up("lng", e.target.value === "" ? null : +e.target.value)} placeholder="-0.57" /></div></div>
     <AddrPair postale={f.adressePostale || ""} livraison={f.adresseLivraison || ""} identique={f.livraisonIdentique} onPostale={(v) => up("adressePostale", v)} onLivraison={(v) => up("adresseLivraison", v)} onIdentique={(b) => up("livraisonIdentique", b)} onCoords={(lat, lng) => setF((p) => ({ ...p, lat, lng }))} known={known} />
+    <div className="row2"><div className="fld"><label>Site web</label><input value={f.site || ""} onChange={(e) => up("site", e.target.value)} placeholder="https://… (sinon laissez vide)" /></div><div className="fld"><label>Facebook</label><input value={f.facebook || ""} onChange={(e) => up("facebook", e.target.value)} placeholder="URL de la page" /></div></div>
+    <div className="fld"><label>Instagram</label><input value={f.instagram || ""} onChange={(e) => up("instagram", e.target.value)} placeholder="URL du compte" /><span style={{ fontSize: 11, color: "var(--muted)" }}>Le lien de la fiche utilise le site web, sinon Facebook, sinon Instagram, sinon une recherche Google. La « Recherche IA » de la fiche peut les retrouver automatiquement.</span></div>
     <div className="fld"><label>Notes</label><textarea rows={2} value={f.notes} onChange={(e) => up("notes", e.target.value)} /></div>
     <div style={{ display: "flex", justifyContent: "flex-end" }}><button className="btn btn-p" onClick={() => onSave(f)}>Enregistrer</button></div>
   </>);
@@ -4160,6 +4209,42 @@ export default function App() {
     if (snap) setCanUndo(true);
   }, []);
   const undo = useCallback(() => { if (!undoRef.current) return; const snap = undoRef.current; undoRef.current = null; setCanUndo(false); persist(() => snap, { snapshot: false }); }, [persist]);
+  // Planification automatique des suites au calendrier depuis le résumé des échanges.
+  // Chaque échange (nouveau OU ancien) qui possède un résumé non encore analysé est lu par
+  // l'IA, qui en déduit les événements à planifier (visio datée, relance après envoi de doc…).
+  // Idempotent : l'échange est marqué « _eventsScanned » une fois traité ; les événements créés
+  // portent « fromInteraction » pour éviter les doublons. Traité par petits lots, sans bloquer.
+  const autoScanRef = useRef({ running: false, failed: false });
+  useEffect(() => {
+    if (loading) return;
+    if (autoScanRef.current.running || autoScanRef.current.failed) return;
+    const pending = (data.interactions || []).filter((it) => it && it.resume && it.resume.trim() && !it._eventsScanned);
+    if (pending.length === 0) return;
+    autoScanRef.current.running = true;
+    (async () => {
+      const batch = pending.slice(0, 8);
+      const collected = []; const scannedIds = []; let usageAcc = null;
+      try {
+        for (const it of batch) {
+          const acc = (data.accounts || []).find((x) => x.id === it.accountId);
+          const ct = (data.contacts || []).find((c) => c.id === it.contactId);
+          const ctx = { enseigne: acc ? acc.enseigne : "", contactName: ct ? fullName(ct) : "", sujet: it.sujet || "" };
+          const evs = await aiExtractEvents(it.resume, it.date || TODAY(), (u) => { usageAcc = addUsage(usageAcc, u); }, ctx);
+          scannedIds.push(it.id);
+          if (evs.length) collected.push(...plannedEvents(evs, { baseDate: it.date, accountId: it.accountId || "", siteId: it.siteId || "", contactId: it.contactId || "" }).map((e) => ({ ...e, fromInteraction: it.id })));
+        }
+      } catch (e) { autoScanRef.current.failed = true; } // IA indisponible : on réessaiera à la prochaine session
+      if (scannedIds.length) {
+        persist((p) => ({
+          ...p,
+          events: [...(p.events || []), ...collected],
+          interactions: (p.interactions || []).map((x) => scannedIds.includes(x.id) ? { ...x, _eventsScanned: true } : x),
+          claudeUsage: usageAcc ? addUsage(p.claudeUsage, usageAcc) : p.claudeUsage,
+        }), { snapshot: false });
+      }
+      autoScanRef.current.running = false;
+    })();
+  }, [loading, data.interactions, persist]);
   // Synchronisation temps réel : applique les modifications enregistrées par d'autres sessions
   // (autre utilisateur, autre onglet), sauf si une écriture locale est en attente (on ne perd jamais une saisie en cours).
   useEffect(() => {
