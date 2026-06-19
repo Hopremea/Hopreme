@@ -7,7 +7,7 @@ import {
   ChevronLeft, ArrowUpRight, ArrowDownLeft, Linkedin, User, Briefcase,
   Calculator, Percent, Truck, ArrowRightLeft, RefreshCw, Eye, Printer,
   LifeBuoy, Repeat, Zap, Map as MapIcon, Send, ExternalLink, Link2,
-  Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon,
+  Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon, Palette,
   Download, Paperclip, Moon, Sun, ChevronRight, CalendarDays,
   GitBranch, MoreHorizontal, Filter, Save, FileDown, Clock, ArrowDown, ArrowUp
 } from "lucide-react";
@@ -634,6 +634,20 @@ function Silhouette({ gender = "n", size = 22, color = "#fff" }) {
   if (gender === "m") return (<svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true"><circle cx="12" cy="7.5" r="3.8" /><path d="M5 22c0-3.9 3.1-6.4 7-6.4s7 2.5 7 6.4z" /></svg>);
   return (<svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true"><circle cx="12" cy="8" r="3.6" /><path d="M5.5 21c0-3.7 2.9-6 6.5-6s6.5 2.3 6.5 6z" /></svg>);
 }
+// Sélecteur de thème de fond (bouton + menu de pastilles).
+function ThemeMenu({ value, onPick }) {
+  const [open, setOpen] = useState(false);
+  return (<div style={{ position: "relative" }}>
+    <button className="btn btn-ghost btn-s" onClick={() => setOpen((o) => !o)} title="Thème de fond"><Palette size={15} /></button>
+    {open && (<><div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} /><div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 12px 30px rgba(20,32,58,.18)", padding: 8, width: 214 }}>
+      <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)", letterSpacing: ".04em", padding: "2px 6px 6px" }}>FOND DE PAGE</div>
+      {BG_THEMES.map((t) => (<button key={t.id} onClick={() => { onPick(t.id); setOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", border: 0, background: value === t.id ? "var(--blue-l)" : "none", borderRadius: 8, padding: "7px 8px", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--ink)", textAlign: "left" }}>
+        <span style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: "1px solid var(--line)", background: t.sw }} />
+        {t.label}{value === t.id && <CheckCircle2 size={14} style={{ marginLeft: "auto", color: "var(--blue)" }} />}
+      </button>))}
+    </div></>)}
+  </div>);
+}
 const coverage = (p) => (!p.ventesMois || p.ventesMois <= 0) ? null : Math.round(p.dispo / (p.ventesMois / 30.44));
 const statusOf = (p) => p.dispo <= 0 ? "rupture" : p.dispo <= p.seuil ? "bas" : "ok";
 function nextRef(type, deals) { const pre = type === "Facture" ? "FA" : type === "Commande" ? "CMD" : "DV"; const y = new Date().getFullYear(); const rx = new RegExp("^" + pre + "-" + y + "-(\\d+)$"); const mx = (deals || []).reduce((m, d) => { const mt = rx.exec(d.ref || ""); return mt ? Math.max(m, parseInt(mt[1], 10)) : m; }, 0); return `${pre}-${y}-${String(mx + 1).padStart(3, "0")}`; }
@@ -715,6 +729,20 @@ function useCountUp(value, duration = 850) {
   return n;
 }
 
+// Motifs SVG de fond (data URIs) pour les thèmes de page.
+const _encSvg = (svg) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+const dashSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='340' height='340'><g fill='none' stroke='${stroke}' stroke-width='3' stroke-linecap='round'><path d='M-20 78 Q170 18 360 104' stroke-dasharray='2 15'/><path d='M-20 242 Q170 320 360 232' stroke-dasharray='17 14'/><path d='M58 -20 Q128 168 66 360' stroke-dasharray='2 15'/><path d='M250 -20 Q300 150 240 360' stroke-dasharray='15 14'/></g></svg>`);
+const memphisSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><g fill='none' stroke='${stroke}' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M16 34 l12 -13 l12 13 l12 -13'/><path d='M120 26 q9 -12 18 0 q9 12 18 0'/><circle cx='186' cy='38' r='8'/><path d='M30 92 l16 16'/><path d='M70 80 l0 20 M80 80 l0 20 M90 80 l0 20'/><path d='M150 78 a14 14 0 0 1 26 6'/><path d='M16 150 q12 -14 24 0 q12 14 24 0'/><path d='M96 140 l10 -12 l10 12 l10 -12'/><circle cx='150' cy='150' r='8'/><path d='M196 140 l0 22'/><path d='M30 196 l16 0 M30 196 l0 -16'/><path d='M110 196 l14 -14'/><path d='M170 196 q9 -12 18 0'/></g></svg>`);
+// Thèmes de fond proposés dans le sélecteur (haut à droite).
+const BG_THEMES = [
+  { id: "cream", label: "Crème (défaut)", sw: "#fff8ea" },
+  { id: "blue", label: "Bleu Memphis", sw: "#3F60AA" },
+  { id: "yellow", label: "Jaune Memphis", sw: "#FFD212" },
+  { id: "red", label: "Rouge Memphis", sw: "#FF5A45" },
+  { id: "bluedots", label: "Bleu pointillé blanc", sw: "#3F60AA" },
+  { id: "creamdash", label: "Crème tirets rouges", sw: "#fff8ea" },
+  { id: "plain", label: "Sobre (uni)", sw: "#f4f6fb" },
+];
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 :root{--blue:#3F60AA;--blue-d:#2f4c86;--blue-l:#eef2fb;--yellow:#FFD212;--yellow-d:#F8B133;--orange:#F8B133;--red:#FF5A45;--red-mid:#E94D44;--red-d:#CD2A24;--red-l:#ffe9e5;--cream:#FFF8EA;--green:#2bb673;--amber:#F8B133;--ink:#16203a;--muted:#5b6478;--bg:#fff8ea;--card:#fff;--line:#ece3d2;}
@@ -735,7 +763,19 @@ const CSS = `
 .sb-foot{margin-top:auto;padding:12px 8px 0;border-top:1px solid var(--line);color:var(--muted);font-size:11px;}
 .main{flex:1;min-width:0;padding:26px 30px 60px;position:relative;z-index:1;}
 .sb{position:relative;z-index:2;}
-.pu-root::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='340'%20height='340'%3E%3Cg%20fill='none'%20stroke='%23FF5A45'%20stroke-width='3'%20stroke-linecap='round'%3E%3Cpath%20d='M-20%2078%20Q170%2018%20360%20104'%20stroke-dasharray='2%2015'/%3E%3Cpath%20d='M-20%20242%20Q170%20320%20360%20232'%20stroke-dasharray='17%2014'/%3E%3Cpath%20d='M58%20-20%20Q128%20168%2066%20360'%20stroke-dasharray='2%2015'/%3E%3Cpath%20d='M250%20-20%20Q300%20150%20240%20360'%20stroke-dasharray='15%2014'/%3E%3C/g%3E%3C/svg%3E");background-size:340px 340px;background-repeat:repeat;opacity:.42;}
+.pu-root::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-repeat:repeat;}
+.pu-root.bg-cream::before,.pu-root.bg-creamdash::before{background-image:${dashSVG("#FF5A45")};background-size:340px 340px;opacity:.42;}
+.pu-root.bg-blue{background:#3F60AA;}
+.pu-root.bg-blue::before{background-image:${memphisSVG("#34528f")};background-size:220px 220px;opacity:.85;}
+.pu-root.bg-yellow{background:#FFD212;}
+.pu-root.bg-yellow::before{background-image:${memphisSVG("#f0c200")};background-size:220px 220px;opacity:.85;}
+.pu-root.bg-red{background:#FF5A45;}
+.pu-root.bg-red::before{background-image:${memphisSVG("#ec4533")};background-size:220px 220px;opacity:.8;}
+.pu-root.bg-bluedots{background:#3F60AA;}
+.pu-root.bg-bluedots::before{background-image:${dashSVG("#ffffff")};background-size:340px 340px;opacity:.5;}
+.pu-root.bg-plain{background:#f4f6fb;}
+.pu-root.bg-blue .topbar h2,.pu-root.bg-bluedots .topbar h2,.pu-root.bg-red .topbar h2{color:#fff;}
+.pu-root.bg-blue .topbar p,.pu-root.bg-bluedots .topbar p,.pu-root.bg-red .topbar p{color:rgba(255,255,255,.85);}
 .pu-root.dark::before{opacity:.2;}
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:16px;flex-wrap:wrap;}
 .topbar h2{margin:0;font-size:23px;}.topbar p{margin:3px 0 0;color:var(--muted);font-size:13px;}
@@ -3787,6 +3827,8 @@ export default function App() {
   const go = useCallback((t, id, site) => { setFocus({ tab: t, id, n: Date.now(), site: site || null }); setTab(t); }, []);
   const fc = (t) => (focus && focus.tab === t) ? focus : null;
   const theme = data.settings.theme || "light";
+  const bgTheme = data.settings.bgTheme || "cream";
+  const setBgTheme = (id) => persist((p) => ({ ...p, settings: { ...p.settings, bgTheme: id } }));
   const toggleTheme = () => persist((p) => ({ ...p, settings: { ...p.settings, theme: theme === "dark" ? "light" : "dark" } }));
   // Mise à jour forcée : vide les caches du navigateur (Cache API + service workers) puis recharge
   // depuis le serveur avec une URL anti-cache, pour récupérer immédiatement la dernière version déployée.
@@ -3841,7 +3883,7 @@ export default function App() {
     return { accounts: data.accounts.length, repertoire: data.contacts.length, prospection: data.prospects.filter((p) => p.statut === "a_contacter").length, deals: data.deals.length, pipeline: data.deals.filter((d) => d.statut !== "livre" && d.statut !== "refuse").length, agenda: agendaAl, stock: stockAl, reassort: reAl, sav: savAl, presto: prestoAl };
   }, [data]);
   const meta = TABS.find((t) => t.id === tab);
-  return (<div className={cx("pu-root", theme === "dark" && "dark")}><style>{CSS}</style><ConfirmHost />
+  return (<div className={cx("pu-root", theme === "dark" && "dark", "bg-" + bgTheme)}><style>{CSS}</style><ConfirmHost />
     <aside className="sb">
       <div className="brand"><img src={LOGO_DATA_URI} alt="PEN'UP 3D" /><div className="brand-accent" /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><small style={{ letterSpacing: ".12em" }}>MITMIT · Poste de pilotage B2B</small><span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600, lineHeight: 1.3, textTransform: "none", letterSpacing: 0 }} title="Le petit nom du cockpit">Module Intégré de Traitement, Marges, Inventaire &amp; Tarification</span></div></div>
       <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { setTab(t.id); setFocus(null); setNavKey((k) => k + 1); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
@@ -3863,6 +3905,7 @@ export default function App() {
           {(!data.accounts || data.accounts.length === 0) && <button className="btn btn-ghost btn-s" onClick={loadDemo} title="Charger un jeu de données de démonstration"><Sparkles size={15} /> Démo</button>}
           <button className="btn btn-ghost btn-s" onClick={hardRefresh} title="Forcer la mise à jour : vide le cache et recharge la dernière version"><RefreshCw size={15} /> Mettre à jour</button>
           <button className="btn btn-ghost btn-s" onClick={() => window.print()} title="Imprimer / PDF de la vue courante"><Printer size={15} /></button>
+          <ThemeMenu value={bgTheme} onPick={setBgTheme} />
           <button className="btn btn-ghost btn-s" onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>{theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}</button>
           {CLERK_PK && <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 4, paddingLeft: 8, borderLeft: "1px solid var(--line)" }}><UserButton afterSignOutUrl="/" /></span>}
         </div>
