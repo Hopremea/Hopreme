@@ -886,6 +886,8 @@ const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 :root{--blue:#3F60AA;--blue-d:#2f4c86;--blue-l:#eef2fb;--yellow:#FFD212;--yellow-d:#F8B133;--orange:#F8B133;--red:#FF5A45;--red-mid:#E94D44;--red-d:#CD2A24;--red-l:#ffe9e5;--cream:#FFF8EA;--green:#2bb673;--amber:#F8B133;--ink:#16203a;--muted:#5b6478;--bg:#fff8ea;--card:#fff;--line:#ece3d2;}
 *{box-sizing:border-box;}
+html,body,#root{margin:0;padding:0;}
+body{background:var(--bg);}
 .pu-root{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);min-height:100vh;display:flex;font-size:14px;background:radial-gradient(1100px 560px at 100% -8%,rgba(63,96,170,.10),transparent 55%),radial-gradient(900px 520px at -8% 6%,rgba(255,210,18,.22),transparent 55%),radial-gradient(820px 520px at 112% 116%,rgba(255,90,69,.14),transparent 55%),var(--bg);}
 .pu-display{font-family:'Bricolage Grotesque','Plus Jakarta Sans',sans-serif;letter-spacing:-.01em;}
 .tnum{font-variant-numeric:tabular-nums;}
