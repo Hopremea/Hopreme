@@ -4153,6 +4153,12 @@ export default function App() {
   const fc = (t) => (focus && focus.tab === t) ? focus : null;
   const theme = data.settings.theme || "light";
   const bgTheme = data.settings.bgTheme || "cream";
+  // Peint la couleur du thème sur html/body (toute la fenêtre, y compris au scroll et en mode application)
+  // pour éviter les bandes blanches sur les bords. Met aussi à jour la couleur de la barre de titre.
+  useEffect(() => {
+    const c = theme === "dark" ? "#0e1422" : ({ blue: "#3F60AA", bluedots: "#3F60AA", yellow: "#FFD212", red: "#FF5A45", plain: "#f4f6fb" }[bgTheme] || "#fff8ea");
+    try { document.documentElement.style.background = c; document.body.style.background = c; const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", c); } catch (e) { }
+  }, [bgTheme, theme]);
   const setBgTheme = (id) => persist((p) => ({ ...p, settings: { ...p.settings, bgTheme: id } }));
   const toggleTheme = () => persist((p) => ({ ...p, settings: { ...p.settings, theme: theme === "dark" ? "light" : "dark" } }));
   // Mise à jour forcée : vide les caches du navigateur (Cache API + service workers) puis recharge
