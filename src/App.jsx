@@ -1062,6 +1062,8 @@ ${ACCENT_CSS}
 .kpi .lab{color:var(--muted);font-size:12px;font-weight:600;}.kpi .val{font-size:24px;margin-top:2px;}.kpi .sub{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:5px;}
 @keyframes rise{to{opacity:1;transform:none;}}
 .fade{animation:fade .35s ease;}@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.prospect-flash{animation:prospectFlash 1.6s ease-in-out 0s 6;border-color:var(--orange) !important;}
+@keyframes prospectFlash{0%,100%{box-shadow:0 0 0 0 rgba(248,177,51,0);}50%{box-shadow:0 0 0 4px rgba(248,177,51,.6);}}
 .sec-h{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;gap:10px;flex-wrap:wrap;}.sec-h h3{margin:0;font-size:15px;}.sec-h span{color:var(--muted);font-size:12px;}
 .badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:20px;}.dot{width:7px;height:7px;border-radius:50%;}
 .tbl{width:100%;border-collapse:collapse;font-size:13px;}
@@ -3208,6 +3210,14 @@ function Prospection({ data, persist, go }) {
   const [q, setQ] = useState(""); const [fType, setFType] = useState("tous"); const [fRegion, setFRegion] = useState("tous"); const [fStatut, setFStatut] = useState("tous"); const [sort, setSort] = useState("type"); const [dir, setDir] = useState("asc");
   const [edit, setEdit] = useState(null);
   const [zone, setZone] = useState("Occitanie"); const [kind, setKind] = useState("toutes"); const [busy, setBusy] = useState(false); const [aiMsg, setAiMsg] = useState(null); const [aiErr, setAiErr] = useState(null);
+  const [flashIds, setFlashIds] = useState(null); const cardRefs = useRef({});
+  // Met en avant les prospects fraîchement trouvés : clignotement lent + défilement vers la 1re tuile.
+  useEffect(() => {
+    if (!flashIds || !flashIds.size) return;
+    const t1 = setTimeout(() => { const els = [...flashIds].map((id) => cardRefs.current[id]).filter(Boolean); if (els.length) { els.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top); try { els[0].scrollIntoView({ behavior: "smooth", block: "center" }); } catch {} } }, 140);
+    const t2 = setTimeout(() => setFlashIds(null), 10000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [flashIds]);
   const upE = (k, v) => setEdit((e) => ({ ...e, [k]: v }));
   const regions = Array.from(new Set(prospects.map((p) => p.region).filter(Boolean))).sort();
   const rank = { fort: 0, moyen: 1, faible: 2, "": 3 };
@@ -3260,13 +3270,14 @@ function Prospection({ data, persist, go }) {
       arr.forEach((r) => { const nom = (r.nom || r.enseigne || "").trim(); if (!nom) return; const key = (nom + "|" + (r.ville || "")).toLowerCase(); if (seen.has(key)) return; seen.add(key); const ct = r.contact || {};
         add.push({ id: "p_" + Date.now() + "_" + add.length, nom, enseigne: r.enseigne || "", type: ["cooperative", "chaine", "franchise", "independant", "specialiste", "gss", "autre"].includes(r.type) ? r.type : "autre", format: "", adresse: r.adresse || "", ville: r.ville || "", cp: r.cp || "", departement: r.departement || "", region: r.region || "", telephone: r.telephone || "", site: r.site || "", email: "", statut: "a_qualifier", potentiel: "", notes: r.notes || "", source: "Recherche IA · " + today, accountId: null, createdAt: today, siren: r.siren || "", siret: r.siret || "", raisonSociale: r.raisonSociale || "", formeJuridique: r.formeJuridique || "", contactPrenom: ct.prenom || "", contactNom: ct.nom || "", contactFonction: ct.fonction || "", contactEmail: ct.email || "", contactTel: ct.telephone || "", contactSource: ct.source || "" }); });
       persist((d) => ({ ...d, prospects: add.length ? [...add, ...d.prospects] : d.prospects, claudeUsage: addUsage(d.claudeUsage, usage) }));
+      if (add.length) { setQ(""); setFType("tous"); setFRegion("tous"); setFStatut("tous"); setFlashIds(new Set(add.map((a) => a.id))); }
       setAiMsg(add.length ? add.length + " prospect(s) ajouté(s) au listing, statut « À qualifier ». À vérifier avant action." : "Aucun nouveau prospect (déjà présents ou aucun résultat exploitable).");
     } catch (e) { setAiErr("Recherche IA indisponible ici (" + (e.message || e) + "). L'agent web fonctionne dans l'aperçu Claude ; dans l'application exportée il faut un petit serveur relais (voir l'encart)."); }
     finally { setBusy(false); }
   };
   const hasFilter = q || fType !== "tous" || fRegion !== "tous" || fStatut !== "tous";
   const card = (p) => { const tm = PROSPECT_TYPES[p.type] || PROSPECT_TYPES.autre; const sm = PROSPECT_STATUT[p.statut] || PROSPECT_STATUT.a_qualifier; const pm = POTENTIEL_META[p.potentiel]; return (
-    <div key={p.id} className="card" style={{ display: "flex", flexDirection: "column", gap: 8, cursor: "pointer" }} onClick={() => setEdit(p)}>
+    <div key={p.id} ref={(el) => { if (el) cardRefs.current[p.id] = el; }} className={cx("card", flashIds && flashIds.has(p.id) && "prospect-flash")} style={{ display: "flex", flexDirection: "column", gap: 8, cursor: "pointer" }} onClick={() => setEdit(p)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <div style={{ minWidth: 0 }}><div style={{ fontWeight: 800, fontSize: 14.5 }} className="pu-display">{p.nom}</div>{p.enseigne && p.enseigne !== p.nom && <div style={{ fontSize: 12, color: "var(--muted)" }}>{p.enseigne}</div>}</div>
         {pm && <Badge color={pm.color}>{pm.label}</Badge>}
