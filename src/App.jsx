@@ -3966,6 +3966,18 @@ function Assistant({ data, persist, go }) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState({});
+  const [listening, setListening] = useState(false); const recRef = useRef(null);
+  const dicter = () => {
+    const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+    if (!SR) { setMsgs((m) => [...m, { role: "bot", text: "La dictée vocale n'est pas supportée par ce navigateur (essayez Chrome ou Edge)." }]); return; }
+    if (listening && recRef.current) { recRef.current.stop(); return; }
+    const rec = new SR(); rec.lang = "fr-FR"; rec.interimResults = false; rec.continuous = false;
+    const base = input ? input + " " : "";
+    rec.onresult = (e) => { let add = ""; for (let i = e.resultIndex; i < e.results.length; i++) { if (e.results[i].isFinal) add += e.results[i][0].transcript; } if (add) setInput((base + add).replace(/\s+/g, " ").trim()); };
+    rec.onend = () => { setListening(false); recRef.current = null; };
+    rec.onerror = () => { setListening(false); recRef.current = null; };
+    recRef.current = rec; setListening(true); rec.start();
+  };
   const [msgs, setMsgs] = useState([{ role: "bot", text: "Bonjour, je suis l'assistant du cockpit PEN'UP 3D. Je peux répondre à vos questions (stock, devis, pipeline, marges, agenda) et agir sur vos données : ajouter un rendez-vous, modifier un stock, journaliser une interaction, préparer un devis. Je propose chaque action, vous l'appliquez d'un clic. Je reste limité au cockpit." }]);
   const scrollRef = useRef(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [msgs, open]);
@@ -4025,6 +4037,7 @@ function Assistant({ data, persist, go }) {
       <div style={{ padding: "6px 10px", display: "flex", gap: 5, flexWrap: "wrap", borderTop: "1px solid var(--line)", background: "var(--card)" }}>{quick.map((qq) => <button key={qq} onClick={() => send(qq)} style={{ fontSize: 11, color: "var(--muted)", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 20, padding: "3px 9px", cursor: "pointer", fontFamily: "inherit" }}>{qq}</button>)}</div>
       <div style={{ display: "flex", gap: 7, padding: "8px 10px 10px", background: "var(--card)", borderTop: "1px solid var(--line)" }}>
         <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} disabled={busy} placeholder={busy ? "…" : "Posez une question ou demandez une action…"} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 11, padding: "9px 11px", fontFamily: "inherit", fontSize: 13, opacity: busy ? 0.6 : 1 }} />
+        <button onClick={dicter} disabled={busy} className="btn btn-g" title={listening ? "Arrêter la dictée" : "Dicter"} style={{ padding: "0 11px", opacity: busy ? 0.6 : 1, color: listening ? "var(--red)" : undefined, borderColor: listening ? "var(--red)" : undefined }}><Mic size={16} className={listening ? "spin" : ""} /></button>
         <button onClick={() => send()} disabled={busy} className="btn btn-p" style={{ padding: "0 12px", opacity: busy ? 0.6 : 1 }}><Send size={16} /></button>
       </div>
     </div>)}
