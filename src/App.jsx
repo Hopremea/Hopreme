@@ -590,6 +590,16 @@ function normalize(d) {
     });
     d.settings._intAssoc = true;
   }
+  // Logo de la fiche : si un compte n'a pas de logo mais qu'un de ses établissements (site) porte
+  // une photo, on l'utilise comme logo du compte — corrige notamment la transformation d'un
+  // établissement indépendant (dont la photo était sur le site) en groupe. Idempotent, ne remplit
+  // que les logos manquants.
+  if (!d.settings._logoFromSite) {
+    const photoByAcc = {};
+    (d.sites || []).forEach((s) => { if (s && s.photo && (s.type === "pdv" || s.type === "decision") && s.accountId && !photoByAcc[s.accountId]) photoByAcc[s.accountId] = s.photo; });
+    d.accounts = (d.accounts || []).map((a) => (a && !a.logo && photoByAcc[a.id]) ? { ...a, logo: photoByAcc[a.id] } : a);
+    d.settings._logoFromSite = true;
+  }
   { const coefNorm = d.settings.coefTarget || 2.2; const catCoef = (code) => { const c = (code || "").toUpperCase(); if (c.includes("-PACK-")) return 2.25; if (c.includes("-FIL-")) return 2.21; if (c.includes("-KIT-") || c.includes("-LIVRET-") || c.includes("-POCHOIRS")) return 2.23; return coefNorm; }; d.products = d.products.map((p) => { const off = PA_HT_OFFICIEL[p.code]; const cess = off != null ? off : ((p.pvc != null && p.pvc > 0) ? Math.round((p.pvc / catCoef(p.code)) * 100) / 100 : null); return { ...p, cessionHT: cess }; }); }
   // Migration douce : ajoute « Un sourire en plus » + Carine Bois la première fois, sans les recréer si supprimés ensuite
   if (!d.settings._migrated_sourire) {
@@ -882,6 +892,16 @@ function useCountUp(value, duration = 850) {
 const _encSvg = (svg) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 const dashSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='340' height='340'><g fill='none' stroke='${stroke}' stroke-width='3' stroke-linecap='round'><path d='M-20 78 Q170 18 360 104' stroke-dasharray='2 15'/><path d='M-20 242 Q170 320 360 232' stroke-dasharray='17 14'/><path d='M58 -20 Q128 168 66 360' stroke-dasharray='2 15'/><path d='M250 -20 Q300 150 240 360' stroke-dasharray='15 14'/></g></svg>`);
 const memphisSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><g fill='none' stroke='${stroke}' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M16 34 l12 -13 l12 13 l12 -13'/><path d='M120 26 q9 -12 18 0 q9 12 18 0'/><circle cx='186' cy='38' r='8'/><path d='M30 92 l16 16'/><path d='M70 80 l0 20 M80 80 l0 20 M90 80 l0 20'/><path d='M150 78 a14 14 0 0 1 26 6'/><path d='M16 150 q12 -14 24 0 q12 14 24 0'/><path d='M96 140 l10 -12 l10 12 l10 -12'/><circle cx='150' cy='150' r='8'/><path d='M196 140 l0 22'/><path d='M30 196 l16 0 M30 196 l0 -16'/><path d='M110 196 l14 -14'/><path d='M170 196 q9 -12 18 0'/></g></svg>`);
+// Pois (polka dots) — répartis en quinconce pour un rendu régulier.
+const dotsSVG = (fill) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='54' height='54'><g fill='${fill}'><circle cx='13' cy='13' r='4.5'/><circle cx='40' cy='40' r='4.5'/></g></svg>`);
+// Quadrillage léger — lignes fines qui se raccordent en grille continue.
+const gridSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44'><g fill='none' stroke='${stroke}' stroke-width='1.4'><path d='M0 0 H44 M0 0 V44'/></g></svg>`);
+// Confettis triangulaires — petits triangles dispersés.
+const triSVG = (fill) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='110' height='110'><g fill='${fill}'><path d='M24 18 l9 16 l-18 0 z'/><path d='M78 36 l7 13 l-14 0 z'/><path d='M48 74 l9 16 l-18 0 z'/><path d='M92 86 l6 11 l-12 0 z'/></g></svg>`);
+// Étoiles / étincelles à quatre branches — clin d'œil créatif PEN'UP.
+const starsSVG = (fill) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='${fill}'><path d='M28 10 q4 14 18 18 q-14 4 -18 18 q-4 -14 -18 -18 q14 -4 18 -18 z'/><path d='M88 60 q3 10 13 13 q-10 3 -13 13 q-3 -10 -13 -13 q10 -3 13 -13 z'/><path d='M52 86 q2 8 10 10 q-8 2 -10 10 q-2 -8 -10 -10 q8 -2 10 -10 z'/></g></svg>`);
+// Vagues / écailles — lignes ondulées douces.
+const wavesSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='80' height='44'><g fill='none' stroke='${stroke}' stroke-width='3' stroke-linecap='round'><path d='M-5 14 q20 -16 40 0 q20 16 40 0 q20 -16 40 0'/><path d='M-5 36 q20 -16 40 0 q20 16 40 0 q20 -16 40 0'/></g></svg>`);
 // Thèmes de fond proposés dans le sélecteur (haut à droite).
 const BG_THEMES = [
   { id: "cream", label: "Crème (défaut)", sw: "#fff8ea" },
@@ -890,6 +910,11 @@ const BG_THEMES = [
   { id: "red", label: "Rouge Memphis", sw: "#FF5A45" },
   { id: "bluedots", label: "Bleu pointillé blanc", sw: "#3F60AA" },
   { id: "creamdash", label: "Crème tirets rouges", sw: "#fff8ea" },
+  { id: "creamdots", label: "Crème à pois", sw: "#fff8ea" },
+  { id: "creamstars", label: "Crème étoilée", sw: "#fff8ea" },
+  { id: "papergrid", label: "Quadrillage papier", sw: "#f4f6fb" },
+  { id: "yellowtri", label: "Jaune confettis", sw: "#FFD212" },
+  { id: "bluewaves", label: "Bleu vagues", sw: "#3F60AA" },
   { id: "sage", label: "Vert sauge", sw: "#eaf2e6" },
   { id: "peach", label: "Pêche", sw: "#fdeadf" },
   { id: "lavender", label: "Lavande", sw: "#efeafb" },
@@ -901,7 +926,7 @@ const BG_THEMES = [
 ];
 // Sur les thèmes de fond foncés, le texte hors carte passe en clair ; il redevient
 // sombre dans toute surface claire (cartes, lignes, champs, tuiles blanches, menus).
-const DARK_BG_TEXT = ["blue", "bluedots", "red", "forest", "plum", "midnight"].map((t) => `
+const DARK_BG_TEXT = ["blue", "bluedots", "red", "forest", "plum", "midnight", "bluewaves"].map((t) => `
 .pu-root.bg-${t} .main{color:#fff;--ink:#fff;--muted:rgba(255,255,255,.82);--line:rgba(255,255,255,.30);}
 .pu-root.bg-${t} .main .card,.pu-root.bg-${t} .main .crow,.pu-root.bg-${t} .main .conn,.pu-root.bg-${t} .modal,.pu-root.bg-${t} .main input,.pu-root.bg-${t} .main select,.pu-root.bg-${t} .main textarea,.pu-root.bg-${t} .main .chip,.pu-root.bg-${t} .main .chip-all,.pu-root.bg-${t} .main [style*="#fff"],.pu-root.bg-${t} .main [style*="--card"],.pu-root.bg-${t} .main [style*="--bg"]{color:var(--ink);--ink:#16203a;--muted:#5b6478;--line:#ece3d2;}
 .pu-root.bg-${t} .main .chip.on{color:#fff;}
@@ -952,12 +977,22 @@ body{background:var(--bg);}
 .pu-root.bg-plum::before{background-image:${memphisSVG("#4d3060")};background-size:220px 220px;opacity:.85;}
 .pu-root.bg-midnight{background:#1b2440;}
 .pu-root.bg-midnight::before{background-image:${memphisSVG("#2a3760")};background-size:220px 220px;opacity:.8;}
+.pu-root.bg-creamdots{background:#fff8ea;}
+.pu-root.bg-creamdots::before{background-image:${dotsSVG("#F8B133")};background-size:54px 54px;opacity:.38;}
+.pu-root.bg-creamstars{background:#fff8ea;}
+.pu-root.bg-creamstars::before{background-image:${starsSVG("#FF5A45")};background-size:120px 120px;opacity:.30;}
+.pu-root.bg-papergrid{background:#f4f6fb;}
+.pu-root.bg-papergrid::before{background-image:${gridSVG("#cfd8ea")};background-size:44px 44px;opacity:.9;}
+.pu-root.bg-yellowtri{background:#FFD212;}
+.pu-root.bg-yellowtri::before{background-image:${triSVG("#3F60AA")};background-size:110px 110px;opacity:.5;}
+.pu-root.bg-bluewaves{background:#3F60AA;}
+.pu-root.bg-bluewaves::before{background-image:${wavesSVG("#ffffff")};background-size:80px 44px;opacity:.5;}
 .pu-root.bg-plain{background:#f4f6fb;}
-.pu-root.bg-blue .topbar h2,.pu-root.bg-bluedots .topbar h2,.pu-root.bg-red .topbar h2,.pu-root.bg-forest .topbar h2,.pu-root.bg-plum .topbar h2,.pu-root.bg-midnight .topbar h2{color:#fff;}
-.pu-root.bg-blue .topbar p,.pu-root.bg-bluedots .topbar p,.pu-root.bg-red .topbar p,.pu-root.bg-forest .topbar p,.pu-root.bg-plum .topbar p,.pu-root.bg-midnight .topbar p{color:rgba(255,255,255,.85);}
+.pu-root.bg-blue .topbar h2,.pu-root.bg-bluedots .topbar h2,.pu-root.bg-red .topbar h2,.pu-root.bg-forest .topbar h2,.pu-root.bg-plum .topbar h2,.pu-root.bg-midnight .topbar h2,.pu-root.bg-bluewaves .topbar h2{color:#fff;}
+.pu-root.bg-blue .topbar p,.pu-root.bg-bluedots .topbar p,.pu-root.bg-red .topbar p,.pu-root.bg-forest .topbar p,.pu-root.bg-plum .topbar p,.pu-root.bg-midnight .topbar p,.pu-root.bg-bluewaves .topbar p{color:rgba(255,255,255,.85);}
 /* Boutons de la barre du haut : fond contrasté selon le thème de page */
-.pu-root.bg-blue .topbar .btn-ghost,.pu-root.bg-bluedots .topbar .btn-ghost,.pu-root.bg-red .topbar .btn-ghost,.pu-root.bg-forest .topbar .btn-ghost,.pu-root.bg-plum .topbar .btn-ghost,.pu-root.bg-midnight .topbar .btn-ghost{background:#FFD212;color:#16203a;border-color:#f0c200;}
-.pu-root.bg-blue .topbar .btn-ghost:hover,.pu-root.bg-bluedots .topbar .btn-ghost:hover,.pu-root.bg-red .topbar .btn-ghost:hover,.pu-root.bg-forest .topbar .btn-ghost:hover,.pu-root.bg-plum .topbar .btn-ghost:hover,.pu-root.bg-midnight .topbar .btn-ghost:hover{background:#f6c200;border-color:#dcae00;}
+.pu-root.bg-blue .topbar .btn-ghost,.pu-root.bg-bluedots .topbar .btn-ghost,.pu-root.bg-red .topbar .btn-ghost,.pu-root.bg-forest .topbar .btn-ghost,.pu-root.bg-plum .topbar .btn-ghost,.pu-root.bg-midnight .topbar .btn-ghost,.pu-root.bg-bluewaves .topbar .btn-ghost{background:#FFD212;color:#16203a;border-color:#f0c200;}
+.pu-root.bg-blue .topbar .btn-ghost:hover,.pu-root.bg-bluedots .topbar .btn-ghost:hover,.pu-root.bg-red .topbar .btn-ghost:hover,.pu-root.bg-forest .topbar .btn-ghost:hover,.pu-root.bg-plum .topbar .btn-ghost:hover,.pu-root.bg-midnight .topbar .btn-ghost:hover,.pu-root.bg-bluewaves .topbar .btn-ghost:hover{background:#f6c200;border-color:#dcae00;}
 .pu-root.bg-yellow .topbar .btn-ghost{background:#3F60AA;color:#fff;border-color:#34528f;}
 .pu-root.bg-yellow .topbar .btn-ghost:hover{background:#34528f;border-color:#2c4582;}
 .pu-root.bg-cream .topbar .btn-ghost,.pu-root.bg-creamdash .topbar .btn-ghost,.pu-root.bg-plain .topbar .btn-ghost{background:#FF5A45;color:#fff;border-color:#e94d44;}
@@ -1017,7 +1052,7 @@ ${DARK_BG_TEXT}
 .pu-root.dark .chip-all{background:var(--blue-l);color:var(--ink);}
 .pu-root.dark .chip-all.on{background:#e8edf5;color:#16203a;border-color:#e8edf5;}
 /* Chips actifs : couleur d'accent contrastée avec le fond du thème (jamais la même couleur que la page) */
-.pu-root.bg-blue .main .chip.on,.pu-root.bg-bluedots .main .chip.on,.pu-root.bg-red .main .chip.on,.pu-root.bg-forest .main .chip.on,.pu-root.bg-plum .main .chip.on,.pu-root.bg-midnight .main .chip.on,.pu-root.bg-blue .main .chip-all.on,.pu-root.bg-bluedots .main .chip-all.on,.pu-root.bg-red .main .chip-all.on,.pu-root.bg-forest .main .chip-all.on,.pu-root.bg-plum .main .chip-all.on,.pu-root.bg-midnight .main .chip-all.on{background:#FFD212;color:#16203a;border-color:#f0c200;}
+.pu-root.bg-blue .main .chip.on,.pu-root.bg-bluedots .main .chip.on,.pu-root.bg-red .main .chip.on,.pu-root.bg-forest .main .chip.on,.pu-root.bg-plum .main .chip.on,.pu-root.bg-midnight .main .chip.on,.pu-root.bg-blue .main .chip-all.on,.pu-root.bg-bluedots .main .chip-all.on,.pu-root.bg-red .main .chip-all.on,.pu-root.bg-forest .main .chip-all.on,.pu-root.bg-plum .main .chip-all.on,.pu-root.bg-midnight .main .chip-all.on,.pu-root.bg-bluewaves .main .chip.on,.pu-root.bg-bluewaves .main .chip-all.on{background:#FFD212;color:#16203a;border-color:#f0c200;}
 .pu-root.bg-yellow .main .chip.on,.pu-root.bg-yellow .main .chip-all.on{background:#3F60AA;color:#fff;border-color:#34528f;}
 .av{border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;flex-shrink:0;width:44px;height:44px;overflow:hidden;}.av.lg{width:64px;height:64px;border-radius:18px;font-size:23px;}.av img{width:100%;height:100%;object-fit:cover;display:block;}
 .photo-edit{position:absolute!important;right:-6px;bottom:-6px;width:26px!important;height:26px!important;background:#fff;border:1px solid var(--line);box-shadow:0 2px 6px rgba(20,32,58,.18);border-radius:50%;}
@@ -1715,7 +1750,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
   // y rattacher d'autres établissements. L'établissement actuel en devient le premier point de vente.
   const promoteIndepToGroup = () => {
     if (!acc) return;
-    appConfirm("Transformer « " + (acc.enseigne || s.label || "cet établissement") + " » en groupe / chaîne ?\n\nL'établissement actuel devient le premier point de vente du groupe. Vous pourrez ensuite y rattacher les autres établissements. Aucune donnée n'est perdue.", { title: "Transformer en groupe ?", confirmLabel: "Transformer en groupe" }).then((ok) => { if (!ok) return; const n = (data.sites || []).filter((x) => x.accountId === acc.id && (x.type === "pdv" || x.type === "decision")).length; persist((p) => ({ ...p, accounts: p.accounts.map((x) => x.id === acc.id ? { ...x, kind: "groupe", magasins: Math.max(Number(x.magasins) || 0, n, 2) } : x) })); if (onGoAccount) onGoAccount(acc.id); });
+    appConfirm("Transformer « " + (acc.enseigne || s.label || "cet établissement") + " » en groupe / chaîne ?\n\nL'établissement actuel devient le premier point de vente du groupe. Vous pourrez ensuite y rattacher les autres établissements. Aucune donnée n'est perdue.", { title: "Transformer en groupe ?", confirmLabel: "Transformer en groupe" }).then((ok) => { if (!ok) return; const n = (data.sites || []).filter((x) => x.accountId === acc.id && (x.type === "pdv" || x.type === "decision")).length; persist((p) => ({ ...p, accounts: p.accounts.map((x) => x.id === acc.id ? { ...x, kind: "groupe", magasins: Math.max(Number(x.magasins) || 0, n, 2), logo: x.logo || s.photo || "" } : x) })); if (onGoAccount) onGoAccount(acc.id); });
   };
   const siteEvents = (data.events || []).filter((e) => e.siteId === s.id);
   const saveEvent = (ev) => persist((p) => { const ex = (p.events || []).some((x) => x.id === ev.id); return { ...p, events: ex ? p.events.map((x) => x.id === ev.id ? ev : x) : [...(p.events || []), ev] }; });
@@ -1824,7 +1859,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   // Transforme un établissement indépendant en groupe / chaîne : il devient le premier point de
   // vente du groupe, et l'on peut ensuite rattacher les autres établissements. Aucune donnée perdue.
   const promoteToGroup = () => {
-    appConfirm("Transformer « " + (a.enseigne || "cet établissement") + " » en groupe / chaîne ?\n\nL'établissement actuel devient le premier point de vente du groupe. Vous pourrez ensuite ajouter les autres établissements (boutons « Établissement » / « Rattacher un existant ») et préciser le nombre total via « Modifier ». Aucune donnée n'est perdue.", { title: "Transformer en groupe ?", confirmLabel: "Transformer en groupe" }).then((ok) => { if (!ok) return; const n = accSites.filter((s) => s.type === "pdv" || s.type === "decision").length; saveAccount({ kind: "groupe", magasins: Math.max(Number(a.magasins) || 0, n, 2) }); });
+    appConfirm("Transformer « " + (a.enseigne || "cet établissement") + " » en groupe / chaîne ?\n\nL'établissement actuel devient le premier point de vente du groupe. Vous pourrez ensuite ajouter les autres établissements (boutons « Établissement » / « Rattacher un existant ») et préciser le nombre total via « Modifier ». Aucune donnée n'est perdue.", { title: "Transformer en groupe ?", confirmLabel: "Transformer en groupe" }).then((ok) => { if (!ok) return; const ps = accSites.filter((s) => s.type === "pdv" || s.type === "decision"); const n = ps.length; const sitePhoto = (ps.find((s) => s.photo) || {}).photo || ""; saveAccount({ kind: "groupe", magasins: Math.max(Number(a.magasins) || 0, n, 2), logo: a.logo || sitePhoto }); });
   };
   const accEvents = (data.events || []).filter((e) => e.accountId === a.id && !e.siteId);
   const saveEvent = (ev) => persist((p) => { const ex = (p.events || []).some((x) => x.id === ev.id); return { ...p, events: ex ? p.events.map((x) => x.id === ev.id ? ev : x) : [...(p.events || []), ev] }; });
@@ -4332,7 +4367,7 @@ export default function App() {
   // Peint la couleur du thème sur html/body (toute la fenêtre, y compris au scroll et en mode application)
   // pour éviter les bandes blanches sur les bords. Met aussi à jour la couleur de la barre de titre.
   useEffect(() => {
-    const c = theme === "dark" ? "#0e1422" : ({ blue: "#3F60AA", bluedots: "#3F60AA", yellow: "#FFD212", red: "#FF5A45", sage: "#eaf2e6", peach: "#fdeadf", lavender: "#efeafb", mint: "#e2f3ec", forest: "#1f5e44", plum: "#5b3a6e", midnight: "#1b2440", plain: "#f4f6fb" }[bgTheme] || "#fff8ea");
+    const c = theme === "dark" ? "#0e1422" : ({ blue: "#3F60AA", bluedots: "#3F60AA", bluewaves: "#3F60AA", yellow: "#FFD212", yellowtri: "#FFD212", red: "#FF5A45", sage: "#eaf2e6", peach: "#fdeadf", lavender: "#efeafb", mint: "#e2f3ec", forest: "#1f5e44", plum: "#5b3a6e", midnight: "#1b2440", papergrid: "#f4f6fb", plain: "#f4f6fb" }[bgTheme] || "#fff8ea");
     try { document.documentElement.style.background = c; document.body.style.background = c; const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", c); } catch (e) { }
   }, [bgTheme, theme]);
   const setBgTheme = (id) => persist((p) => ({ ...p, settings: { ...p.settings, bgTheme: id } }));
