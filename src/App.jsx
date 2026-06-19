@@ -546,6 +546,10 @@ function normalize(d) {
   d.claudeUsage = d.claudeUsage || { calls: 0, inputTokens: 0, outputTokens: 0 };
   d.events = d.events || [];
   d.settings = { ...SETTINGS, ...(d.settings || {}) };
+  // Thème décomposé : reprend l'ancien réglage combiné « bgTheme » vers couleur + motif, une seule fois.
+  if (d.settings.bgColor == null) { const m = LEGACY_BGTHEME[d.settings.bgTheme] || ["cream", "dash"]; d.settings.bgColor = m[0]; d.settings.bgPattern = m[1]; }
+  if (d.settings.bgPattern == null) d.settings.bgPattern = "dash";
+  if (d.settings.accent == null) d.settings.accent = "auto";
   if (d.settings.coefMax == null) { d.settings.coefMax = (d.settings.coefMin != null && d.settings.coefMin > (d.settings.coefTarget || 1.8)) ? d.settings.coefMin : 2.0; }
   delete d.settings.coefMin;
   if (!d.settings.coefBasisTTC) { d.settings.coefTarget = Math.round((d.settings.coefTarget || 1.8) * 1.2 * 100) / 100; d.settings.coefMax = Math.round((d.settings.coefMax || 2.0) * 1.2 * 100) / 100; if (d.settings.coefTarget < 2.2) d.settings.coefTarget = 2.2; if (d.settings.coefMax <= d.settings.coefTarget) d.settings.coefMax = Math.round((d.settings.coefTarget + 0.2) * 100) / 100; d.settings.coefBasisTTC = true; }
@@ -793,17 +797,31 @@ function Silhouette({ gender = "n", size = 22, color = "#fff" }) {
   if (gender === "m") return (<svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true"><circle cx="12" cy="7.5" r="3.8" /><path d="M5 22c0-3.9 3.1-6.4 7-6.4s7 2.5 7 6.4z" /></svg>);
   return (<svg width={size} height={size} viewBox="0 0 24 24" fill={color} aria-hidden="true"><circle cx="12" cy="8" r="3.6" /><path d="M5.5 21c0-3.7 2.9-6 6.5-6s6.5 2.3 6.5 6z" /></svg>);
 }
-// Sélecteur de thème de fond (bouton + menu de pastilles).
-function ThemeMenu({ value, onPick }) {
+// Sélecteur de thème : couleur de fond, motif, accentuation des boutons (trois sélecteurs distincts).
+function ThemeMenu({ color, pattern, accent, onColor, onPattern, onAccent }) {
   const [open, setOpen] = useState(false);
+  const lab = (k) => ({ fontSize: 10.5, fontWeight: 800, color: "var(--muted)", letterSpacing: ".04em", padding: "8px 4px 6px" });
   return (<div style={{ position: "relative" }}>
-    <button className="btn btn-ghost btn-s" onClick={() => setOpen((o) => !o)} title="Thème de fond"><Palette size={15} /></button>
-    {open && (<><div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} /><div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 12px 30px rgba(20,32,58,.18)", padding: 8, width: 214 }}>
-      <div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)", letterSpacing: ".04em", padding: "2px 6px 6px" }}>FOND DE PAGE</div>
-      {BG_THEMES.map((t) => (<button key={t.id} onClick={() => { onPick(t.id); setOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", border: 0, background: value === t.id ? "var(--blue-l)" : "none", borderRadius: 8, padding: "7px 8px", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--ink)", textAlign: "left" }}>
-        <span style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: "1px solid var(--line)", background: t.sw }} />
-        {t.label}{value === t.id && <CheckCircle2 size={14} style={{ marginLeft: "auto", color: "var(--blue)" }} />}
-      </button>))}
+    <button className="btn btn-ghost btn-s" onClick={() => setOpen((o) => !o)} title="Thème : couleur, motif, accent"><Palette size={15} /></button>
+    {open && (<><div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} /><div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 12px 30px rgba(20,32,58,.18)", padding: 10, width: 260, maxHeight: "78vh", overflowY: "auto" }}>
+      <div style={lab()}>COULEUR DE FOND</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>{THEME_COLORS.map((c) => (
+        <button key={c.id} onClick={() => onColor(c.id)} title={c.label} style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 8, cursor: "pointer", background: c.bg, border: color === c.id ? "2px solid var(--blue)" : "1px solid var(--line)", boxShadow: color === c.id ? "0 0 0 2px var(--blue-l)" : "none", display: "grid", placeItems: "center" }}>{color === c.id && <CheckCircle2 size={14} color={c.dark ? "#fff" : "#16203a"} />}</button>
+      ))}</div>
+      <div style={lab()}>MOTIF</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>{THEME_PATTERNS.map((p) => (
+        <button key={p.id} onClick={() => onPattern(p.id)} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", border: 0, background: pattern === p.id ? "var(--blue-l)" : "none", borderRadius: 8, padding: "7px 8px", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--ink)", textAlign: "left" }}>
+          <span style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: "1px solid var(--line)", background: p.fn ? `#fff ${p.fn("#5b6478")}` : "#fff", backgroundSize: p.fn ? "22px 22px" : undefined, backgroundRepeat: "repeat" }} />
+          {p.label}{pattern === p.id && <CheckCircle2 size={14} style={{ marginLeft: "auto", color: "var(--blue)" }} />}
+        </button>
+      ))}</div>
+      <div style={lab()}>ACCENT DES BOUTONS</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{THEME_ACCENTS.map((a) => (
+        <button key={a.id} onClick={() => onAccent(a.id)} title={a.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: accent === a.id ? "2px solid var(--blue)" : "1px solid var(--line)", borderRadius: 20, padding: "4px 9px 4px 5px", cursor: "pointer", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, color: "var(--ink)", background: accent === a.id ? "var(--blue-l)" : "var(--card)" }}>
+          <span style={{ width: 14, height: 14, borderRadius: "50%", flexShrink: 0, border: "1px solid var(--line)", background: a.c || "conic-gradient(#3F60AA,#FFD212,#FF5A45,#2bb673,#7c5cf0,#3F60AA)" }} />
+          {a.label}
+        </button>
+      ))}</div>
     </div></>)}
   </div>);
 }
@@ -902,35 +920,75 @@ const triSVG = (fill) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width=
 const starsSVG = (fill) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='${fill}'><path d='M28 10 q4 14 18 18 q-14 4 -18 18 q-4 -14 -18 -18 q14 -4 18 -18 z'/><path d='M88 60 q3 10 13 13 q-10 3 -13 13 q-3 -10 -13 -13 q10 -3 13 -13 z'/><path d='M52 86 q2 8 10 10 q-8 2 -10 10 q-2 -8 -10 -10 q8 -2 10 -10 z'/></g></svg>`);
 // Vagues / écailles — lignes ondulées douces.
 const wavesSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='80' height='44'><g fill='none' stroke='${stroke}' stroke-width='3' stroke-linecap='round'><path d='M-5 14 q20 -16 40 0 q20 16 40 0 q20 -16 40 0'/><path d='M-5 36 q20 -16 40 0 q20 16 40 0 q20 -16 40 0'/></g></svg>`);
-// Thèmes de fond proposés dans le sélecteur (haut à droite).
-const BG_THEMES = [
-  { id: "cream", label: "Crème (défaut)", sw: "#fff8ea" },
-  { id: "blue", label: "Bleu Memphis", sw: "#3F60AA" },
-  { id: "yellow", label: "Jaune Memphis", sw: "#FFD212" },
-  { id: "red", label: "Rouge Memphis", sw: "#FF5A45" },
-  { id: "bluedots", label: "Bleu pointillé blanc", sw: "#3F60AA" },
-  { id: "creamdash", label: "Crème tirets rouges", sw: "#fff8ea" },
-  { id: "creamdots", label: "Crème à pois", sw: "#fff8ea" },
-  { id: "creamstars", label: "Crème étoilée", sw: "#fff8ea" },
-  { id: "papergrid", label: "Quadrillage papier", sw: "#f4f6fb" },
-  { id: "yellowtri", label: "Jaune confettis", sw: "#FFD212" },
-  { id: "bluewaves", label: "Bleu vagues", sw: "#3F60AA" },
-  { id: "sage", label: "Vert sauge", sw: "#eaf2e6" },
-  { id: "peach", label: "Pêche", sw: "#fdeadf" },
-  { id: "lavender", label: "Lavande", sw: "#efeafb" },
-  { id: "mint", label: "Menthe pointillé", sw: "#e2f3ec" },
-  { id: "forest", label: "Vert forêt", sw: "#1f5e44" },
-  { id: "plum", label: "Prune", sw: "#5b3a6e" },
-  { id: "midnight", label: "Bleu nuit", sw: "#1b2440" },
-  { id: "plain", label: "Sobre (uni)", sw: "#f4f6fb" },
+// Sélecteurs de thème décomposés : couleur de fond, motif, accentuation des boutons.
+// COULEUR : bg = fond, stroke = teinte du motif sur ce fond, dark = texte clair hors carte.
+const THEME_COLORS = [
+  { id: "cream", label: "Crème", bg: "#fff8ea", stroke: "#FF5A45", dark: false },
+  { id: "plain", label: "Gris clair", bg: "#f4f6fb", stroke: "#cfd8ea", dark: false },
+  { id: "sage", label: "Vert sauge", bg: "#eaf2e6", stroke: "#6fa564", dark: false },
+  { id: "mint", label: "Menthe", bg: "#e2f3ec", stroke: "#3fb68a", dark: false },
+  { id: "peach", label: "Pêche", bg: "#fdeadf", stroke: "#e8916b", dark: false },
+  { id: "lavender", label: "Lavande", bg: "#efeafb", stroke: "#9b87d4", dark: false },
+  { id: "yellow", label: "Jaune", bg: "#FFD212", stroke: "#3F60AA", dark: false },
+  { id: "blue", label: "Bleu", bg: "#3F60AA", stroke: "#ffffff", dark: true },
+  { id: "red", label: "Rouge", bg: "#FF5A45", stroke: "#ffffff", dark: true },
+  { id: "forest", label: "Vert forêt", bg: "#1f5e44", stroke: "#3a7d60", dark: true },
+  { id: "plum", label: "Prune", bg: "#5b3a6e", stroke: "#7d5a90", dark: true },
+  { id: "midnight", label: "Bleu nuit", bg: "#1b2440", stroke: "#34406b", dark: true },
 ];
-// Sur les thèmes de fond foncés, le texte hors carte passe en clair ; il redevient
-// sombre dans toute surface claire (cartes, lignes, champs, tuiles blanches, menus).
-const DARK_BG_TEXT = ["blue", "bluedots", "red", "forest", "plum", "midnight", "bluewaves"].map((t) => `
-.pu-root.bg-${t} .main{color:#fff;--ink:#fff;--muted:rgba(255,255,255,.82);--line:rgba(255,255,255,.30);}
-.pu-root.bg-${t} .main .card,.pu-root.bg-${t} .main .crow,.pu-root.bg-${t} .main .conn,.pu-root.bg-${t} .modal,.pu-root.bg-${t} .main input,.pu-root.bg-${t} .main select,.pu-root.bg-${t} .main textarea,.pu-root.bg-${t} .main .chip,.pu-root.bg-${t} .main .chip-all,.pu-root.bg-${t} .main [style*="#fff"],.pu-root.bg-${t} .main [style*="--card"],.pu-root.bg-${t} .main [style*="--bg"]{color:var(--ink);--ink:#16203a;--muted:#5b6478;--line:#ece3d2;}
-.pu-root.bg-${t} .main .chip.on{color:#fff;}
+const THEME_COLOR_BG = {}; THEME_COLORS.forEach((c) => { THEME_COLOR_BG[c.id] = c.bg; });
+// MOTIF : fn = générateur SVG (null = aucun), size = taille de tuile, op = opacité.
+const THEME_PATTERNS = [
+  { id: "none", label: "Aucun", fn: null },
+  { id: "dash", label: "Tirets", fn: dashSVG, size: "340px 340px", op: 0.42 },
+  { id: "memphis", label: "Memphis", fn: memphisSVG, size: "220px 220px", op: 0.6 },
+  { id: "dots", label: "Pois", fn: dotsSVG, size: "54px 54px", op: 0.4 },
+  { id: "stars", label: "Étoiles", fn: starsSVG, size: "120px 120px", op: 0.32 },
+  { id: "grid", label: "Quadrillage", fn: gridSVG, size: "44px 44px", op: 0.6 },
+  { id: "tri", label: "Confettis", fn: triSVG, size: "110px 110px", op: 0.45 },
+  { id: "waves", label: "Vagues", fn: wavesSVG, size: "80px 44px", op: 0.5 },
+];
+// ACCENTUATION : couleur des boutons concernés (barre du haut + filtres actifs). « auto » = selon le fond.
+const THEME_ACCENTS = [
+  { id: "auto", label: "Automatique" },
+  { id: "blue", label: "Bleu", c: "#3F60AA", cd: "#2c4582", t: "#fff" },
+  { id: "yellow", label: "Jaune", c: "#FFD212", cd: "#dcae00", t: "#16203a" },
+  { id: "red", label: "Rouge", c: "#FF5A45", cd: "#cd2a24", t: "#fff" },
+  { id: "green", label: "Vert", c: "#2bb673", cd: "#1f9d61", t: "#fff" },
+  { id: "orange", label: "Orange", c: "#F8B133", cd: "#dc9412", t: "#16203a" },
+  { id: "purple", label: "Violet", c: "#7c5cf0", cd: "#5f3fd0", t: "#fff" },
+];
+// Reprise d'un ancien réglage « bgTheme » combiné vers le nouveau couple couleur + motif.
+const LEGACY_BGTHEME = {
+  cream: ["cream", "dash"], creamdash: ["cream", "dash"], creamdots: ["cream", "dots"], creamstars: ["cream", "stars"],
+  blue: ["blue", "memphis"], bluedots: ["blue", "dash"], bluewaves: ["blue", "waves"],
+  yellow: ["yellow", "memphis"], yellowtri: ["yellow", "tri"], red: ["red", "memphis"],
+  papergrid: ["plain", "grid"], plain: ["plain", "none"], sage: ["sage", "dash"], peach: ["peach", "dash"],
+  lavender: ["lavender", "dash"], mint: ["mint", "dash"], forest: ["forest", "memphis"], plum: ["plum", "memphis"], midnight: ["midnight", "memphis"],
+};
+// CSS généré : un fond par couleur, un motif par couple couleur×motif (teinte adaptée au fond).
+const THEME_BG_CSS = THEME_COLORS.map((c) => `.pu-root.color-${c.id}{background:${c.bg};}`
+  + THEME_PATTERNS.filter((p) => p.fn).map((p) => `.pu-root.color-${c.id}.pat-${p.id}::before{background-image:${p.fn(c.stroke)};background-size:${p.size};opacity:${p.op};}`).join("")).join("\n");
+// Texte clair hors carte sur les fonds foncés (revient sombre dans les surfaces claires).
+const DARK_BG_TEXT = THEME_COLORS.filter((c) => c.dark).map((c) => c.id).map((t) => `
+.pu-root.color-${t} .main{color:#fff;--ink:#fff;--muted:rgba(255,255,255,.82);--line:rgba(255,255,255,.30);}
+.pu-root.color-${t} .main .card,.pu-root.color-${t} .main .crow,.pu-root.color-${t} .main .conn,.pu-root.color-${t} .modal,.pu-root.color-${t} .main input,.pu-root.color-${t} .main select,.pu-root.color-${t} .main textarea,.pu-root.color-${t} .main .chip,.pu-root.color-${t} .main .chip-all,.pu-root.color-${t} .main [style*="#fff"],.pu-root.color-${t} .main [style*="--card"],.pu-root.color-${t} .main [style*="--bg"]{color:var(--ink);--ink:#16203a;--muted:#5b6478;--line:#ece3d2;}
+.pu-root.color-${t} .main .chip.on{color:#fff;}
+.pu-root.color-${t} .topbar h2{color:#fff;}
+.pu-root.color-${t} .topbar p{color:rgba(255,255,255,.85);}
 `).join("");
+// Accentuation auto : selon le fond (foncé → jaune, jaune → bleu, clair → rouge).
+const AUTO_ACCENT_CSS = THEME_COLORS.map((c) => {
+  const a = c.dark ? { c: "#FFD212", cd: "#dcae00", t: "#16203a" } : c.id === "yellow" ? { c: "#3F60AA", cd: "#2c4582", t: "#fff" } : { c: "#FF5A45", cd: "#cd2a24", t: "#fff" };
+  return `.pu-root.acc-auto.color-${c.id} .topbar .btn-ghost{background:${a.c};color:${a.t};border-color:${a.cd};}
+.pu-root.acc-auto.color-${c.id} .topbar .btn-ghost:hover{background:${a.cd};border-color:${a.cd};}
+.pu-root.acc-auto.color-${c.id} .main .chip.on,.pu-root.acc-auto.color-${c.id} .main .chip-all.on{background:${a.c};color:${a.t};border-color:${a.cd};}`;
+}).join("\n");
+// Accentuation choisie explicitement (prioritaire sur l'auto).
+const ACCENT_CSS = THEME_ACCENTS.filter((a) => a.c).map((a) => `
+.pu-root.acc-${a.id} .topbar .btn-ghost{background:${a.c};color:${a.t};border-color:${a.cd};}
+.pu-root.acc-${a.id} .topbar .btn-ghost:hover{background:${a.cd};border-color:${a.cd};}
+.pu-root.acc-${a.id} .main .chip.on,.pu-root.acc-${a.id} .main .chip-all.on{background:${a.c};color:${a.t};border-color:${a.cd};}`).join("\n");
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 :root{--blue:#3F60AA;--blue-d:#2f4c86;--blue-l:#eef2fb;--yellow:#FFD212;--yellow-d:#F8B133;--orange:#F8B133;--red:#FF5A45;--red-mid:#E94D44;--red-d:#CD2A24;--red-l:#ffe9e5;--cream:#FFF8EA;--green:#2bb673;--amber:#F8B133;--ink:#16203a;--muted:#5b6478;--bg:#fff8ea;--card:#fff;--line:#ece3d2;}
@@ -954,50 +1012,10 @@ body{background:var(--bg);}
 .main{flex:1;min-width:0;padding:26px 30px 60px;position:relative;z-index:1;}
 .sb{position:relative;z-index:2;}
 .pu-root::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-repeat:repeat;}
-.pu-root.bg-cream::before,.pu-root.bg-creamdash::before{background-image:${dashSVG("#FF5A45")};background-size:340px 340px;opacity:.42;}
-.pu-root.bg-blue{background:#3F60AA;}
-.pu-root.bg-blue::before{background-image:${memphisSVG("#34528f")};background-size:220px 220px;opacity:.85;}
-.pu-root.bg-yellow{background:#FFD212;}
-.pu-root.bg-yellow::before{background-image:${memphisSVG("#f0c200")};background-size:220px 220px;opacity:.85;}
-.pu-root.bg-red{background:#FF5A45;}
-.pu-root.bg-red::before{background-image:${memphisSVG("#ec4533")};background-size:220px 220px;opacity:.8;}
-.pu-root.bg-bluedots{background:#3F60AA;}
-.pu-root.bg-bluedots::before{background-image:${dashSVG("#ffffff")};background-size:340px 340px;opacity:.5;}
-.pu-root.bg-sage{background:#eaf2e6;}
-.pu-root.bg-sage::before{background-image:${dashSVG("#6fa564")};background-size:340px 340px;opacity:.40;}
-.pu-root.bg-peach{background:#fdeadf;}
-.pu-root.bg-peach::before{background-image:${dashSVG("#e8916b")};background-size:340px 340px;opacity:.42;}
-.pu-root.bg-lavender{background:#efeafb;}
-.pu-root.bg-lavender::before{background-image:${dashSVG("#9b87d4")};background-size:340px 340px;opacity:.40;}
-.pu-root.bg-mint{background:#e2f3ec;}
-.pu-root.bg-mint::before{background-image:${dashSVG("#3fb68a")};background-size:340px 340px;opacity:.38;}
-.pu-root.bg-forest{background:#1f5e44;}
-.pu-root.bg-forest::before{background-image:${memphisSVG("#194f3a")};background-size:220px 220px;opacity:.85;}
-.pu-root.bg-plum{background:#5b3a6e;}
-.pu-root.bg-plum::before{background-image:${memphisSVG("#4d3060")};background-size:220px 220px;opacity:.85;}
-.pu-root.bg-midnight{background:#1b2440;}
-.pu-root.bg-midnight::before{background-image:${memphisSVG("#2a3760")};background-size:220px 220px;opacity:.8;}
-.pu-root.bg-creamdots{background:#fff8ea;}
-.pu-root.bg-creamdots::before{background-image:${dotsSVG("#F8B133")};background-size:54px 54px;opacity:.38;}
-.pu-root.bg-creamstars{background:#fff8ea;}
-.pu-root.bg-creamstars::before{background-image:${starsSVG("#FF5A45")};background-size:120px 120px;opacity:.30;}
-.pu-root.bg-papergrid{background:#f4f6fb;}
-.pu-root.bg-papergrid::before{background-image:${gridSVG("#cfd8ea")};background-size:44px 44px;opacity:.9;}
-.pu-root.bg-yellowtri{background:#FFD212;}
-.pu-root.bg-yellowtri::before{background-image:${triSVG("#3F60AA")};background-size:110px 110px;opacity:.5;}
-.pu-root.bg-bluewaves{background:#3F60AA;}
-.pu-root.bg-bluewaves::before{background-image:${wavesSVG("#ffffff")};background-size:80px 44px;opacity:.5;}
-.pu-root.bg-plain{background:#f4f6fb;}
-.pu-root.bg-blue .topbar h2,.pu-root.bg-bluedots .topbar h2,.pu-root.bg-red .topbar h2,.pu-root.bg-forest .topbar h2,.pu-root.bg-plum .topbar h2,.pu-root.bg-midnight .topbar h2,.pu-root.bg-bluewaves .topbar h2{color:#fff;}
-.pu-root.bg-blue .topbar p,.pu-root.bg-bluedots .topbar p,.pu-root.bg-red .topbar p,.pu-root.bg-forest .topbar p,.pu-root.bg-plum .topbar p,.pu-root.bg-midnight .topbar p,.pu-root.bg-bluewaves .topbar p{color:rgba(255,255,255,.85);}
-/* Boutons de la barre du haut : fond contrasté selon le thème de page */
-.pu-root.bg-blue .topbar .btn-ghost,.pu-root.bg-bluedots .topbar .btn-ghost,.pu-root.bg-red .topbar .btn-ghost,.pu-root.bg-forest .topbar .btn-ghost,.pu-root.bg-plum .topbar .btn-ghost,.pu-root.bg-midnight .topbar .btn-ghost,.pu-root.bg-bluewaves .topbar .btn-ghost{background:#FFD212;color:#16203a;border-color:#f0c200;}
-.pu-root.bg-blue .topbar .btn-ghost:hover,.pu-root.bg-bluedots .topbar .btn-ghost:hover,.pu-root.bg-red .topbar .btn-ghost:hover,.pu-root.bg-forest .topbar .btn-ghost:hover,.pu-root.bg-plum .topbar .btn-ghost:hover,.pu-root.bg-midnight .topbar .btn-ghost:hover,.pu-root.bg-bluewaves .topbar .btn-ghost:hover{background:#f6c200;border-color:#dcae00;}
-.pu-root.bg-yellow .topbar .btn-ghost{background:#3F60AA;color:#fff;border-color:#34528f;}
-.pu-root.bg-yellow .topbar .btn-ghost:hover{background:#34528f;border-color:#2c4582;}
-.pu-root.bg-cream .topbar .btn-ghost,.pu-root.bg-creamdash .topbar .btn-ghost,.pu-root.bg-plain .topbar .btn-ghost{background:#FF5A45;color:#fff;border-color:#e94d44;}
-.pu-root.bg-cream .topbar .btn-ghost:hover,.pu-root.bg-creamdash .topbar .btn-ghost:hover,.pu-root.bg-plain .topbar .btn-ghost:hover{background:#e94d44;border-color:#cd2a24;}
+${THEME_BG_CSS}
 ${DARK_BG_TEXT}
+${AUTO_ACCENT_CSS}
+${ACCENT_CSS}
 .pu-root.dark::before{opacity:.2;}
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;gap:16px;flex-wrap:wrap;}
 .topbar h2{margin:0;font-size:23px;}.topbar p{margin:3px 0 0;color:var(--muted);font-size:13px;}
@@ -1051,9 +1069,7 @@ ${DARK_BG_TEXT}
 .chip-all.on{background:var(--blue);color:#fff;border:1px solid var(--blue);}
 .pu-root.dark .chip-all{background:var(--blue-l);color:var(--ink);}
 .pu-root.dark .chip-all.on{background:#e8edf5;color:#16203a;border-color:#e8edf5;}
-/* Chips actifs : couleur d'accent contrastée avec le fond du thème (jamais la même couleur que la page) */
-.pu-root.bg-blue .main .chip.on,.pu-root.bg-bluedots .main .chip.on,.pu-root.bg-red .main .chip.on,.pu-root.bg-forest .main .chip.on,.pu-root.bg-plum .main .chip.on,.pu-root.bg-midnight .main .chip.on,.pu-root.bg-blue .main .chip-all.on,.pu-root.bg-bluedots .main .chip-all.on,.pu-root.bg-red .main .chip-all.on,.pu-root.bg-forest .main .chip-all.on,.pu-root.bg-plum .main .chip-all.on,.pu-root.bg-midnight .main .chip-all.on,.pu-root.bg-bluewaves .main .chip.on,.pu-root.bg-bluewaves .main .chip-all.on{background:#FFD212;color:#16203a;border-color:#f0c200;}
-.pu-root.bg-yellow .main .chip.on,.pu-root.bg-yellow .main .chip-all.on{background:#3F60AA;color:#fff;border-color:#34528f;}
+/* L'accent des chips actifs et des boutons de la barre du haut est géré par AUTO_ACCENT_CSS / ACCENT_CSS. */
 .av{border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;flex-shrink:0;width:44px;height:44px;overflow:hidden;}.av.lg{width:64px;height:64px;border-radius:18px;font-size:23px;}.av img{width:100%;height:100%;object-fit:cover;display:block;}
 .photo-edit{position:absolute!important;right:-6px;bottom:-6px;width:26px!important;height:26px!important;background:#fff;border:1px solid var(--line);box-shadow:0 2px 6px rgba(20,32,58,.18);border-radius:50%;}
 .photo-menu{position:absolute;z-index:30;top:calc(100% + 6px);left:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(20,32,58,.18);padding:6px;min-width:218px;}
@@ -4363,14 +4379,18 @@ export default function App() {
   const go = useCallback((t, id, site) => { setFocus({ tab: t, id, n: Date.now(), site: site || null }); setTab(t); }, []);
   const fc = (t) => (focus && focus.tab === t) ? focus : null;
   const theme = data.settings.theme || "light";
-  const bgTheme = data.settings.bgTheme || "cream";
+  const bgColor = data.settings.bgColor || "cream";
+  const bgPattern = data.settings.bgPattern || "dash";
+  const accent = data.settings.accent || "auto";
   // Peint la couleur du thème sur html/body (toute la fenêtre, y compris au scroll et en mode application)
   // pour éviter les bandes blanches sur les bords. Met aussi à jour la couleur de la barre de titre.
   useEffect(() => {
-    const c = theme === "dark" ? "#0e1422" : ({ blue: "#3F60AA", bluedots: "#3F60AA", bluewaves: "#3F60AA", yellow: "#FFD212", yellowtri: "#FFD212", red: "#FF5A45", sage: "#eaf2e6", peach: "#fdeadf", lavender: "#efeafb", mint: "#e2f3ec", forest: "#1f5e44", plum: "#5b3a6e", midnight: "#1b2440", papergrid: "#f4f6fb", plain: "#f4f6fb" }[bgTheme] || "#fff8ea");
+    const c = theme === "dark" ? "#0e1422" : (THEME_COLOR_BG[bgColor] || "#fff8ea");
     try { document.documentElement.style.background = c; document.body.style.background = c; const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", c); } catch (e) { }
-  }, [bgTheme, theme]);
-  const setBgTheme = (id) => persist((p) => ({ ...p, settings: { ...p.settings, bgTheme: id } }));
+  }, [bgColor, theme]);
+  const setBgColor = (id) => persist((p) => ({ ...p, settings: { ...p.settings, bgColor: id } }));
+  const setBgPattern = (id) => persist((p) => ({ ...p, settings: { ...p.settings, bgPattern: id } }));
+  const setAccent = (id) => persist((p) => ({ ...p, settings: { ...p.settings, accent: id } }));
   const toggleTheme = () => persist((p) => ({ ...p, settings: { ...p.settings, theme: theme === "dark" ? "light" : "dark" } }));
   // Mise à jour forcée : vide les caches du navigateur (Cache API + service workers) puis recharge
   // depuis le serveur avec une URL anti-cache, pour récupérer immédiatement la dernière version déployée.
@@ -4428,7 +4448,7 @@ export default function App() {
     return { accounts: data.accounts.length, repertoire: data.contacts.length, prospection: data.prospects.filter((p) => p.statut === "a_contacter").length, deals: data.deals.length, pipeline: data.deals.filter((d) => d.statut !== "livre" && d.statut !== "refuse").length, agenda: agendaAl, stock: stockAl, reassort: reAl, sav: savAl, presto: prestoAl };
   }, [data]);
   const meta = TABS.find((t) => t.id === tab);
-  return (<div className={cx("pu-root", theme === "dark" && "dark", "bg-" + bgTheme)}><style>{CSS}</style><ConfirmHost />
+  return (<div className={cx("pu-root", theme === "dark" && "dark", "color-" + bgColor, "pat-" + bgPattern, "acc-" + accent)}><style>{CSS}</style><ConfirmHost />
     <aside className="sb">
       <div className="brand"><img src={LOGO_DATA_URI} alt="PEN'UP 3D" /><div className="brand-accent" /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><small style={{ letterSpacing: ".12em" }}>MITMIT · Poste de pilotage B2B</small><span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600, lineHeight: 1.3, textTransform: "none", letterSpacing: 0 }} title="Le petit nom du cockpit">Module Intégré de Traitement, Marges, Inventaire &amp; Tarification</span></div></div>
       <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { setTab(t.id); setFocus(null); setNavKey((k) => k + 1); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
@@ -4451,7 +4471,7 @@ export default function App() {
           {(!data.accounts || data.accounts.length === 0) && <button className="btn btn-ghost btn-s" onClick={loadDemo} title="Charger un jeu de données de démonstration"><Sparkles size={15} /> Démo</button>}
           <button className="btn btn-ghost btn-s" onClick={hardRefresh} title="Forcer la mise à jour : vide le cache et recharge la dernière version"><RefreshCw size={15} /> Mettre à jour</button>
           <button className="btn btn-ghost btn-s" onClick={() => window.print()} title="Imprimer / PDF de la vue courante"><Printer size={15} /></button>
-          <ThemeMenu value={bgTheme} onPick={setBgTheme} />
+          <ThemeMenu color={bgColor} pattern={bgPattern} accent={accent} onColor={setBgColor} onPattern={setBgPattern} onAccent={setAccent} />
           <button className="btn btn-ghost btn-s" onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>{theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}</button>
           {CLERK_PK && <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 4, paddingLeft: 8, borderLeft: "1px solid var(--line)" }}><UserButton afterSignOutUrl="/" /></span>}
         </div>
