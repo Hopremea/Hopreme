@@ -10,7 +10,7 @@ import {
   Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon, Palette, Mic, MessageSquare,
   Download, Paperclip, Moon, Sun, ChevronRight, CalendarDays,
   GitBranch, MoreHorizontal, Filter, Save, FileDown, Clock, ArrowDown, ArrowUp,
-  Globe, Facebook, Instagram, Menu
+  Globe, Facebook, Instagram, Menu, Home
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie,
@@ -1260,6 +1260,8 @@ ${ACCENT_CSS}
 
 .mobilebar{display:none;}
 .sb-scrim{display:none;}
+.navarrows{display:inline-flex;gap:4px;align-items:center;}
+.navarrows .iconbtn{width:30px;height:30px;}
 @media(max-width:900px){
   .pu-root{display:block;}
   .sb{position:fixed;top:0;left:0;width:268px;max-width:84vw;height:100vh;flex:none;z-index:90;transform:translateX(-100%);transition:transform .26s cubic-bezier(.4,0,.2,1);box-shadow:0 24px 60px rgba(20,32,58,.4);}
@@ -1268,7 +1270,8 @@ ${ACCENT_CSS}
   .pu-root.nav-open .sb-scrim{opacity:1;pointer-events:auto;}
   .main{padding:0 14px 54px;min-height:100vh;}
   .mobilebar{display:flex;align-items:center;gap:11px;position:sticky;top:0;z-index:40;background:var(--bg);margin:0 -14px 12px;padding:9px 12px;border-bottom:1px solid var(--line);}
-  .mobilebar .mtitle{font-weight:800;font-size:16px;font-family:'Bricolage Grotesque','Plus Jakarta Sans',sans-serif;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mobilebar .mtitle{flex:1;min-width:0;font-weight:800;font-size:16px;font-family:'Bricolage Grotesque','Plus Jakarta Sans',sans-serif;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .navarrows-d{display:none;}
   .topbar{margin-bottom:14px;}
   .topbar-title{display:none;}
   .main .grid{grid-template-columns:1fr!important;}
@@ -1799,7 +1802,7 @@ function Accounts({ data, persist, go, focus }) {
   const storeName = (r) => r.kind === "site" ? (r.site.label || "Établissement") : (r.acc.enseigne || "Sans nom");
   const pdvRows = [...pdvSites.map((s) => ({ key: "site_" + s.id, kind: "site", site: s, acc: accById[s.accountId] || null })), ...accounts.filter((a) => !isMulti(a) && !accWithPdv.has(a.id)).map((a) => ({ key: "acc_" + a.id, kind: "acc", site: null, acc: a }))].sort((x, y) => storeName(x).localeCompare(storeName(y)));
   const nbMulti = accounts.filter(isMulti).length;
-  const openStore = (r) => { if (r.kind === "site") { setSiteDetailId(r.site.id); setDetailId(null); } else { setSiteDetailId(null); setDetailId(r.acc.id); } };
+  const openStore = (r) => { if (r.kind === "site") { go("accounts", null, r.site.id); } else { go("accounts", r.acc.id); } };
   const ensName = (r) => (r.acc && r.acc.enseigne) || "";
   const adrName = (r) => r.kind === "site" ? (r.site.adresse || "") : ((r.acc && (r.acc.ville || r.acc.adressePostale)) || "");
   const surfName = (r) => (r.kind === "site" ? r.site.typeSurface : (r.acc && r.acc.typeSurface)) || "";
@@ -1811,7 +1814,7 @@ function Accounts({ data, persist, go, focus }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10, flexWrap: "wrap" }}><h3 className="pu-display" style={{ margin: 0, fontSize: 16 }}>Groupes <span style={{ color: "var(--muted)", fontWeight: 600 }}>({nbMulti})</span></h3><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="btn btn-g" onClick={() => setDupOpen(true)} title="Détecter et fusionner les doublons"><GitBranch size={16} /> Doublons</button><button className="btn btn-g" onClick={() => setLogosOpen(true)} title="Trouver et valider les logos manquants"><ImageIcon size={16} /> Compléter les logos</button><button className="btn btn-p" onClick={() => setEdit({ id: "acc_" + Date.now(), enseigne: "", kind: "groupe", stage: "prospect", magasins: 0, nature: "", code: "", siren: "", formeJuridique: "", typeSurface: "", ville: "", lat: null, lng: null, pipeline: 0, prochaineAction: "", dateAction: "", notes: "", adressePostale: "", adresseLivraison: "", livraisonIdentique: true })}><Plus size={16} /> Nouveau groupe</button></div></div>
     {logosOpen && <LogosBulk data={data} persist={persist} onClose={() => setLogosOpen(false)} />}
     {dupOpen && <DoublonsModal data={data} persist={persist} onClose={() => setDupOpen(false)} />}
-    {(() => { const groupList = accounts.filter(isMulti).slice().sort((a, b) => (a.enseigne || "").localeCompare(b.enseigne || "")); return groupList.length === 0 ? <div className="empty">Aucun groupe. Créez un groupe (Cultura, King Jouet…) pour y rattacher des établissements.</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(238px, 1fr))", gap: 10 }}>{groupList.map((a) => { const pc = principal(a.id); const sm = stageMeta(a.stage); const seg = networkSeg(a.magasins); return (<button key={a.id} onClick={() => setDetailId(a.id)} style={{ textAlign: "left", cursor: "pointer", border: "1px solid var(--line)", borderLeft: "3px solid #3F60AA", borderRadius: 12, padding: "11px 13px", background: "#fff", display: "flex", flexDirection: "column", gap: 5, fontFamily: "inherit" }}><div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>{a.logo ? <img src={a.logo} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "contain", background: "#fff", border: "1px solid var(--line)", flexShrink: 0 }} /> : <Building2 size={16} color="#3F60AA" style={{ flexShrink: 0 }} />}<span style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }}>{a.enseigne || "Sans nom"}</span>{a.code && <span style={{ fontWeight: 800, fontSize: 10.5, letterSpacing: ".03em", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", color: "var(--muted)" }} className="tnum">{a.code}</span>}</div>{pc && <div className="meta"><User size={12} />{pc}</div>}<div className="meta"><Store size={12} />{magasinLabel(a.magasins)}</div><div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 2 }}><Badge color={seg.color}>{seg.label}</Badge><Badge color={sm.color}>{sm.label}</Badge></div>{(() => { const att = sumMontant((data.deals || []).filter((d) => d.accountId === a.id && isDevisEnAttente(d))); return att > 0 ? <div style={{ marginTop: 4, fontWeight: 700, color: "var(--blue)", fontSize: 13 }} className="tnum" title="CA HT en attente (devis non validés)">{eur(att)}</div> : null; })()}</button>); })}</div>; })()}
+    {(() => { const groupList = accounts.filter(isMulti).slice().sort((a, b) => (a.enseigne || "").localeCompare(b.enseigne || "")); return groupList.length === 0 ? <div className="empty">Aucun groupe. Créez un groupe (Cultura, King Jouet…) pour y rattacher des établissements.</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(238px, 1fr))", gap: 10 }}>{groupList.map((a) => { const pc = principal(a.id); const sm = stageMeta(a.stage); const seg = networkSeg(a.magasins); return (<button key={a.id} onClick={() => go("accounts", a.id)} style={{ textAlign: "left", cursor: "pointer", border: "1px solid var(--line)", borderLeft: "3px solid #3F60AA", borderRadius: 12, padding: "11px 13px", background: "#fff", display: "flex", flexDirection: "column", gap: 5, fontFamily: "inherit" }}><div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>{a.logo ? <img src={a.logo} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "contain", background: "#fff", border: "1px solid var(--line)", flexShrink: 0 }} /> : <Building2 size={16} color="#3F60AA" style={{ flexShrink: 0 }} />}<span style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }}>{a.enseigne || "Sans nom"}</span>{a.code && <span style={{ fontWeight: 800, fontSize: 10.5, letterSpacing: ".03em", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", color: "var(--muted)" }} className="tnum">{a.code}</span>}</div>{pc && <div className="meta"><User size={12} />{pc}</div>}<div className="meta"><Store size={12} />{magasinLabel(a.magasins)}</div><div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 2 }}><Badge color={seg.color}>{seg.label}</Badge><Badge color={sm.color}>{sm.label}</Badge></div>{(() => { const att = sumMontant((data.deals || []).filter((d) => d.accountId === a.id && isDevisEnAttente(d))); return att > 0 ? <div style={{ marginTop: 4, fontWeight: 700, color: "var(--blue)", fontSize: 13 }} className="tnum" title="CA HT en attente (devis non validés)">{eur(att)}</div> : null; })()}</button>); })}</div>; })()}
     <div style={{ marginTop: 22 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
         <h3 className="pu-display" style={{ margin: 0, fontSize: 16 }}>Tous les établissements <span style={{ color: "var(--muted)", fontWeight: 600 }}>({visibleRows.length}{nq && visibleRows.length !== pdvRows.length ? " / " + pdvRows.length : ""})</span></h3>
@@ -2265,7 +2268,7 @@ function Repertoire({ data, persist, go, focus }) {
       if (list.length === 0) return <div className="card empty">Aucun contact.</div>;
       const GD = { alpha: { get: (c) => { const s = (c.nom || c.prenom || "?").trim(); return (s.charAt(0) || "#").toUpperCase(); } }, enseigne: { get: (c) => accName(c.accountId) }, role: { get: (c) => c.role || "autre", meta: (v) => ROLE_META[v] || ROLE_META.autre, order: Object.keys(ROLE_META) }, ville: { get: (c) => contactLocality(c, data).ville || "Sans ville" }, departement: { get: (c) => contactLocality(c, data).departement || "Sans département" } };
       const gd = GD[grp] || GD.enseigne;
-      const row = (c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; const nbEch = interactions.filter((i) => i.contactId === c.id).length; return (<div className="crow" key={c.id} onClick={() => setOpenId(c.id)}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>{fullName(c)}{favStars(c, accounts.find((a) => a.id === c.accountId), 13)}</div><div style={{ color: "var(--muted)", fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.fonction || "—"} · {accName(c.accountId)}{contactLocality(c, data).ville ? " · " + contactLocality(c, data).ville : ""}</div></div><div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>{c.email && <span style={{ color: "var(--muted)", fontSize: 12.5, display: "flex", alignItems: "center", gap: 5 }}><Mail size={13} />{c.email}</span>}<span style={{ color: "var(--muted)", fontSize: 12 }}>{nbEch} éch.</span><Badge color={rm.color}>{rm.label}</Badge></div></div>); };
+      const row = (c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; const nbEch = interactions.filter((i) => i.contactId === c.id).length; return (<div className="crow" key={c.id} onClick={() => go("repertoire", c.id)}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>{fullName(c)}{favStars(c, accounts.find((a) => a.id === c.accountId), 13)}</div><div style={{ color: "var(--muted)", fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.fonction || "—"} · {accName(c.accountId)}{contactLocality(c, data).ville ? " · " + contactLocality(c, data).ville : ""}</div></div><div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>{c.email && <span style={{ color: "var(--muted)", fontSize: 12.5, display: "flex", alignItems: "center", gap: 5 }}><Mail size={13} />{c.email}</span>}<span style={{ color: "var(--muted)", fontSize: 12 }}>{nbEch} éch.</span><Badge color={rm.color}>{rm.label}</Badge></div></div>); };
       return groupList([...list].sort((a, b) => (a.nom || a.prenom || "").localeCompare(b.nom || b.prenom || "", "fr") || (a.prenom || "").localeCompare(b.prenom || "", "fr")), gd, dir).map((g) => { const m = gd.meta ? gd.meta(g.key) : null; return (<div key={g.key} style={{ marginBottom: 18 }}><GroupHeader label={m ? m.label : g.key} color={m ? m.color : "#9aa6bd"} count={g.items.length} />{g.items.map(row)}</div>); });
     })()}
     {editC && !openId && <Modal title={contacts.some((x) => x.id === editC.id) ? "Modifier le contact" : "Nouveau contact"} onClose={() => setEditC(null)} wide><ContactForm contact={editC} accounts={accounts} contacts={contacts} sites={data.sites} known={collectKnownAddresses(data)} onSave={(x) => { saveContact(x); setEditC(null); }} /></Modal>}
@@ -4652,7 +4655,28 @@ export default function App() {
     return () => { try { supabase.removeChannel(ch); } catch (e) { } };
   }, []);
   const loadDemo = useCallback(() => { appConfirm("Charger un jeu de données de démonstration ? Cela remplace les données actuelles.", { title: "Charger la démo ?", confirmLabel: "Charger" }).then((ok) => { if (ok) persist(() => normalize(buildSeed())); }); }, [persist]);
-  const go = useCallback((t, id, site) => { setFocus({ tab: t, id, n: Date.now(), site: site || null }); setTab(t); }, []);
+  // Historique de navigation interne (onglet + fiche ouverte) : flèches Précédent / Suivant + Accueil.
+  // Chaque navigation (onglet, ouverture d'une fiche via go) empile une « localisation » {tab, focus}.
+  const navHist = useRef({ stack: [{ tab: "dash", focus: null }], pos: 0 });
+  const [navBtns, setNavBtns] = useState({ back: false, fwd: false });
+  const syncNavBtns = useCallback(() => { const h = navHist.current; setNavBtns({ back: h.pos > 0, fwd: h.pos < h.stack.length - 1 }); }, []);
+  const navPush = useCallback((tab, focus) => {
+    const h = navHist.current; const cur = h.stack[h.pos];
+    const idOf = (f) => f ? (f.site || f.id || null) : null;
+    if (cur && cur.tab === tab && idOf(cur.focus) === idOf(focus)) { h.stack[h.pos] = { tab, focus }; return; }
+    h.stack = h.stack.slice(0, h.pos + 1); h.stack.push({ tab, focus });
+    if (h.stack.length > 80) h.stack.shift();
+    h.pos = h.stack.length - 1; syncNavBtns();
+  }, [syncNavBtns]);
+  const go = useCallback((t, id, site) => { const f = { tab: t, id, n: Date.now(), site: site || null }; navPush(t, f); setFocus(f); setTab(t); }, [navPush]);
+  const navTo = useCallback((t) => { navPush(t, null); setTab(t); setFocus(null); setNavKey((k) => k + 1); }, [navPush]);
+  const navApply = useCallback((loc) => { setTab(loc.tab); setFocus(loc.focus ? { ...loc.focus, n: Date.now() } : null); setNavKey((k) => k + 1); }, []);
+  const navBack = useCallback(() => {
+    if (_modalGuards > 0) { window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); return; } // ferme d'abord un pop-up ouvert
+    const h = navHist.current; if (h.pos <= 0) return; h.pos -= 1; navApply(h.stack[h.pos]); syncNavBtns();
+  }, [navApply, syncNavBtns]);
+  const navFwd = useCallback(() => { const h = navHist.current; if (h.pos >= h.stack.length - 1) return; h.pos += 1; navApply(h.stack[h.pos]); syncNavBtns(); }, [navApply, syncNavBtns]);
+  const navHome = useCallback(() => { navPush("dash", null); setTab("dash"); setFocus(null); setNavKey((k) => k + 1); }, [navPush]);
   const fc = (t) => (focus && focus.tab === t) ? focus : null;
   const theme = data.settings.theme || "light";
   const bgColor = data.settings.bgColor || "cream";
@@ -4703,7 +4727,7 @@ export default function App() {
       if (e.key === "/") { e.preventDefault(); setCmdkOpen(true); return; }
       if (e.key === "?") { e.preventDefault(); setHelpOpen((v) => !v); return; }
       if (e.key === "g" || e.key === "G") { gActive = true; clearTimeout(gTimer); gTimer = setTimeout(() => { gActive = false; }, 1200); return; }
-      if (gActive) { gActive = false; const t = GKEYS[e.key.toLowerCase()]; if (t) { e.preventDefault(); setTab(t); setFocus(null); setNavKey((k) => k + 1); } }
+      if (gActive) { gActive = false; const t = GKEYS[e.key.toLowerCase()]; if (t) { e.preventDefault(); navTo(t); } }
     };
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("keydown", onKey); clearTimeout(gTimer); };
@@ -4728,16 +4752,28 @@ export default function App() {
     <div className="sb-scrim no-print" onClick={() => setNavOpen(false)} aria-hidden="true" />
     <aside className="sb">
       <div className="brand"><img src={LOGO_DATA_URI} alt="PEN'UP 3D" /><div className="brand-accent" /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><small style={{ letterSpacing: ".12em" }}>MITMIT · Poste de pilotage B2B</small><span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600, lineHeight: 1.3, textTransform: "none", letterSpacing: 0 }} title="Le petit nom du cockpit">Module Intégré de Traitement, Marges, Inventaire &amp; Tarification</span></div></div>
-      <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { setTab(t.id); setFocus(null); setNavKey((k) => k + 1); setNavOpen(false); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
+      <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { navTo(t.id); setNavOpen(false); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
       <div className="sb-foot">PEN'UP 3D, SAS · Montauban<br />Données locales à cet appareil.<br /><span className="lnk" style={{ fontSize: 11 }} onClick={() => setHelpOpen(true)}>⌨ Raccourcis clavier</span></div>
     </aside>
     <main className="main">
       <div className="mobilebar no-print">
         <button className="iconbtn" onClick={() => setNavOpen(true)} aria-label="Ouvrir le menu" title="Menu"><Menu size={20} /></button>
+        <span className="navarrows">
+          <button className="iconbtn" onClick={navBack} disabled={!navBtns.back} aria-label="Précédent" title="Précédent"><ChevronLeft size={18} /></button>
+          <button className="iconbtn" onClick={navFwd} disabled={!navBtns.fwd} aria-label="Suivant" title="Suivant"><ChevronRight size={18} /></button>
+          <button className="iconbtn" onClick={navHome} aria-label="Accueil" title="Accueil (tableau de bord)"><Home size={17} /></button>
+        </span>
         <span className="mtitle">{meta.title}</span>
       </div>
       <div className="topbar">
-        <div className="topbar-title"><h2 className="pu-display">{meta.title}</h2><p>{meta.sub}</p></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <span className="navarrows navarrows-d">
+            <button className="iconbtn" onClick={navBack} disabled={!navBtns.back} aria-label="Précédent" title="Précédent (revenir à l'écran précédent)"><ChevronLeft size={18} /></button>
+            <button className="iconbtn" onClick={navFwd} disabled={!navBtns.fwd} aria-label="Suivant" title="Suivant"><ChevronRight size={18} /></button>
+            <button className="iconbtn" onClick={navHome} aria-label="Accueil" title="Accueil (tableau de bord)"><Home size={17} /></button>
+          </span>
+          <div className="topbar-title"><h2 className="pu-display">{meta.title}</h2><p>{meta.sub}</p></div>
+        </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {(() => {
             const SS = { saving: { l: "Enregistrement…", c: "#a06a06", I: RefreshCw }, saved: { l: supabaseEnabled ? "Synchronisé" : "Enregistré", c: "#1d8956", I: CheckCircle2 }, remote: { l: "Mis à jour par un collègue", c: "var(--blue)", I: Users }, offline: { l: "Hors ligne", c: "var(--red)", I: AlertTriangle } };
