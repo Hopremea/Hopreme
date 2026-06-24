@@ -10,7 +10,7 @@ import {
   Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon, Palette, Mic, MessageSquare,
   Download, Paperclip, Moon, Sun, ChevronRight, CalendarDays,
   GitBranch, MoreHorizontal, Filter, Save, FileDown, Clock, ArrowDown, ArrowUp,
-  Globe, Facebook, Instagram
+  Globe, Facebook, Instagram, Menu
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie,
@@ -1258,7 +1258,29 @@ ${ACCENT_CSS}
 /* Accessibilité : respecte « réduire les animations » du système. */
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important;}}
 
-@media(max-width:880px){.sb{width:100%;flex:none;height:auto;position:static;flex-direction:column;overflow:visible;}.nav{flex-direction:row;flex-wrap:wrap;}.nav button{width:auto;}.sb-foot{display:none;}.kan{grid-template-columns:1fr;}.kan-deals{grid-template-columns:1fr;}.cal-grid{grid-template-columns:1fr;}.cal-cell{min-height:50px;}.main{padding:20px 16px 50px;}.row2{flex-direction:column;}.lineRow{grid-template-columns:1fr;}}
+.mobilebar{display:none;}
+.sb-scrim{display:none;}
+@media(max-width:900px){
+  .pu-root{display:block;}
+  .sb{position:fixed;top:0;left:0;width:268px;max-width:84vw;height:100vh;flex:none;z-index:90;transform:translateX(-100%);transition:transform .26s cubic-bezier(.4,0,.2,1);box-shadow:0 24px 60px rgba(20,32,58,.4);}
+  .pu-root.nav-open .sb{transform:translateX(0);}
+  .sb-scrim{display:block;position:fixed;inset:0;background:rgba(20,32,58,.5);z-index:85;opacity:0;pointer-events:none;transition:opacity .26s;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);}
+  .pu-root.nav-open .sb-scrim{opacity:1;pointer-events:auto;}
+  .main{padding:0 14px 54px;min-height:100vh;}
+  .mobilebar{display:flex;align-items:center;gap:11px;position:sticky;top:0;z-index:40;background:var(--bg);margin:0 -14px 12px;padding:9px 12px;border-bottom:1px solid var(--line);}
+  .mobilebar .mtitle{font-weight:800;font-size:16px;font-family:'Bricolage Grotesque','Plus Jakarta Sans',sans-serif;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .topbar{margin-bottom:14px;}
+  .topbar-title{display:none;}
+  .main .grid{grid-template-columns:1fr!important;}
+  .row2{flex-direction:column;}
+  .kan,.kan-deals{grid-template-columns:1fr;}
+  .cal-grid{grid-template-columns:1fr;}.cal-cell{min-height:46px;}
+  .lineRow{grid-template-columns:1fr;}
+}
+@media(max-width:560px){
+  .topbar h2.pu-display{font-size:20px;}
+  .topbar{gap:10px;margin-bottom:12px;}
+}
 @media print{
 /* Impression d'un document (devis / commande / facture) : on imprime UNIQUEMENT le document. */
 @page{margin:0;}
@@ -4501,6 +4523,7 @@ export default function App() {
   const [data, setData] = useState(() => normalize(emptyData()));
   const undoRef = useRef(null); const [canUndo, setCanUndo] = useState(false);
   const [tab, setTab] = useState("dash"); const [focus, setFocus] = useState(null); const [navKey, setNavKey] = useState(0);
+  const [navOpen, setNavOpen] = useState(false); // tiroir de navigation (mobile)
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [importMsg, setImportMsg] = useState(null);
@@ -4701,15 +4724,20 @@ export default function App() {
     return { accounts: data.accounts.length, repertoire: data.contacts.length, prospection: data.prospects.filter((p) => p.statut === "a_contacter").length, deals: data.deals.length, pipeline: data.deals.filter((d) => d.statut !== "livre" && d.statut !== "refuse").length, agenda: agendaAl, stock: stockAl, reassort: reAl, sav: savAl, presto: prestoAl };
   }, [data]);
   const meta = TABS.find((t) => t.id === tab);
-  return (<div className={cx("pu-root", theme === "dark" && "dark", "color-" + bgColor, "pat-" + bgPattern, "acc-" + accent)}><style>{CSS}</style><ConfirmHost />
+  return (<div className={cx("pu-root", navOpen && "nav-open", theme === "dark" && "dark", "color-" + bgColor, "pat-" + bgPattern, "acc-" + accent)}><style>{CSS}</style><ConfirmHost />
+    <div className="sb-scrim no-print" onClick={() => setNavOpen(false)} aria-hidden="true" />
     <aside className="sb">
       <div className="brand"><img src={LOGO_DATA_URI} alt="PEN'UP 3D" /><div className="brand-accent" /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><small style={{ letterSpacing: ".12em" }}>MITMIT · Poste de pilotage B2B</small><span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600, lineHeight: 1.3, textTransform: "none", letterSpacing: 0 }} title="Le petit nom du cockpit">Module Intégré de Traitement, Marges, Inventaire &amp; Tarification</span></div></div>
-      <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { setTab(t.id); setFocus(null); setNavKey((k) => k + 1); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
+      <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { setTab(t.id); setFocus(null); setNavKey((k) => k + 1); setNavOpen(false); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
       <div className="sb-foot">PEN'UP 3D, SAS · Montauban<br />Données locales à cet appareil.<br /><span className="lnk" style={{ fontSize: 11 }} onClick={() => setHelpOpen(true)}>⌨ Raccourcis clavier</span></div>
     </aside>
     <main className="main">
+      <div className="mobilebar no-print">
+        <button className="iconbtn" onClick={() => setNavOpen(true)} aria-label="Ouvrir le menu" title="Menu"><Menu size={20} /></button>
+        <span className="mtitle">{meta.title}</span>
+      </div>
       <div className="topbar">
-        <div><h2 className="pu-display">{meta.title}</h2><p>{meta.sub}</p></div>
+        <div className="topbar-title"><h2 className="pu-display">{meta.title}</h2><p>{meta.sub}</p></div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {(() => {
             const SS = { saving: { l: "Enregistrement…", c: "#a06a06", I: RefreshCw }, saved: { l: supabaseEnabled ? "Synchronisé" : "Enregistré", c: "#1d8956", I: CheckCircle2 }, remote: { l: "Mis à jour par un collègue", c: "var(--blue)", I: Users }, offline: { l: "Hors ligne", c: "var(--red)", I: AlertTriangle } };
