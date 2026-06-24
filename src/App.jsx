@@ -1203,14 +1203,14 @@ ${ACCENT_CSS}
 .deal-card .deal-amount{font-weight:700;font-size:13px;color:var(--ink);}
 
 /* Calendrier */
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
-.cal-head{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;padding:5px 0;}
-.cal-cell{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px;min-height:88px;display:flex;flex-direction:column;gap:3px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;}
+.cal-head{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;text-align:center;padding:5px 0;min-width:0;overflow:hidden;text-overflow:ellipsis;}
+.cal-cell{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:7px;min-height:88px;min-width:0;overflow:hidden;display:flex;flex-direction:column;gap:3px;}
 .cal-cell.cal-out{opacity:.45;}
 .cal-cell.cal-today{border-color:var(--blue);box-shadow:0 0 0 2px rgba(63,96,170,.18);}
 .cal-num{font-size:12px;font-weight:700;color:var(--muted);}
 .cal-today .cal-num{color:var(--blue);}
-.cal-ev{font-size:11px;padding:3px 6px;border-radius:6px;background:#eef2fb;color:var(--ink);cursor:pointer;border-left:3px solid var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cal-ev{font-size:11px;padding:3px 6px;border-radius:6px;background:#eef2fb;color:var(--ink);cursor:pointer;border-left:3px solid var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;align-self:stretch;}
 .cal-ev:hover{background:var(--blue-l);}
 
 /* Pièces jointes */
@@ -1274,7 +1274,7 @@ ${ACCENT_CSS}
   .main .grid{grid-template-columns:1fr!important;}
   .row2{flex-direction:column;}
   .kan,.kan-deals{grid-template-columns:1fr;}
-  .cal-grid{grid-template-columns:1fr;}.cal-cell{min-height:46px;}
+  .cal-grid{grid-template-columns:minmax(0,1fr);}.cal-cell{min-height:46px;}
   .lineRow{grid-template-columns:1fr;}
 }
 @media(max-width:560px){
