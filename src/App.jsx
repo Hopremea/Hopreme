@@ -1210,6 +1210,7 @@ ${ACCENT_CSS}
 .cal-cell.cal-today{border-color:var(--blue);box-shadow:0 0 0 2px rgba(63,96,170,.18);}
 .cal-num{font-size:12px;font-weight:700;color:var(--muted);}
 .cal-today .cal-num{color:var(--blue);}
+.cal-month{min-width:150px;}
 .cal-ev{font-size:11px;padding:3px 6px;border-radius:6px;background:#eef2fb;color:var(--ink);cursor:pointer;border-left:3px solid var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;align-self:stretch;}
 .cal-ev:hover{background:var(--blue-l);}
 
@@ -1277,12 +1278,29 @@ ${ACCENT_CSS}
   .main .grid{grid-template-columns:1fr!important;}
   .row2{flex-direction:column;}
   .kan,.kan-deals{grid-template-columns:1fr;}
-  .cal-grid{grid-template-columns:minmax(0,1fr);}.cal-cell{min-height:46px;}
   .lineRow{grid-template-columns:1fr;}
+  /* Cohérence des dimensions sur mobile */
+  .card{padding:14px;border-radius:16px;}
+  .cal-month{min-width:0;flex:1;font-size:18px;}
+  /* Calendrier : on garde une vraie grille 7 colonnes, version compacte */
+  .cal-grid{gap:3px;}
+  .cal-head{font-size:9px;padding:3px 0;}
+  .cal-cell{min-height:54px;padding:4px;border-radius:7px;gap:2px;}
+  .cal-cell>div:first-child .iconbtn{display:none;}
+  .cal-num{font-size:11px;}
+  .cal-ev{font-size:9px;padding:1px 4px;border-left-width:2px;border-radius:4px;}
+  /* Répertoire : l'e-mail passe en seconde ligne masquée pour éviter le chevauchement */
+  .crow-email{display:none;}
+  .crow{gap:11px;padding:11px;}
+  /* Tables plus denses, scroll horizontal au besoin */
+  .tbl th,.tbl td{padding:8px 8px;font-size:12px;}
 }
 @media(max-width:560px){
   .topbar h2.pu-display{font-size:20px;}
   .topbar{gap:10px;margin-bottom:12px;}
+  .btn{padding:9px 13px;font-size:12.5px;}
+  .btn-s{padding:6px 10px;font-size:12px;}
+  .chip,.chip-all{padding:6px 11px;font-size:12px;}
 }
 @media print{
 /* Impression d'un document (devis / commande / facture) : on imprime UNIQUEMENT le document. */
@@ -2268,7 +2286,7 @@ function Repertoire({ data, persist, go, focus }) {
       if (list.length === 0) return <div className="card empty">Aucun contact.</div>;
       const GD = { alpha: { get: (c) => { const s = (c.nom || c.prenom || "?").trim(); return (s.charAt(0) || "#").toUpperCase(); } }, enseigne: { get: (c) => accName(c.accountId) }, role: { get: (c) => c.role || "autre", meta: (v) => ROLE_META[v] || ROLE_META.autre, order: Object.keys(ROLE_META) }, ville: { get: (c) => contactLocality(c, data).ville || "Sans ville" }, departement: { get: (c) => contactLocality(c, data).departement || "Sans département" } };
       const gd = GD[grp] || GD.enseigne;
-      const row = (c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; const nbEch = interactions.filter((i) => i.contactId === c.id).length; return (<div className="crow" key={c.id} onClick={() => go("repertoire", c.id)}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>{fullName(c)}{favStars(c, accounts.find((a) => a.id === c.accountId), 13)}</div><div style={{ color: "var(--muted)", fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.fonction || "—"} · {accName(c.accountId)}{contactLocality(c, data).ville ? " · " + contactLocality(c, data).ville : ""}</div></div><div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>{c.email && <span style={{ color: "var(--muted)", fontSize: 12.5, display: "flex", alignItems: "center", gap: 5 }}><Mail size={13} />{c.email}</span>}<span style={{ color: "var(--muted)", fontSize: 12 }}>{nbEch} éch.</span><Badge color={rm.color}>{rm.label}</Badge></div></div>); };
+      const row = (c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; const nbEch = interactions.filter((i) => i.contactId === c.id).length; return (<div className="crow" key={c.id} onClick={() => go("repertoire", c.id)}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>{fullName(c)}{favStars(c, accounts.find((a) => a.id === c.accountId), 13)}</div><div style={{ color: "var(--muted)", fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.fonction || "—"} · {accName(c.accountId)}{contactLocality(c, data).ville ? " · " + contactLocality(c, data).ville : ""}</div></div><div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0, minWidth: 0 }}>{c.email && <span className="crow-email" style={{ color: "var(--muted)", fontSize: 12.5, display: "flex", alignItems: "center", gap: 5, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Mail size={13} style={{ flexShrink: 0 }} />{c.email}</span>}<span style={{ color: "var(--muted)", fontSize: 12, whiteSpace: "nowrap" }}>{nbEch} éch.</span><Badge color={rm.color}>{rm.label}</Badge></div></div>); };
       return groupList([...list].sort((a, b) => (a.nom || a.prenom || "").localeCompare(b.nom || b.prenom || "", "fr") || (a.prenom || "").localeCompare(b.prenom || "", "fr")), gd, dir).map((g) => { const m = gd.meta ? gd.meta(g.key) : null; return (<div key={g.key} style={{ marginBottom: 18 }}><GroupHeader label={m ? m.label : g.key} color={m ? m.color : "#9aa6bd"} count={g.items.length} />{g.items.map(row)}</div>); });
     })()}
     {editC && !openId && <Modal title={contacts.some((x) => x.id === editC.id) ? "Modifier le contact" : "Nouveau contact"} onClose={() => setEditC(null)} wide><ContactForm contact={editC} accounts={accounts} contacts={contacts} sites={data.sites} known={collectKnownAddresses(data)} onSave={(x) => { saveContact(x); setEditC(null); }} /></Modal>}
@@ -4050,9 +4068,9 @@ function Agenda({ data, persist, go }) {
   const newEvent = (date) => ({ id: "ev_" + Date.now(), date, heure: "", titre: "", notes: "", type: "rdv", color: EVENT_TYPES.rdv.color, accountId: "" });
   return (<div className="fade">
     <div className="card" style={{ marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <button className="btn btn-ghost btn-s" onClick={() => setCursor((c) => ({ y: c.m === 0 ? c.y - 1 : c.y, m: c.m === 0 ? 11 : c.m - 1 }))}><ChevronLeft size={15} /></button>
-        <h3 className="pu-display" style={{ margin: 0, textTransform: "capitalize", minWidth: 180 }}>{monthName}</h3>
+        <h3 className="pu-display cal-month" style={{ margin: 0, textTransform: "capitalize" }}>{monthName}</h3>
         <button className="btn btn-ghost btn-s" onClick={() => setCursor((c) => ({ y: c.m === 11 ? c.y + 1 : c.y, m: c.m === 11 ? 0 : c.m + 1 }))}><ChevronRight size={15} /></button>
         <button className="btn btn-ghost btn-s" onClick={() => { const d = new Date(); setCursor({ y: d.getFullYear(), m: d.getMonth() }); }}>Aujourd'hui</button>
       </div>
