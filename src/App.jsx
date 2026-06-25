@@ -868,7 +868,31 @@ function ThemeMenu({ color, pattern, accent, onColor, onPattern, onAccent }) {
     </div></>)}
   </div>);
 }
-const coverage = (p) => (!p.ventesMois || p.ventesMois <= 0) ? null : Math.round(p.dispo / (p.ventesMois / 30.44));
+// Ventes/mois estimées AUTOMATIQUEMENT à partir des baisses de stock observées entre deux
+// mises à jour (synchro Shopify ou import). vSold = unités vendues cumulées depuis vSince.
+const ventesMoisAuto = (p) => {
+  if (!p || !p.vSince) return null;
+  const days = (Date.now() - new Date(p.vSince).getTime()) / 86400000;
+  if (!(days >= 1)) return null; // fenêtre < 1 jour : estimation pas encore fiable
+  return Math.round((p.vSold || 0) / days * 30.44);
+};
+// Ventes/mois effectives : l'estimation automatique si disponible, sinon la valeur saisie à la main.
+const effVentes = (p) => { const a = ventesMoisAuto(p); return a != null ? a : (p.ventesMois || 0); };
+const coverage = (p) => { const v = effVentes(p); return (!v || v <= 0) ? null : Math.round(p.dispo / (v / 30.44)); };
+// Met à jour le stock (dispo) ET déduit les ventes observées (toute baisse de stock = ventes).
+// La couverture et les ventes/mois sont ainsi recalculées automatiquement à chaque mise à jour.
+function applyStockUpdate(products, patch) {
+  const now = new Date().toISOString();
+  return (products || []).map((pr) => {
+    if (patch[pr.code] == null) return pr;
+    const newDispo = patch[pr.code];
+    const oldDispo = typeof pr.dispo === "number" ? pr.dispo : null;
+    if (!pr.vSince) return { ...pr, dispo: newDispo, vSold: 0, vSince: now }; // 1re observation : démarre le suivi
+    let vSold = pr.vSold || 0;
+    if (oldDispo != null && newDispo < oldDispo) vSold += oldDispo - newDispo; // baisse de stock = ventes
+    return { ...pr, dispo: newDispo, vSold, vSince: pr.vSince };
+  });
+}
 const statusOf = (p) => p.dispo <= 0 ? "rupture" : p.dispo <= p.seuil ? "bas" : "ok";
 function nextRef(type, deals) { const pre = type === "Facture" ? "FA" : type === "Commande" ? "CMD" : "DV"; const y = new Date().getFullYear(); const rx = new RegExp("^" + pre + "-" + y + "-(\\d+)$"); const mx = (deals || []).reduce((m, d) => { const mt = rx.exec(d.ref || ""); return mt ? Math.max(m, parseInt(mt[1], 10)) : m; }, 0); return `${pre}-${y}-${String(mx + 1).padStart(3, "0")}`; }
 // Nom affiché d'un document : code client (si connu) + référence. Calculé au rendu, n'altère pas la référence stockée.
@@ -926,7 +950,7 @@ function computeKPIs(data) {
   const factTotal = (data.deals || []).filter((d) => d.type === "Facture").length;
   // 7. Stock immobilisé : jours de couverture (volume) ; valeur si coûts connus
   const totDispo = (data.products || []).reduce((s, p) => s + (p.dispo || 0), 0);
-  const totVentesJour = (data.products || []).reduce((s, p) => s + (p.ventesMois || 0), 0) / 30.44;
+  const totVentesJour = (data.products || []).reduce((s, p) => s + effVentes(p), 0) / 30.44;
   const couvertureJours = totVentesJour > 0 ? Math.round(totDispo / totVentesJour) : null;
   const stockProdsAvecCout = (data.products || []).filter((p) => (p.dispo || 0) > 0); const tousCoutsStock = stockProdsAvecCout.every((p) => p.cout != null);
   const stockValeur = tousCoutsStock ? stockProdsAvecCout.reduce((s, p) => s + (p.dispo || 0) * (p.cout || 0), 0) : null;
@@ -2962,7 +2986,7 @@ function Stock({ data, persist }) {
       const { patch, matched } = shopifyStockPatch(products, dt.variants);
       const total = dt.count != null ? dt.count : (dt.variants ? dt.variants.length : 0);
       if (matched === 0) { setShopMsg("Shopify : aucun SKU ne correspond au catalogue (" + total + " variante(s))."); }
-      else { persist((p) => ({ ...p, products: p.products.map((pr) => patch[pr.code] != null ? { ...pr, dispo: patch[pr.code] } : pr), _shopifySync: { at: new Date().toISOString(), matched, total } })); setShopMsg(matched + " référence(s) mise(s) à jour depuis Shopify."); }
+      else { persist((p) => ({ ...p, products: applyStockUpdate(p.products, patch), _shopifySync: { at: new Date().toISOString(), matched, total } })); setShopMsg(matched + " référence(s) mise(s) à jour depuis Shopify."); }
     } catch (e) { setShopMsg("Échec Shopify : " + (e && e.message ? e.message : String(e))); }
     finally { setShopBusy(false); setTimeout(() => setShopMsg(null), 6000); }
   };
@@ -2973,7 +2997,7 @@ function Stock({ data, persist }) {
   const cntStatut = (k) => products.filter((p) => statusOf(p) === k).length;
   const hasFilter = q || fam !== "Tous" || filtStatut !== "tous";
   return (<div className="fade">
-    <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}><div style={{ position: "relative", flex: 1, minWidth: 200 }}><Search size={15} style={{ position: "absolute", left: 11, top: 11, color: "var(--muted)" }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher par référence ou code…" style={{ width: "100%", padding: "9px 11px 9px 32px", border: "1px solid var(--line)", borderRadius: 11, fontFamily: "inherit", fontSize: 13.5 }} /></div><GroupBar value={grp} onChange={setGrp} dir={dir} onToggleDir={() => setDir((d) => d === "asc" ? "desc" : "asc")} options={[{ id: "catalogue", label: "ordre catalogue" }, { id: "etat", label: "état" }, { id: "famille", label: "famille" }]} /><button className="btn btn-ghost" onClick={() => downloadCSV(list.map((p) => ({ Code: p.code, Designation: p.designation, Famille: p.famille, Dispo: p.dispo, Seuil: p.seuil, VentesMois: p.ventesMois, Couverture_jours: coverage(p) || "", Etat: statusOf(p), Poids_g: p.poidsG, Vente: p.vendable ? "oui" : "non", PVC_TTC: p.pvc })), "stock-penup3d-" + new Date().toISOString().slice(0, 10) + ".csv")}><FileDown size={15} /> Export CSV</button><button className="btn btn-p" title="Génère la page de commande HTML à jour, avec seulement les produits en vente et leurs images" onClick={() => { const html = buildBonCommandeHTML(products); const blob = new Blob([html], { type: "text/html;charset=utf-8" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "bon_de_commande_penup3d.html"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}><Download size={15} /> Bon de commande (HTML)</button><button className="btn btn-ghost" disabled={shopBusy} title="Met à jour les disponibilités depuis le stock Shopify (lecture seule, par SKU)" onClick={syncShopify}><RefreshCw size={15} /> {shopBusy ? "Synchro…" : "Stock Shopify"}</button></div>
+    <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}><div style={{ position: "relative", flex: 1, minWidth: 200 }}><Search size={15} style={{ position: "absolute", left: 11, top: 11, color: "var(--muted)" }} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher par référence ou code…" style={{ width: "100%", padding: "9px 11px 9px 32px", border: "1px solid var(--line)", borderRadius: 11, fontFamily: "inherit", fontSize: 13.5 }} /></div><GroupBar value={grp} onChange={setGrp} dir={dir} onToggleDir={() => setDir((d) => d === "asc" ? "desc" : "asc")} options={[{ id: "catalogue", label: "ordre catalogue" }, { id: "etat", label: "état" }, { id: "famille", label: "famille" }]} /><button className="btn btn-ghost" onClick={() => downloadCSV(list.map((p) => ({ Code: p.code, Designation: p.designation, Famille: p.famille, Dispo: p.dispo, Seuil: p.seuil, VentesMois: effVentes(p), VentesMois_auto: ventesMoisAuto(p) != null ? "oui" : "non", Couverture_jours: coverage(p) || "", Etat: statusOf(p), Poids_g: p.poidsG, Vente: p.vendable ? "oui" : "non", PVC_TTC: p.pvc })), "stock-penup3d-" + new Date().toISOString().slice(0, 10) + ".csv")}><FileDown size={15} /> Export CSV</button><button className="btn btn-p" title="Génère la page de commande HTML à jour, avec seulement les produits en vente et leurs images" onClick={() => { const html = buildBonCommandeHTML(products); const blob = new Blob([html], { type: "text/html;charset=utf-8" }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "bon_de_commande_penup3d.html"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}><Download size={15} /> Bon de commande (HTML)</button><button className="btn btn-ghost" disabled={shopBusy} title="Met à jour les disponibilités depuis le stock Shopify (lecture seule, par SKU)" onClick={syncShopify}><RefreshCw size={15} /> {shopBusy ? "Synchro…" : "Stock Shopify"}</button></div>
     {shopMsg && <div style={{ marginBottom: 12, fontSize: 12.5, fontWeight: 600, color: shopMsg.startsWith("Échec") ? "var(--red)" : "var(--blue)" }}>{shopMsg}</div>}
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "stretch", marginBottom: 14 }}>
       <FilterGroup label="Famille" color="#3F60AA">{familles.map((ff) => ff === "Tous" ? <AllChip key={ff} active={fam === "Tous"} onClick={() => setFam("Tous")}>Tous</AllChip> : <button key={ff} className={cx("chip", fam === ff && "on")} onClick={() => setFam(ff)} style={fam === ff ? { background: "#3F60AA", borderColor: "#3F60AA", color: "#fff" } : {}}>{ff}</button>)}</FilterGroup>
@@ -2985,7 +3009,7 @@ function Stock({ data, persist }) {
       {list.length === 0 ? <tr><td colSpan={9} className="empty">Aucune référence {hasFilter && "correspondant aux filtres"}.</td></tr> : (() => {
         const GD = { catalogue: { get: (p) => prodCat(p), meta: (v) => ({ color: "#3F60AA", label: v }), order: CAT_ORDER }, etat: { get: (p) => statusOf(p), meta: (v) => SM[v] || SM.ok, order: ["rupture", "bas", "ok"] }, famille: { get: (p) => p.famille } };
         const gd = GD[grp] || GD.catalogue;
-        const prow = (p) => { const stt = statusOf(p); const sm = SM[stt]; const cov = coverage(p); return (<tr key={p.code}><td><div style={{ fontWeight: 600 }}>{p.designation}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{p.code}</div></td><td>{p.famille}</td><td style={{ textAlign: "right", fontWeight: 700 }} className="tnum">{num(p.dispo)}</td><td style={{ textAlign: "right" }}><input className="inp" type="number" value={p.seuil} onChange={(e) => set(p.code, { seuil: +e.target.value })} /></td><td style={{ textAlign: "right" }}><input className="inp" type="number" value={p.ventesMois} onChange={(e) => set(p.code, { ventesMois: +e.target.value })} /></td><td style={{ textAlign: "right" }} className="tnum">{cov == null ? "—" : cov + " j"}</td><td style={{ textAlign: "right" }}><input className="inp" type="number" step="1" min="0" value={p.poidsG ?? 0} title={p.poidsEstime ? "Poids provisoire estimé, à valider" : "Poids validé"} onChange={(e) => set(p.code, { poidsG: Math.max(0, Math.round(+e.target.value || 0)), poidsEstime: false })} style={p.poidsEstime ? { color: "var(--orange)", borderColor: "var(--orange)" } : {}} />{p.poidsEstime && <span title="Poids provisoire, à valider" style={{ color: "var(--orange)", marginLeft: 4, fontWeight: 700 }}>≈</span>}</td><td><Badge color={sm.color}>{sm.label}</Badge></td>
+        const prow = (p) => { const stt = statusOf(p); const sm = SM[stt]; const cov = coverage(p); return (<tr key={p.code}><td><div style={{ fontWeight: 600 }}>{p.designation}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{p.code}</div></td><td>{p.famille}</td><td style={{ textAlign: "right", fontWeight: 700 }} className="tnum">{num(p.dispo)}</td><td style={{ textAlign: "right" }}><input className="inp" type="number" value={p.seuil} onChange={(e) => set(p.code, { seuil: +e.target.value })} /></td><td style={{ textAlign: "right" }}>{(() => { const a = ventesMoisAuto(p); return a != null ? (<span className="tnum" title={"Calculé automatiquement : " + (p.vSold || 0) + " unité(s) vendue(s) observée(s) depuis le " + new Date(p.vSince).toLocaleDateString("fr-FR") + " via la baisse de stock. Cliquez pour réinitialiser le suivi (redémarre la fenêtre de mesure)."} onClick={() => set(p.code, { vSince: null, vSold: 0 })} style={{ cursor: "pointer", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>{a}<span style={{ fontSize: 8.5, fontWeight: 800, color: "#fff", background: "var(--green)", borderRadius: 5, padding: "1px 4px", letterSpacing: ".03em" }}>AUTO</span></span>) : (<input className="inp" type="number" value={p.ventesMois} onChange={(e) => set(p.code, { ventesMois: +e.target.value })} />); })()}</td><td style={{ textAlign: "right" }} className="tnum">{cov == null ? "—" : cov + " j"}</td><td style={{ textAlign: "right" }}><input className="inp" type="number" step="1" min="0" value={p.poidsG ?? 0} title={p.poidsEstime ? "Poids provisoire estimé, à valider" : "Poids validé"} onChange={(e) => set(p.code, { poidsG: Math.max(0, Math.round(+e.target.value || 0)), poidsEstime: false })} style={p.poidsEstime ? { color: "var(--orange)", borderColor: "var(--orange)" } : {}} />{p.poidsEstime && <span title="Poids provisoire, à valider" style={{ color: "var(--orange)", marginLeft: 4, fontWeight: 700 }}>≈</span>}</td><td><Badge color={sm.color}>{sm.label}</Badge></td>
       <td style={{ textAlign: "center" }}><button type="button" onClick={() => set(p.code, { vendable: !p.vendable })} className="chip" title={p.vendable ? "Cliquer pour retirer de la vente" : "Cliquer pour remettre en vente"} style={p.vendable ? { background: "var(--green)", borderColor: "var(--green)", color: "#fff", whiteSpace: "nowrap" } : { borderLeft: "4px solid var(--red)", color: "var(--red)", whiteSpace: "nowrap" }}>{p.vendable ? "En vente" : "Indispo."}</button></td></tr>); };
         return groupList(sortProducts(list), gd, dir).map((g) => { const m = gd.meta ? gd.meta(g.key) : null; const col = m ? m.color : "#9aa6bd"; const lbl = m ? m.label : g.key; return (<React.Fragment key={g.key}><tr><td colSpan={9} style={{ background: col + "1f", borderLeft: "3px solid " + col, padding: "8px 12px" }}><span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800 }} className="pu-display"><span style={{ width: 10, height: 10, borderRadius: 3, background: col, display: "inline-block" }} />{lbl}<span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>· {g.items.length}</span></span></td></tr>{g.items.map(prow)}</React.Fragment>); });
       })()}
@@ -3989,7 +4013,7 @@ function Connexions({ data, persist }) {
     let n = 0; const patch = {};
     rows.forEach((r) => { const code = byCode[norm(r[codeH]).trim()]; if (code) { const d = dispoH ? parseInt(String(r[dispoH]).replace(/\D/g, "")) : null; if (d != null && !isNaN(d)) { patch[code] = d; n++; } } });
     if (n === 0) { setMsg("Aucune référence ne correspond au catalogue (colonne code : « " + codeH + " »)."); return; }
-    persist((p) => ({ ...p, products: p.products.map((pr) => patch[pr.code] != null ? { ...pr, dispo: patch[pr.code] } : pr), _imported: "Import du " + TODAY() }));
+    persist((p) => ({ ...p, products: applyStockUpdate(p.products, patch), _imported: "Import du " + TODAY() }));
     setMsg(n + " référence(s) mise(s) à jour depuis le fichier.");
   };
   const onFile = (file) => {
@@ -4013,7 +4037,7 @@ function Connexions({ data, persist }) {
       const { patch, matched } = shopifyStockPatch(products, dt.variants);
       const total = dt.count != null ? dt.count : (dt.variants ? dt.variants.length : 0);
       if (matched === 0) { setShopMsg("Connexion OK, mais aucun SKU Shopify ne correspond aux codes du catalogue (" + total + " variante(s) lue(s)). Vérifiez que les SKU Shopify sont bien égaux aux codes article MITMIT."); return; }
-      persist((p) => ({ ...p, products: p.products.map((pr) => patch[pr.code] != null ? { ...pr, dispo: patch[pr.code] } : pr), _shopifySync: { at: new Date().toISOString(), matched, total } }));
+      persist((p) => ({ ...p, products: applyStockUpdate(p.products, patch), _shopifySync: { at: new Date().toISOString(), matched, total } }));
       setShopMsg(matched + " référence(s) de stock mise(s) à jour depuis Shopify (sur " + total + " variante(s) lue(s)).");
     } catch (e) { setShopMsg("Échec : " + (e && e.message ? e.message : String(e))); }
     finally { setShopBusy(false); }
