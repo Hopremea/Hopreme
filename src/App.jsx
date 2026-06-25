@@ -201,7 +201,7 @@ function assignClientCodes(accounts) {
 }
 const INT_META = { email: { label: "Courriel", color: "#5b8def", icon: Mail }, appel: { label: "Appel", color: "#2bb673", icon: Phone }, rdv: { label: "RDV", color: "#7c5cf0", icon: Calendar }, note: { label: "Note", color: "#9aa6bd", icon: Pencil } };
 // Sujets d'échange proposés (liste déroulante) — la saisie libre reste possible.
-const SUJET_PRESETS = ["Prise de contact", "Présentation de la gamme", "Présentation des nouveautés", "Demande de devis", "Envoi de devis", "Relance devis", "Négociation tarifaire", "Conditions commerciales", "Référencement", "Prise de commande", "Suivi de commande", "Livraison", "Réassort", "Point de suivi", "Prise de rendez-vous", "Compte rendu de rendez-vous", "Réclamation / SAV", "Remerciements"];
+const SUJET_PRESETS = ["Prise de contact", "Présentation de la gamme", "Présentation des nouveautés", "Demande de devis", "Envoi de devis", "Relance devis", "Négociation tarifaire", "Conditions commerciales", "Référencement", "Prise de commande", "Suivi de commande", "Livraison", "Réassort", "Point de suivi", "Prise de rendez-vous", "Compte rendu de rendez-vous", "Réclamation / SAV", "Remerciements"].sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
 const SAV_CANAL = { livraison: "Livraison", produit: "Produit", client: "Client final", autre: "Autre" };
 const SAV_STATUT = { ouvert: { label: "Ouvert", color: "#FF5A45" }, en_cours: { label: "En cours", color: "#F8B133" }, resolu: { label: "Résolu", color: "#2bb673" }, clos: { label: "Clos", color: "#9aa6bd" } };
 const SAV_GRAV = { mineur: { label: "Mineur", color: "#9aa6bd" }, majeur: { label: "Majeur", color: "#F8B133" }, critique: { label: "Critique", color: "#CD2A24" } };
@@ -221,10 +221,13 @@ const ENSEIGNE_PALETTE = ["#3F60AA", "#FF5A45", "#2bb673", "#7c5cf0", "#F8B133",
 const ENSEIGNE_FIXED = { acc_cultura: "#3F60AA", acc_kingjouet: "#FF5A45", acc_fnac: "#2bb673", acc_joueclub: "#7c5cf0", acc_eenymeeny: "#F8B133" };
 function enseigneColor(account) { if (!account) return "#16203a"; if (account.color) return account.color; if (ENSEIGNE_FIXED[account.id]) return ENSEIGNE_FIXED[account.id]; const i = Math.abs((account.id || "").split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % ENSEIGNE_PALETTE.length; return ENSEIGNE_PALETTE[i]; }
 const SITE_TYPES = { penup: { label: "Siège PEN'UP 3D", shape: "star" }, usine: { label: "Usine / Fabricant", shape: "factory" }, entrepot: { label: "Entrepôt logistique", shape: "warehouse" }, decision: { label: "Siège décisionnaire", shape: "towers" }, pdv: { label: "Point de vente", shape: "pin" } };
-const siteGmaps = (s) => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(s.adresse || s.label);
+// Requête Google Maps d'un établissement : on met le NOM du magasin AVANT l'adresse pour que Google
+// résolve la vraie fiche d'établissement (avis, horaires, photos) et pas seulement un point GPS.
+const siteQuery = (s, enseigne) => [s.label || enseigne, s.adresse].filter(Boolean).join(", ") || s.label || enseigne || "";
+const siteGmaps = (s, enseigne) => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(siteQuery(s, enseigne));
 // URL d'intégration (iframe) d'une fiche Google, affichable dans un popup sans quitter le logiciel
 // et sans clé API. Le paramètre output=embed sert une carte interactive centrée sur la requête.
-const gmapsEmbedUrl = (query) => "https://maps.google.com/maps?q=" + encodeURIComponent(query || "") + "&hl=fr&z=16&output=embed";
+const gmapsEmbedUrl = (query) => "https://maps.google.com/maps?q=" + encodeURIComponent(query || "") + "&hl=fr&z=17&output=embed";
 function seedSites() {
   return [
     { id: "s_penup", accountId: null, label: "PEN'UP 3D, siège social", type: "penup", adresse: "20 Place Prax Paris, 82000 Montauban", lat: 44.0181, lng: 1.3550 },
@@ -1970,7 +1973,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
     {eventEdit && <Modal title={(data.events || []).some((e) => e.id === eventEdit.id) ? "Modifier l'événement" : "Nouvel événement"} onClose={() => setEventEdit(null)}><EventForm event={eventEdit} accounts={data.accounts} onSave={(ev) => { saveEvent(ev); setEventEdit(null); }} onDelete={() => { delEvent(eventEdit.id); setEventEdit(null); }} isExisting={(data.events || []).some((e) => e.id === eventEdit.id)} /></Modal>}
     {eventView && <Modal title="Événement" onClose={() => setEventView(null)}><EventView event={eventView} data={data} go={go} onClose={() => setEventView(null)} onEdit={() => { const ev = eventView; setEventView(null); setEventEdit(ev); }} onDelete={() => { delEvent(eventView.id); setEventView(null); }} /></Modal>}
     {intView && <Modal title="Échange" onClose={() => setIntView(null)}><InteractionView interaction={intView} data={data} go={go} onClose={() => setIntView(null)} onEdit={() => { const it = intView; setIntView(null); setIntEdit(it); }} /></Modal>}
-    {gmapOpen && <GmapModal name={s.label || (acc && acc.enseigne) || "Établissement"} query={s.adresse || [s.label, acc && acc.enseigne].filter(Boolean).join(" ")} externalUrl={siteGmaps(s)} onClose={() => setGmapOpen(false)} />}
+    {gmapOpen && <GmapModal name={s.label || (acc && acc.enseigne) || "Établissement"} query={siteQuery(s, acc && acc.enseigne)} externalUrl={siteGmaps(s, acc && acc.enseigne)} onClose={() => setGmapOpen(false)} />}
   </div>);
 }
 function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContact, openSiteId, onOpenSite, onDelete }) {
@@ -2063,7 +2066,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
     <div ref={sitesRef} className="card" style={{ marginBottom: 16 }}>
       <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MapPin size={15} />Établissements & sites rattachés</h3><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{!isGroupe(a) && <button className="btn btn-p btn-s" onClick={promoteToGroup} title="Faire de cet établissement une chaîne / un groupe, pour y rattacher d'autres établissements"><GitBranch size={14} /> Transformer en groupe</button>}<button className="btn btn-g btn-s" onClick={() => setAttachOpen(true)} title="Rattacher à ce groupe un établissement indépendant qui existe déjà"><Link2 size={14} /> Rattacher un existant</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit(newSite("decision"))} title="Ajouter le siège décisionnaire"><Plus size={14} /> Siège</button><button className="btn btn-y btn-s" onClick={() => setSiteEdit(newSite("pdv"))}><Plus size={14} /> Établissement</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit({ ...newSite("pdv"), adresse: a.adressePostale || a.adresseLivraison || "", adresseLivraison: a.adresseLivraison || "", livraisonIdentique: a.livraisonIdentique !== false, lat: a.lat ?? null, lng: a.lng ?? null, typeSurface: a.typeSurface || "" })} title="Créer un établissement reprenant l'adresse postale et les coordonnées du compte"><Plus size={14} /> Depuis l'adresse</button></div></div>
       {!isGroupe(a) && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-2px 0 10px", lineHeight: 1.5 }}>Cet établissement est indépendant. S'il s'agit d'une chaîne (plusieurs adresses), cliquez sur <strong>Transformer en groupe</strong> : l'établissement actuel devient le premier point de vente et vous pourrez rattacher les autres.</div>}
-      {accSites.length === 0 ? <div className="empty">Aucun site rattaché. Ajoutez le siège décisionnaire et/ou les établissements de ce groupe. Pour un indépendant ou une association, un seul site suffit : le siège et le local sont au même endroit.</div> : (<div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{accSites.slice().sort((x, y) => (x.type === "decision" ? 0 : 1) - (y.type === "decision" ? 0 : 1)).map((s) => { const tm = SITE_TYPES[s.type]; const col = siteColor(s, a); return (<div key={s.id} onClick={() => onOpenSite && onOpenSite(s.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid " + (s.id === hlSite ? "var(--blue)" : "var(--line)"), borderRadius: 11, background: s.id === hlSite ? "var(--blue-l)" : "#fff", boxShadow: s.id === hlSite ? "0 0 0 3px rgba(63,96,170,.15)" : "none", transition: "background .3s, border-color .3s, box-shadow .3s" }}><svg width="20" height="20" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(tm.shape)} fill={col} stroke="#fff" strokeWidth={1.5} /></svg><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{s.label}<Badge color={s.type === "decision" ? "#7c5cf0" : "#F8B133"}>{s.type === "decision" ? "Siège" : "Établissement"}</Badge>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{!s.lat && <span style={{ fontSize: 11, color: "var(--red)" }}>à géolocaliser</span>}</div>{s.adresse && <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.adresse}</div>}{s.siret && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 1 }} className="tnum">SIRET {s.siret}</div>}{(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.mobile || lc.fixe || "") : (s.contactTel || ""); if (!nm && !tel) return null; return <div style={{ fontSize: 11.5, color: "var(--blue)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}><Phone size={11} />{lc ? <span className="lnk" onClick={(e) => { e.stopPropagation(); go("repertoire", lc.id); }}>{nm}</span> : nm}{tel ? " · " + tel : ""}{lc ? <span style={{ color: "var(--muted)", fontWeight: 600 }}> · lié</span> : null}</div>; })()}</div><div style={{ display: "flex", gap: 4, flexShrink: 0 }}>{s.lat != null && <button className="iconbtn" title="Voir sur la carte" onClick={(e) => { e.stopPropagation(); go("carte", s.id); }}><MapIcon size={15} /></button>}<a className="iconbtn" href={siteGmaps(s)} target="_blank" rel="noreferrer" title="Google Maps" onClick={(e) => e.stopPropagation()}><ExternalLink size={15} /></a><button className="iconbtn" title="Modifier" onClick={(e) => { e.stopPropagation(); setSiteEdit(s); }}><Pencil size={15} /></button><button className="iconbtn" title="Supprimer" onClick={(e) => { e.stopPropagation(); appConfirm("Supprimer l'établissement « " + s.label + " » ?", { title: "Supprimer cet établissement ?" }).then((ok) => { if (ok) delSite(s.id); }); }}><Trash2 size={15} /></button></div></div>); })}</div>)}
+      {accSites.length === 0 ? <div className="empty">Aucun site rattaché. Ajoutez le siège décisionnaire et/ou les établissements de ce groupe. Pour un indépendant ou une association, un seul site suffit : le siège et le local sont au même endroit.</div> : (<div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{accSites.slice().sort((x, y) => (x.type === "decision" ? 0 : 1) - (y.type === "decision" ? 0 : 1)).map((s) => { const tm = SITE_TYPES[s.type]; const col = siteColor(s, a); return (<div key={s.id} onClick={() => onOpenSite && onOpenSite(s.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid " + (s.id === hlSite ? "var(--blue)" : "var(--line)"), borderRadius: 11, background: s.id === hlSite ? "var(--blue-l)" : "#fff", boxShadow: s.id === hlSite ? "0 0 0 3px rgba(63,96,170,.15)" : "none", transition: "background .3s, border-color .3s, box-shadow .3s" }}><svg width="20" height="20" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(tm.shape)} fill={col} stroke="#fff" strokeWidth={1.5} /></svg><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{s.label}<Badge color={s.type === "decision" ? "#7c5cf0" : "#F8B133"}>{s.type === "decision" ? "Siège" : "Établissement"}</Badge>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{!s.lat && <span style={{ fontSize: 11, color: "var(--red)" }}>à géolocaliser</span>}</div>{s.adresse && <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.adresse}</div>}{s.siret && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 1 }} className="tnum">SIRET {s.siret}</div>}{(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.mobile || lc.fixe || "") : (s.contactTel || ""); if (!nm && !tel) return null; return <div style={{ fontSize: 11.5, color: "var(--blue)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}><Phone size={11} />{lc ? <span className="lnk" onClick={(e) => { e.stopPropagation(); go("repertoire", lc.id); }}>{nm}</span> : nm}{tel ? " · " + tel : ""}{lc ? <span style={{ color: "var(--muted)", fontWeight: 600 }}> · lié</span> : null}</div>; })()}</div><div style={{ display: "flex", gap: 4, flexShrink: 0 }}>{s.lat != null && <button className="iconbtn" title="Voir sur la carte" onClick={(e) => { e.stopPropagation(); go("carte", s.id); }}><MapIcon size={15} /></button>}<a className="iconbtn" href={siteGmaps(s, a && a.enseigne)} target="_blank" rel="noreferrer" title="Fiche Google" onClick={(e) => e.stopPropagation()}><ExternalLink size={15} /></a><button className="iconbtn" title="Modifier" onClick={(e) => { e.stopPropagation(); setSiteEdit(s); }}><Pencil size={15} /></button><button className="iconbtn" title="Supprimer" onClick={(e) => { e.stopPropagation(); appConfirm("Supprimer l'établissement « " + s.label + " » ?", { title: "Supprimer cet établissement ?" }).then((ok) => { if (ok) delSite(s.id); }); }}><Trash2 size={15} /></button></div></div>); })}</div>)}
     </div>
     <div style={{ marginBottom: 16 }}><EntityAgenda events={accEvents} onMerge={async () => { const usage = (u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) })); const groups = await aiMergeEvents(accEvents, usage); const dropped = (groups || []).reduce((n, g) => n + Math.max(0, g.ids.filter((id) => accEvents.some((e) => e.id === id)).length - 1), 0); if (dropped > 0) persist((p) => ({ ...p, events: applyEventMerges(p.events, groups) })); return dropped; }} onAdd={() => setEventEdit(newAccEvent())} onOpen={(e) => setEventEdit(e)} onView={(e) => setEventView(e)} onSuggest={async () => { try { const last = accInteractions[0]; const r = await aiSuggestAction({ enseigne: a.enseigne, stageLabel: stageMeta(a.stage).label, lastInt: last ? (last.date + " — " + (last.sujet || last.type) + (last.resume ? (" : " + last.resume) : "")) : "", caAttente: eur(caAttente), contactsLabel: conts.map((c) => fullName(c) + (c.fonction ? " (" + c.fonction + ")" : "")).join(", ") }, (u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))); const d = new Date(Date.now() + r.jours * 86400000).toISOString().slice(0, 10); setEventEdit({ id: "ev_" + Date.now(), date: d, heure: "", titre: r.titre || ("Relancer " + (a.enseigne || "")), notes: r.pourquoi || "", type: r.type, color: EVENT_TYPES[r.type].color, accountId: a.id, siteId: "" }); } catch (e) { alert("Suggestion IA indisponible ici (fonctionne dans l'app Claude)."); } }} /></div>
     <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "start" }}>
@@ -2195,25 +2198,72 @@ function ResumeField({ value, onChange, onUsage, rows = 3, baseDate, onPlan }) {
     {msg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>{msg}</div>}
   </div>);
 }
-// Rédaction IA d'un e-mail ou message LinkedIn contextualisé pour un contact.
-function MessageComposer({ contact, account, onUsage, onClose }) {
+// Types de message proposés : chaque bouton pré-remplit l'objectif, toujours interprété par l'IA
+// à la lumière du contexte (entreprise, interlocuteur, historique des échanges et devis).
+const MSG_TYPES = [
+  { key: "prospection", label: "Prospection (1er contact)", obj: "Premier contact de prospection : présenter brièvement PEN'UP 3D et la gamme, et proposer un échange en vue d'un référencement." },
+  { key: "relance", label: "Relance", obj: "Relancer avec tact un échange ou un message resté sans réponse, et proposer une prochaine étape concrète." },
+  { key: "relance_devis", label: "Relance de devis", obj: "Relancer un devis envoyé et non encore validé, lever les éventuelles hésitations et faciliter la décision." },
+  { key: "catalogue", label: "Catalogue après appel", obj: "Faire suite à notre appel téléphonique en transmettant le catalogue et les tarifs, et proposer la prochaine étape." },
+  { key: "rdv", label: "Demande de rendez-vous", obj: "Proposer un rendez-vous (visio ou en magasin) pour présenter la gamme et les conditions de référencement." },
+  { key: "remerciement", label: "Remerciements après RDV", obj: "Remercier suite à notre rendez-vous, récapituler les points clés et confirmer les prochaines étapes convenues." },
+  { key: "nouveautes", label: "Nouveautés", obj: "Présenter les nouveautés de la gamme PEN'UP 3D susceptibles d'intéresser ce point de vente." },
+  { key: "reassort", label: "Réassort / suivi", obj: "Proposer un réassort et assurer le suivi de la commande et du stock en magasin." },
+];
+// Rédaction IA d'un e-mail ou message LinkedIn contextualisé pour un contact : l'IA s'appuie sur les
+// informations de l'entreprise, de l'interlocuteur et de l'historique pour personnaliser, sans rien inventer.
+function MessageComposer({ contact, account, interactions = [], deals = [], onUsage, onClose }) {
   const [canal, setCanal] = useState("email");
-  const [obj, setObj] = useState("Reprendre contact et proposer un échange");
+  const [typeKey, setTypeKey] = useState("prospection");
+  const [obj, setObj] = useState(MSG_TYPES[0].obj);
   const [busy, setBusy] = useState(false); const [out, setOut] = useState(""); const [copied, setCopied] = useState(false);
+  const pickType = (t) => { setTypeKey(t.key); setObj(t.obj); };
+  // Construit le bloc de contexte transmis à l'IA : entreprise, interlocuteur, derniers échanges et devis.
+  const buildContext = () => {
+    const L = [];
+    if (account) {
+      L.push("ENTREPRISE (revendeur ciblé) :");
+      L.push("- Enseigne : " + (account.enseigne || "—"));
+      if (account.nature && NATURE_META[account.nature]) L.push("- Activité : " + NATURE_META[account.nature].label);
+      if (account.stage) L.push("- Étape du cycle commercial : " + stageMeta(account.stage).label);
+      if (account.ville) L.push("- Ville : " + account.ville);
+      if (account.magasins) L.push("- Réseau : " + magasinLabel(account.magasins) + " (" + networkSeg(account.magasins).label + ")");
+      if (account.notes) L.push("- Notes internes : " + account.notes);
+      L.push("");
+    }
+    L.push("INTERLOCUTEUR :");
+    L.push("- Nom : " + fullName(contact));
+    if (contact.fonction) L.push("- Fonction : " + contact.fonction);
+    if (ROLE_META[contact.role]) L.push("- Rôle : " + ROLE_META[contact.role].label);
+    if (contact.notes) L.push("- Notes : " + contact.notes);
+    const recent = (interactions || []).slice(0, 4);
+    if (recent.length) {
+      L.push(""); L.push("DERNIERS ÉCHANGES (du plus récent au plus ancien) :");
+      recent.forEach((i) => { const tm = INT_META[i.type] || {}; L.push("- " + (i.date || "") + " · " + (tm.label || i.type) + " " + (i.direction === "entrant" ? "(entrant)" : "(sortant)") + (i.sujet ? " — " + i.sujet : "") + (i.resume ? " : " + i.resume : "")); });
+    }
+    const rd = (deals || []).slice(0, 4);
+    if (rd.length) {
+      L.push(""); L.push("DEVIS / COMMANDES :");
+      rd.forEach((d) => L.push("- " + (d.date || "") + " · " + (d.type || "document") + " " + (d.ref || "") + " — " + eur(d.montant || 0) + (d.statut ? " (" + d.statut + ")" : "")));
+    }
+    return L.join("\n");
+  };
   const gen = async () => {
     setBusy(true); setCopied(false);
     try {
       const sys = canal === "email"
-        ? "Tu rédiges un e-mail commercial B2B en français pour PEN'UP 3D (marque française de stylos 3D et de loisirs créatifs pour enfants), adressé à un revendeur (magasin de jouets). Ton professionnel, chaleureux et concis (8 à 12 lignes). N'invente aucun chiffre ni engagement. Première ligne = « Objet : … », puis le corps, et une signature générique « L'équipe PEN'UP 3D »."
-        : "Tu rédiges un message LinkedIn court (4 à 6 lignes), professionnel, personnalisé et cordial, en français, de la part de PEN'UP 3D (stylos 3D et loisirs créatifs) vers un interlocuteur d'un magasin de jouets. N'invente aucun chiffre.";
-      const u = `Destinataire : ${fullName(contact)}${contact.fonction ? " (" + contact.fonction + ")" : ""}${account ? " — " + account.enseigne : ""}.\nObjectif du message : ${obj}.`;
-      setOut(await aiGenerate(sys, u, onUsage, 700));
+        ? "Tu rédiges un e-mail commercial B2B en français pour PEN'UP 3D (marque française de stylos 3D et de loisirs créatifs pour enfants), adressé à un revendeur (magasin de jouets). Ton professionnel, chaleureux et concis (8 à 12 lignes). Tu t'APPUIES sur le contexte fourni (entreprise, interlocuteur, historique des échanges et devis) pour personnaliser le message et faire des références naturelles et pertinentes. Tu n'inventes AUCUN chiffre, date, fait ni engagement absent du contexte. Première ligne = « Objet : … », puis le corps, et une signature générique « L'équipe PEN'UP 3D »."
+        : "Tu rédiges un message LinkedIn court (4 à 6 lignes), professionnel, personnalisé et cordial, en français, de la part de PEN'UP 3D (stylos 3D et loisirs créatifs) vers un interlocuteur d'un magasin de jouets. Tu t'APPUIES sur le contexte fourni (entreprise, interlocuteur, historique) pour personnaliser, sans inventer aucun chiffre ni fait absent du contexte.";
+      const u = `CONTEXTE :\n${buildContext()}\n\nOBJECTIF DU MESSAGE : ${obj}\n\nRédige le message en exploitant ce contexte pour le rendre personnalisé et pertinent.`;
+      setOut(await aiGenerate(sys, u, onUsage, 800));
     } catch (e) { setOut("Génération IA indisponible ici (fonctionne dans l'app Claude)."); }
     finally { setBusy(false); }
   };
   const copy = () => { try { navigator.clipboard.writeText(out); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {} };
   return (<Modal title={"Message IA — " + fullName(contact)} onClose={onClose} wide>
-    <div className="row2"><div className="fld"><label>Canal</label><select value={canal} onChange={(e) => setCanal(e.target.value)}><option value="email">E-mail</option><option value="linkedin">Message LinkedIn</option></select></div><div className="fld"><label>Objectif</label><input value={obj} onChange={(e) => setObj(e.target.value)} placeholder="Ex : présenter la gamme, relancer un devis…" /></div></div>
+    <div className="fld"><label>Type de message</label><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{MSG_TYPES.map((t) => <button key={t.key} type="button" className={cx("btn", "btn-s", typeKey === t.key ? "btn-p" : "btn-g")} onClick={() => pickType(t)} title={t.obj}>{t.label}</button>)}</div></div>
+    <div className="row2"><div className="fld"><label>Canal</label><select value={canal} onChange={(e) => setCanal(e.target.value)}><option value="email">E-mail</option><option value="linkedin">Message LinkedIn</option></select></div><div className="fld"><label>Objectif (adaptable)</label><input value={obj} onChange={(e) => setObj(e.target.value)} placeholder="Ex : présenter la gamme, relancer un devis…" /></div></div>
+    <div style={{ fontSize: 11, color: "var(--muted)", margin: "-2px 0 6px", display: "inline-flex", alignItems: "center", gap: 5 }}><Sparkles size={12} /> L'IA tient compte de l'entreprise, de l'interlocuteur et de l'historique ({(interactions || []).length} échange{(interactions || []).length > 1 ? "s" : ""}, {(deals || []).length} document{(deals || []).length > 1 ? "s" : ""}).</div>
     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}><button className="btn btn-p" onClick={gen} disabled={busy}><Sparkles size={15} className={busy ? "spin" : ""} /> {busy ? "Rédaction…" : "Générer"}</button></div>
     {out && <><textarea rows={canal === "email" ? 12 : 6} value={out} onChange={(e) => setOut(e.target.value)} style={{ width: "100%" }} /><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>{canal === "email" && contact.email && <a className="btn btn-g" href={"mailto:" + contact.email + "?subject=" + encodeURIComponent((out.match(/^Objet\s*:\s*(.*)$/im) || [, "PEN'UP 3D"])[1]) + "&body=" + encodeURIComponent(out.replace(/^Objet\s*:.*\n?/i, "").trim())}><Mail size={15} /> Ouvrir l'e-mail</a>}<button className="btn btn-g" onClick={copy}><Copy size={15} /> {copied ? "Copié !" : "Copier"}</button></div></>}
     <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Brouillon généré par l'IA — à relire et personnaliser avant envoi.</p>
@@ -2421,7 +2471,7 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
     {vcardOpen && (() => { const vcf = contactVCard(c, account); const dl = () => { const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" }); const url = URL.createObjectURL(blob); const a2 = document.createElement("a"); a2.href = url; a2.download = fullName(c).replace(/\s+/g, "_") + ".vcf"; document.body.appendChild(a2); a2.click(); document.body.removeChild(a2); URL.revokeObjectURL(url); }; return (<Modal title={"Carte de visite — " + fullName(c)} onClose={() => setVcardOpen(false)}>
       <div style={{ textAlign: "center" }}><img src={"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(vcf)} alt="QR contact" width={220} height={220} style={{ borderRadius: 12, border: "1px solid var(--line)" }} /><div style={{ fontSize: 12.5, color: "var(--muted)", margin: "10px 0 14px", lineHeight: 1.5 }}>Scannez ce QR code avec l'appareil photo de votre téléphone pour enregistrer {fullName(c)} dans vos contacts, ou téléchargez la fiche vCard.</div><button className="btn btn-p" onClick={dl}><Download size={15} /> Télécharger .vcf</button></div>
     </Modal>); })()}
-    {msgOpen && <MessageComposer contact={c} account={account} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setMsgOpen(false)} />}
+    {msgOpen && <MessageComposer contact={c} account={account} interactions={interactions} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setMsgOpen(false)} />}
     {editModal}
   </div>);
 }
@@ -3184,7 +3234,7 @@ function Carte({ data, persist, go, focus }) {
           {!(s.lat && sites.find((x) => x.type === "entrepot")) && <div style={{ height: 1 }} />}
           {(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.mobile || lc.fixe || "") : (s.contactTel || ""); const mail = lc ? (lc.email || "") : (s.contactMail || ""); if (!nm && !tel && !mail) return null; return <div style={{ marginTop: 4, padding: "9px 11px", background: "var(--bg)", borderRadius: 10 }}><div style={{ fontSize: 10.5, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 5 }}>Interlocuteur sur place{lc ? " · lié au répertoire" : ""}</div>{nm && <div style={{ fontWeight: 700, fontSize: 13.5 }}>{lc ? <span className="lnk" onClick={() => go("repertoire", lc.id)}>{nm}</span> : nm}{lc && lc.fonction ? <span style={{ fontWeight: 500, color: "var(--muted)" }}> · {lc.fonction}</span> : null}</div>}{tel && <div style={{ fontSize: 12.5, color: "var(--muted)", display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}><Phone size={12} /><a href={"tel:" + tel} style={{ color: "inherit" }}>{tel}</a></div>}{mail && <div style={{ fontSize: 12.5, color: "var(--muted)", display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}><Mail size={12} /><a href={"mailto:" + mail} style={{ color: "inherit" }}>{mail}</a></div>}</div>; })()}
           {s.notes && <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, borderTop: "1px solid var(--line)", paddingTop: 10 }}>{s.notes}</div>}
-          <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}><a className="btn btn-y btn-s" href={siteGmaps(s)} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Fiche Google</a>{sAcc && <button className="btn btn-g btn-s" onClick={() => go("accounts", sAcc.id)}><Building2 size={14} /> Ouvrir le compte</button>}<button className="iconbtn" onClick={() => setEdit(s)}><Pencil size={15} /></button><button className="iconbtn" onClick={() => appConfirm("Supprimer ce site « " + (s.label || "") + " » ?", { title: "Supprimer ce site ?" }).then((ok) => { if (ok) delSite(s.id); })}><Trash2 size={15} /></button></div></>)}</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}><a className="btn btn-y btn-s" href={siteGmaps(s, sAcc && sAcc.enseigne)} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Fiche Google</a>{sAcc && <button className="btn btn-g btn-s" onClick={() => go("accounts", sAcc.id)}><Building2 size={14} /> Ouvrir le compte</button>}<button className="iconbtn" onClick={() => setEdit(s)}><Pencil size={15} /></button><button className="iconbtn" onClick={() => appConfirm("Supprimer ce site « " + (s.label || "") + " » ?", { title: "Supprimer ce site ?" }).then((ok) => { if (ok) delSite(s.id); })}><Trash2 size={15} /></button></div></>)}</div>
         <div className="card"><div className="sec-h"><h3 className="pu-display">Tous les sites</h3><span>{sites.length}</span></div>{sites.map((x) => { const xa = accOf(x.accountId); return (<div key={x.id} onClick={() => selectSite(x)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 6px", borderBottom: "1px solid #f0f3f9", cursor: "pointer", borderRadius: 8, background: x.id === sel ? "var(--blue-l)" : "transparent" }}><svg width="18" height="18" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(SITE_TYPES[x.type].shape)} fill={siteColor(x, xa)} stroke="#fff" strokeWidth={1.5} /></svg><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13 }}>{x.label}</div><div style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{SITE_TYPES[x.type].label}{!x.lat && " · à géolocaliser"}</div></div></div>); })}</div>
       </div>
     </div>
@@ -3207,6 +3257,7 @@ function SiteForm({ site, accounts, onSave, known = [], contacts = [], onOpenCon
       const patch = {}; const filled = [];
       if (!f.typeSurface && r.typeEtablissement && TYPE_SURFACE.includes(r.typeEtablissement)) { patch.typeSurface = r.typeEtablissement; filled.push("type d'établissement"); }
       if (!f.siret && r.siret) { patch.siret = r.siret; filled.push("SIRET"); }
+      if (!f.telFixe && r.telephone) { patch.telFixe = r.telephone; filled.push("téléphone du magasin"); }
       let adr = f.adresse;
       if (!f.adresse) {
         if (parentAcc && parentAcc.adressePostale) { patch.adresse = parentAcc.adressePostale; adr = parentAcc.adressePostale; filled.push("adresse (depuis le compte)"); }
@@ -3313,8 +3364,8 @@ async function aiAutofill({ kind, enseigne, ville, adresse, typesEtab }) {
   const cible = [enseigne, adresse, ville].filter(Boolean).join(", ");
   let user, schema;
   if (kind === "établissement") {
-    user = `Pour cet établissement précis : ${cible}.\nTrouve dans les sources officielles :\n- siret : SIRET (14 chiffres) de l'établissement situé EXACTEMENT à cette adresse et cette ville (ni le siège social, ni un autre établissement). Si tu n'es pas certain qu'il corresponde à cette adresse, laisse vide.\n- adresse : adresse postale complète et exacte de l'établissement (numéro, voie, code postal, ville).\n- typeEtablissement : choisis la valeur la plus juste UNIQUEMENT parmi cette liste : ${(typesEtab || []).join(" | ")}. Si aucune ne convient avec certitude, laisse vide.\n- note : une phrase factuelle décrivant l'établissement (univers de produits, implantation centre-ville ou périphérie). Aucun superlatif commercial.\nAttention aux homonymes : ne retiens que l'établissement de la ville indiquée.`;
-    schema = '{"siret":"","adresse":"","typeEtablissement":"","note":"","confiance":"haute/moyenne/faible","source":""}';
+    user = `Pour cet établissement précis : ${cible}.\nTrouve dans les sources officielles ou la fiche Google de l'établissement :\n- siret : SIRET (14 chiffres) de l'établissement situé EXACTEMENT à cette adresse et cette ville (ni le siège social, ni un autre établissement). Si tu n'es pas certain qu'il corresponde à cette adresse, laisse vide.\n- adresse : adresse postale complète et exacte de l'établissement (numéro, voie, code postal, ville).\n- telephone : numéro de téléphone fixe (standard / accueil) de CE magasin à cette adresse précise, au format français (ex. « 05 63 12 34 56 »). Vérifie qu'il correspond bien à cet établissement et pas au siège ou à un autre point de vente ; en cas de doute, laisse vide.\n- typeEtablissement : choisis la valeur la plus juste UNIQUEMENT parmi cette liste : ${(typesEtab || []).join(" | ")}. Si aucune ne convient avec certitude, laisse vide.\n- note : une phrase factuelle décrivant l'établissement (univers de produits, implantation centre-ville ou périphérie). Aucun superlatif commercial.\nAttention aux homonymes : ne retiens que l'établissement de la ville indiquée.`;
+    schema = '{"siret":"","adresse":"","telephone":"","typeEtablissement":"","note":"","confiance":"haute/moyenne/faible","source":""}';
   } else {
     user = `Pour l'entreprise qui exploite l'enseigne : ${cible}.\nTrouve dans les sources officielles :\n- siren : SIREN (9 chiffres) de la personne morale, ou numéro RNA (W + 9 chiffres) si c'est une association. NE METS PAS de SIRET ici.\n- raisonSociale, formeJuridique.\n- ville : ville du siège social ou de rattachement.\n- adresse : adresse postale complète du siège ou de l'établissement principal.\nAttention aux homonymes : si une ville est fournie, ne retiens que l'entité qui lui correspond.`;
     schema = '{"siren":"","raisonSociale":"","formeJuridique":"","ville":"","adresse":"","confiance":"haute/moyenne/faible","source":""}';
@@ -3330,7 +3381,7 @@ async function aiAutofill({ kind, enseigne, ville, adresse, typesEtab }) {
   const m = text.match(/\{[\s\S]*\}/); if (!m) throw new Error("réponse illisible");
   const o = JSON.parse(m[0]);
   const onlyNum = (v) => (typeof v === "string" ? v.replace(/\s/g, "") : "");
-  return { siren: onlyNum(o.siren), siret: onlyNum(o.siret), raisonSociale: (o.raisonSociale || "").trim(), formeJuridique: (o.formeJuridique || "").trim(), ville: (o.ville || "").trim(), adresse: (o.adresse || "").trim(), typeEtablissement: (o.typeEtablissement || "").trim(), note: (o.note || "").trim(), confiance: o.confiance || "?", source: (o.source || "").trim(), usage: data.usage || null };
+  return { siren: onlyNum(o.siren), siret: onlyNum(o.siret), raisonSociale: (o.raisonSociale || "").trim(), formeJuridique: (o.formeJuridique || "").trim(), ville: (o.ville || "").trim(), adresse: (o.adresse || "").trim(), telephone: (o.telephone || "").trim(), typeEtablissement: (o.typeEtablissement || "").trim(), note: (o.note || "").trim(), confiance: o.confiance || "?", source: (o.source || "").trim(), usage: data.usage || null };
 }
 function Prospection({ data, persist, go }) {
   const { prospects } = data;
@@ -4009,6 +4060,10 @@ const TABS = [
   { id: "conn", group: "Outils", label: "Intégrations", icon: Plug, title: "Intégrations & paramètres", sub: "Connexions, imports, sauvegarde et préférences" },
 ];
 const NAV_GROUPS = ["Pilotage", "Commercial", "Logistique", "Support", "Outils"];
+// Dernière localisation (onglet + fiche ouverte) mémorisée entre deux sessions / rechargements,
+// pour rouvrir l'app là où l'utilisateur l'avait laissée plutôt que sur le tableau de bord.
+const NAV_STATE_KEY = "penup_nav";
+function readSavedNav() { try { const o = JSON.parse(localStorage.getItem(NAV_STATE_KEY) || "null"); return o && o.tab && TABS.some((x) => x.id === o.tab) ? { tab: o.tab, focus: o.focus || null } : null; } catch (e) { return null; } }
 const clone = (x) => typeof structuredClone !== "undefined" ? structuredClone(x) : JSON.parse(JSON.stringify(x));
 
 // ============== PIPELINE KANBAN (deals par étape) ==============
@@ -4574,9 +4629,12 @@ export default function App() {
   const undoRef = useRef(null); const [canUndo, setCanUndo] = useState(false);
   // Onglet actif mémorisé : au rechargement (ou après une mise à jour / redéploiement), on revient
   // sur le dernier onglet consulté plutôt que sur le tableau de bord. L'id est validé contre TABS.
-  const [tab, setTab] = useState(() => { try { const t = localStorage.getItem("penup_activeTab"); return t && TABS.some((x) => x.id === t) ? t : "dash"; } catch { return "dash"; } });
-  useEffect(() => { try { localStorage.setItem("penup_activeTab", tab); } catch (e) { } }, [tab]);
-  const [focus, setFocus] = useState(null); const [navKey, setNavKey] = useState(0);
+  // Au démarrage, on restaure l'onglet ET la fiche ouverte de la dernière session : après une mise à
+  // jour du logiciel ou un simple rechargement, on reste là où on naviguait, pas sur le tableau de bord.
+  const [tab, setTab] = useState(() => { const o = readSavedNav(); return o ? o.tab : "dash"; });
+  const [focus, setFocus] = useState(() => { const o = readSavedNav(); return o ? o.focus : null; });
+  const [navKey, setNavKey] = useState(0);
+  useEffect(() => { try { localStorage.setItem(NAV_STATE_KEY, JSON.stringify({ tab, focus })); } catch (e) { } }, [tab, focus]);
   const [navOpen, setNavOpen] = useState(false); // tiroir de navigation (mobile)
   const [cmdkOpen, setCmdkOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -4708,7 +4766,7 @@ export default function App() {
   const loadDemo = useCallback(() => { appConfirm("Charger un jeu de données de démonstration ? Cela remplace les données actuelles.", { title: "Charger la démo ?", confirmLabel: "Charger" }).then((ok) => { if (ok) persist(() => normalize(buildSeed())); }); }, [persist]);
   // Historique de navigation interne (onglet + fiche ouverte) : flèches Précédent / Suivant + Accueil.
   // Chaque navigation (onglet, ouverture d'une fiche via go) empile une « localisation » {tab, focus}.
-  const navHist = useRef({ stack: [{ tab: "dash", focus: null }], pos: 0 });
+  const navHist = useRef({ stack: [readSavedNav() || { tab: "dash", focus: null }], pos: 0 });
   const [navBtns, setNavBtns] = useState({ back: false, fwd: false });
   const syncNavBtns = useCallback(() => { const h = navHist.current; setNavBtns({ back: h.pos > 0, fwd: h.pos < h.stack.length - 1 }); }, []);
   const navPush = useCallback((tab, focus) => {
