@@ -7,7 +7,7 @@ import {
   ChevronLeft, ArrowUpRight, ArrowDownLeft, Linkedin, User, Briefcase,
   Calculator, Percent, Truck, ArrowRightLeft, RefreshCw, Eye, Printer,
   LifeBuoy, Repeat, Zap, Map as MapIcon, Send, ExternalLink, Link2,
-  Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon, Palette, Mic, MessageSquare,
+  Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon, Palette, Mic, MessageSquare, Video,
   Download, Paperclip, Moon, Sun, ChevronRight, CalendarDays,
   GitBranch, MoreHorizontal, Filter, Save, FileDown, Clock, ArrowDown, ArrowUp,
   Globe, Facebook, Instagram, Menu, Home
@@ -202,9 +202,9 @@ function assignClientCodes(accounts) {
     return { ...a, code: pfx + "-" + String(counters[pfx]).padStart(3, "0") };
   });
 }
-const INT_META = { email: { label: "Courriel", color: "#5b8def", icon: Mail }, appel: { label: "Appel", color: "#2bb673", icon: Phone }, rdv: { label: "RDV", color: "#7c5cf0", icon: Calendar }, note: { label: "Note", color: "#9aa6bd", icon: Pencil } };
+const INT_META = { email: { label: "Courriel", color: "#6366F1", icon: Mail }, appel: { label: "Appel", color: "#0EA5A4", icon: Phone }, visio: { label: "Visio", color: "#2563EB", icon: Video }, rdv: { label: "RDV", color: "#A855F7", icon: Calendar }, linkedin: { label: "LinkedIn", color: "#0A66C2", icon: Linkedin }, note: { label: "Note", color: "#94A3B8", icon: Pencil } };
 // Sujets d'échange proposés (liste déroulante) — la saisie libre reste possible.
-const SUJET_PRESETS = ["Prise de contact", "Présentation de la gamme", "Présentation des nouveautés", "Demande de devis", "Envoi de devis", "Relance devis", "Négociation tarifaire", "Conditions commerciales", "Référencement", "Prise de commande", "Suivi de commande", "Livraison", "Réassort", "Point de suivi", "Prise de rendez-vous", "Compte rendu de rendez-vous", "Réclamation / SAV", "Remerciements"].sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+const SUJET_PRESETS = ["Prise de contact", "Appel découverte", "Présentation de la gamme", "Présentation des nouveautés", "Demande de devis", "Envoi de devis", "Relance devis", "Négociation tarifaire", "Conditions commerciales", "Référencement", "Prise de commande", "Suivi de commande", "Livraison", "Réassort", "Mise en avant produit", "Offre promotionnelle", "Formation produit", "Envoi d'échantillon", "Invitation salon", "Rendez-vous visio", "Point de suivi", "Prise de nouvelles", "Prise de rendez-vous", "Compte rendu de rendez-vous", "Demande d'avis", "Réclamation / SAV", "Remerciements"].sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
 const SAV_CANAL = { livraison: "Livraison", produit: "Produit", client: "Client final", autre: "Autre" };
 const SAV_STATUT = { ouvert: { label: "Ouvert", color: "#FF5A45" }, en_cours: { label: "En cours", color: "#F8B133" }, resolu: { label: "Résolu", color: "#2bb673" }, clos: { label: "Clos", color: "#9aa6bd" } };
 const SAV_GRAV = { mineur: { label: "Mineur", color: "#9aa6bd" }, majeur: { label: "Majeur", color: "#F8B133" }, critique: { label: "Critique", color: "#CD2A24" } };
@@ -1080,6 +1080,7 @@ body{background:var(--bg);}
 .sb-brandfoot:hover img{opacity:.78;}
 .sb-foot{padding:12px 8px 0;border-top:1px solid var(--line);color:var(--muted);font-size:11px;}
 .main{flex:1;min-width:0;padding:26px 30px 60px;position:relative;z-index:1;}
+.main::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-image:radial-gradient(currentColor 0.5px,transparent 0.6px);background-size:22px 22px;opacity:.028;}
 .sb{position:relative;z-index:2;}
 .pu-root::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-repeat:repeat;}
 ${THEME_BG_CSS}
@@ -1249,6 +1250,7 @@ ${ACCENT_CSS}
 .cal-month{min-width:150px;}
 .cal-ev{font-size:11px;padding:3px 6px;border-radius:6px;background:#eef2fb;color:var(--ink);cursor:pointer;border-left:3px solid var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;align-self:stretch;}
 .cal-ev:hover{background:var(--blue-l);}
+.cal-ev-sub{color:var(--muted);font-weight:400;}
 
 /* Pièces jointes */
 .attach-list{display:flex;flex-direction:column;gap:6px;}
@@ -1959,6 +1961,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
   const [addC, setAddC] = useState(null);
   const [preview, setPreview] = useState(null);
   const [addInt, setAddInt] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [intEdit, setIntEdit] = useState(null);
   const [dealEdit, setDealEdit] = useState(null);
   const [eventEdit, setEventEdit] = useState(null);
@@ -2038,7 +2041,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
       </div>
     </div>
     <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "start", marginTop: 16 }}>
-      <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MessageSquare size={15} />Fil des échanges</h3><button className="btn btn-y btn-s" onClick={() => setAddInt(true)}><Plus size={14} /> Ajouter</button></div>
+      <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MessageSquare size={15} />Fil des échanges</h3><div style={{ display: "flex", gap: 6 }}><button className="btn btn-g btn-s" onClick={() => setChatOpen(true)} title="Discuter avec l'IA à propos de ce compte (contacts, échanges, devis)"><Sparkles size={14} /> Chat IA</button><button className="btn btn-y btn-s" onClick={() => setAddInt(true)}><Plus size={14} /> Ajouter</button></div></div>
         <InteractionThread interactions={ints} data={data} onView={(it) => setIntView(it)} onEdit={(it) => setIntEdit(it)} onDelete={delInteraction} showContact />
       </div>
       <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><Paperclip size={15} />Pièces jointes</h3><div><input ref={fileRef} type="file" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) uploadFile(f); e.target.value = ""; }} /><button className="btn btn-y btn-s" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={14} /> Téléverser</button></div></div>
@@ -2048,6 +2051,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
     </div>
     {preview && <DevisPreview deal={preview} account={acc} settings={data.settings} products={data.products} onClose={() => setPreview(null)} />}
     {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><AccountInteractionForm contactId={siteContacts[0]?.id || ""} accountId={s.accountId} contacts={siteContacts} onCancel={() => setAddInt(false)} onSave={(it) => { addInteraction({ ...it, siteId: s.id }); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: s.accountId, siteId: s.id, contactId: f.contactId || "" })] }))} /></Modal>}
+    {chatOpen && <EstablishmentChat account={acc} site={s} contacts={siteContacts} interactions={ints} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setChatOpen(false)} />}
     {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={s.accountId} contacts={siteContacts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction({ ...it, siteId: s.id }); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: s.accountId, siteId: s.id, contactId: f.contactId || "" })] }))} /></Modal>}
     {dealEdit && <Modal title={(dealEdit.ref || "Document") + " · " + dealEdit.type} onClose={() => setDealEdit(null)} xl><DealForm deal={dealEdit} accounts={data.accounts} products={data.products} sites={data.sites} onPreview={(d) => setPreview(d)} onSave={(d) => { saveDeal(d); setDealEdit(null); }} /></Modal>}
     {edit && <Modal title="Modifier l'établissement" onClose={() => setEdit(null)} wide><SiteForm site={edit} accounts={data.accounts} contacts={data.contacts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onOpenContact={(cid) => { setEdit(null); go("repertoire", cid); }} onCreateContact={(c) => persist((p) => ({ ...p, contacts: [...p.contacts, c] }))} known={collectKnownAddresses(data)} onSave={(x) => { saveSite(x); setEdit(null); }} /></Modal>}
@@ -2068,6 +2072,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   const pdvSites = accSites.filter((s) => s.type === "pdv");
   const [preview, setPreview] = useState(null);
   const [addInt, setAddInt] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [intEdit, setIntEdit] = useState(null);
   const [intView, setIntView] = useState(null);
   const [siteEdit, setSiteEdit] = useState(null);
@@ -2161,7 +2166,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
       </div>
     </div>
     <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "start", marginTop: 16 }}>
-      <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MessageSquare size={15} />Fil des échanges</h3><button className="btn btn-y btn-s" onClick={() => setAddInt(true)}><Plus size={14} /> Ajouter</button></div>
+      <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MessageSquare size={15} />Fil des échanges</h3><div style={{ display: "flex", gap: 6 }}><button className="btn btn-g btn-s" onClick={() => setChatOpen(true)} title="Discuter avec l'IA à propos de ce compte (contacts, échanges, devis)"><Sparkles size={14} /> Chat IA</button><button className="btn btn-y btn-s" onClick={() => setAddInt(true)}><Plus size={14} /> Ajouter</button></div></div>
         <InteractionThread interactions={accInteractions} data={data} onView={(it) => setIntView(it)} onEdit={(it) => setIntEdit(it)} onDelete={delInteraction} showContact />
       </div>
       <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><Paperclip size={15} />Pièces jointes</h3><div><input ref={fileRef} type="file" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) uploadFile(f); e.target.value = ""; }} /><button className="btn btn-y btn-s" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={14} /> Téléverser</button></div></div>
@@ -2171,6 +2176,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
     </div>
     {preview && <DevisPreview deal={preview} account={a} settings={data.settings} products={data.products} onClose={() => setPreview(null)} />}
     {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><AccountInteractionForm contactId={conts[0]?.id || ""} accountId={a.id} contacts={conts} onCancel={() => setAddInt(false)} onSave={(it) => { addInteraction(it); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: a.id, contactId: f.contactId || "" })] }))} /></Modal>}
+    {chatOpen && <EstablishmentChat account={a} contacts={conts} interactions={accInteractions} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setChatOpen(false)} />}
     {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={a.id} contacts={conts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: a.id, contactId: f.contactId || "" })] }))} /></Modal>}
     {siteEdit && <Modal title={data.sites.some((x) => x.id === siteEdit.id) ? "Modifier le site" : (siteEdit.type === "decision" ? "Nouveau siège" : "Nouvel établissement")} onClose={() => setSiteEdit(null)} wide><SiteForm site={siteEdit} accounts={data.accounts} contacts={data.contacts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onOpenContact={(cid) => { setSiteEdit(null); go("repertoire", cid); }} onCreateContact={(c) => persist((p) => ({ ...p, contacts: [...p.contacts, c] }))} known={collectKnownAddresses(data)} onSave={(x) => { saveSite(x); setSiteEdit(null); }} /></Modal>}
     {eventEdit && <Modal title={(data.events || []).some((e) => e.id === eventEdit.id) ? "Modifier l'événement" : "Nouvel événement"} onClose={() => setEventEdit(null)}><EventForm event={eventEdit} accounts={data.accounts} onSave={(ev) => { saveEvent(ev); setEventEdit(null); }} onDelete={() => { delEvent(eventEdit.id); setEventEdit(null); }} isExisting={(data.events || []).some((e) => e.id === eventEdit.id)} /></Modal>}
@@ -2194,6 +2200,15 @@ async function aiRephrase(text, persistUsage) {
 // Génération de texte par l'IA (e-mail, message LinkedIn, suggestion d'action…).
 async function aiGenerate(system, user, persistUsage, maxTokens = 800) {
   const res = await fetch(CLAUDE_URL, { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, system, messages: [{ role: "user", content: user }] }) });
+  if (!res.ok) throw new Error("API " + res.status);
+  const dt = await res.json();
+  if (dt && dt.usage && persistUsage) persistUsage(dt.usage);
+  return (dt.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+}
+// Chat IA multi-tours : conserve l'historique de la conversation (messages user/assistant) avec un
+// prompt système porteur du contexte. Réutilise le relais /api/claude (jeton Clerk, clé jamais exposée).
+async function aiChat(system, messages, persistUsage, maxTokens = 700) {
+  const res = await fetch(CLAUDE_URL, { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: maxTokens, system, messages }) });
   if (!res.ok) throw new Error("API " + res.status);
   const dt = await res.json();
   if (dt && dt.usage && persistUsage) persistUsage(dt.usage);
@@ -2364,6 +2379,81 @@ function MessageComposer({ contact, account, interactions = [], deals = [], onUs
     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}><button className="btn btn-p" onClick={gen} disabled={busy}><Sparkles size={15} className={busy ? "spin" : ""} /> {busy ? "Rédaction…" : "Générer"}</button></div>
     {out && <><textarea rows={canal === "email" ? 12 : 6} value={out} onChange={(e) => setOut(e.target.value)} style={{ width: "100%" }} /><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8, flexWrap: "wrap" }}>{canal === "email" && contact.email && <button className="btn btn-p" onClick={sendViaGmail} disabled={sending} title="Envoyer directement depuis la boîte Gmail connectée (signature auto)"><Send size={15} className={sending ? "spin" : ""} /> {sending ? "Envoi…" : "Envoyer via Gmail"}</button>}{canal === "email" && contact.email && <a className="btn btn-g" href={"mailto:" + contact.email + "?subject=" + encodeURIComponent((out.match(/^Objet\s*:\s*(.*)$/im) || [, "PEN'UP 3D"])[1]) + "&body=" + encodeURIComponent(out.replace(/^Objet\s*:.*\n?/i, "").trim())}><Mail size={15} /> Ouvrir dans le client mail</a>}<button className="btn btn-g" onClick={copy}><Copy size={15} /> {copied ? "Copié !" : "Copier"}</button></div>{sentMsg && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 8, textAlign: "right", color: sentMsg.startsWith("❌") ? "var(--red)" : "var(--green)" }}>{sentMsg}</div>}</>}
     <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Brouillon généré par l'IA — à relire et personnaliser avant envoi. « Envoyer via Gmail » nécessite l'intégration Gmail configurée (voir Intégrations).</p>
+  </Modal>);
+}
+// Construit le dossier complet d'un compte (groupe / établissement) transmis au chat IA :
+// entreprise, établissement, contacts, derniers échanges et devis. Aucune donnée inventée.
+function buildEstablishmentContext({ account, site, contacts = [], interactions = [], deals = [] }) {
+  const L = [];
+  if (account) {
+    L.push("ENTREPRISE / GROUPE :");
+    L.push("- Enseigne : " + (account.enseigne || "—"));
+    if (account.nature && NATURE_META[account.nature]) L.push("- Activité : " + NATURE_META[account.nature].label);
+    if (account.stage) L.push("- Étape du cycle commercial : " + stageMeta(account.stage).label);
+    if (account.ville) L.push("- Ville : " + account.ville);
+    if (account.magasins) L.push("- Réseau : " + magasinLabel(account.magasins));
+    if (account.notes) L.push("- Notes internes : " + account.notes);
+  }
+  if (site) {
+    L.push(""); L.push("ÉTABLISSEMENT :");
+    if (site.label) L.push("- Nom : " + site.label);
+    const adr = [site.adresse, site.cp, site.ville].filter(Boolean).join(" ");
+    if (adr) L.push("- Adresse : " + adr);
+    if (site.telephone) L.push("- Téléphone : " + site.telephone);
+    if (site.notes) L.push("- Notes : " + site.notes);
+  }
+  if (contacts.length) {
+    L.push(""); L.push("CONTACTS (" + contacts.length + ") :");
+    contacts.slice(0, 12).forEach((c) => L.push("- " + fullName(c) + (c.fonction ? " · " + c.fonction : "") + (c.role && ROLE_META[c.role] ? " · " + ROLE_META[c.role].label : "") + (c.email ? " · " + c.email : "")));
+  }
+  const recent = (interactions || []).slice(0, 8);
+  if (recent.length) {
+    L.push(""); L.push("DERNIERS ÉCHANGES (du plus récent au plus ancien) :");
+    recent.forEach((i) => { const tm = INT_META[i.type] || {}; L.push("- " + (i.date || "") + " · " + (tm.label || i.type) + " " + (i.direction === "entrant" ? "(reçu)" : i.direction === "sortant" ? "(envoyé)" : "") + (i.sujet ? " — " + i.sujet : "") + (i.resume ? " : " + i.resume : "")); });
+  }
+  const rd = (deals || []).slice(0, 6);
+  if (rd.length) {
+    L.push(""); L.push("DEVIS / COMMANDES :");
+    rd.forEach((d) => L.push("- " + (d.date || "") + " · " + (d.type || "document") + " " + (d.ref || "") + " — " + eur(d.montant || 0) + (d.statut ? " (" + d.statut + ")" : "")));
+  }
+  return L.join("\n") || "Aucune donnée renseignée pour ce compte.";
+}
+// Chat IA contextualisé sur UN compte (groupe ou établissement) : conversation multi-tours qui
+// s'appuie sur le dossier complet (contacts, échanges, devis) pour analyser, conseiller et rédiger.
+function EstablishmentChat({ account, site, contacts = [], interactions = [], deals = [], onUsage, onClose }) {
+  const titre = (site && (site.label || site.adresse)) || (account && account.enseigne) || "Établissement";
+  const ctx = useMemo(() => buildEstablishmentContext({ account, site, contacts, interactions, deals }), [account, site, contacts, interactions, deals]);
+  const sys = "Tu es l'assistant commercial B2B de PEN'UP 3D (marque française de stylos 3D et de loisirs créatifs pour enfants, distribuée chez des revendeurs de jouets). Tu assistes le commercial sur CE dossier précis. Réponds en français, de façon concrète, utile et concise. Tu peux : analyser l'historique des échanges, proposer la prochaine action, suggérer des arguments adaptés à ce point de vente, aider à préparer un appel, rédiger un brouillon de message. Tu t'APPUIES sur le dossier ci-dessous et n'inventes AUCUN chiffre, date, fait ni engagement absent du dossier.\n\nDOSSIER DU COMPTE :\n" + ctx;
+  const [msgs, setMsgs] = useState([{ role: "bot", text: "Bonjour ! Je connais le dossier « " + titre + " » (contacts, échanges, devis). Posez une question, ou demandez une analyse, des arguments de vente ou un brouillon de message." }]);
+  const [input, setInput] = useState(""); const [busy, setBusy] = useState(false);
+  const scrollRef = useRef(null);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [msgs, busy]);
+  const send = async (text) => {
+    const t = (text != null ? text : input).trim(); if (!t || busy) return;
+    const next = [...msgs, { role: "user", text: t }];
+    setMsgs(next); setInput(""); setBusy(true);
+    try {
+      const hist = next.filter((m, i) => !(i === 0 && m.role === "bot")).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }));
+      while (hist.length && hist[0].role !== "user") hist.shift();
+      const reply = await aiChat(sys, hist.slice(-10), onUsage, 700);
+      setMsgs((m) => [...m, { role: "bot", text: sanitizeAIText(reply) || "…" }]);
+    } catch (e) { setMsgs((m) => [...m, { role: "bot", text: "Désolé, l'assistant IA est indisponible ici (il fonctionne dans l'app connectée au serveur relais)." }]); }
+    finally { setBusy(false); }
+  };
+  const quick = ["Quelle est la prochaine action à mener ?", "Résume notre relation en 3 points", "Quels arguments pour référencer ce magasin ?", "Rédige une relance courte"];
+  return (<Modal title={"Chat IA — " + titre} onClose={onClose} wide>
+    <div ref={scrollRef} style={{ height: 360, maxHeight: "55vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: "4px 2px 8px" }}>
+      {msgs.map((m, i) => (<div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "88%" }}>
+        <div style={{ padding: "9px 12px", borderRadius: 14, fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap", background: m.role === "user" ? "var(--blue)" : "var(--bg)", color: m.role === "user" ? "#fff" : "var(--ink)", border: m.role === "user" ? "none" : "1px solid var(--line)" }}>{m.text}</div>
+      </div>))}
+      {busy && <div style={{ alignSelf: "flex-start", padding: "9px 12px", borderRadius: 14, fontSize: 13, background: "var(--bg)", border: "1px solid var(--line)", color: "var(--muted)" }}>L'assistant réfléchit…</div>}
+    </div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "8px 0" }}>{quick.map((q) => <button key={q} type="button" className="btn btn-g btn-s" onClick={() => send(q)} disabled={busy} style={{ fontWeight: 600 }}>{q}</button>)}</div>
+    <div style={{ display: "flex", gap: 8 }}>
+      <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} disabled={busy} placeholder="Posez votre question sur ce compte…" style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 11, padding: "10px 12px", fontFamily: "inherit", fontSize: 13.5 }} autoFocus />
+      <button className="btn btn-p" onClick={() => send()} disabled={busy}><Send size={16} className={busy ? "spin" : ""} /></button>
+    </div>
+    <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>L'IA s'appuie sur le dossier de ce compte (contacts, échanges, devis). À vérifier avant d'agir.</p>
   </Modal>);
 }
 function AccountInteractionForm({ contactId, accountId, contacts, onCancel, onSave, interaction, onUsage, onPlanEvents }) {
@@ -4263,13 +4353,16 @@ function PipelineKanban({ data, persist, go, embedded }) {
 // Types d'événements personnalisés du calendrier (couleur dérivée du type, surchargeable)
 const EVENT_TYPES = {
   rdv: { label: "RDV / Rencontre", color: "#3F60AA", icon: "🤝" },
-  relance: { label: "Relance commerciale", color: "#F8B133", icon: "🔔" },
-  salon: { label: "Salon / Événement pro", color: "#7c5cf0", icon: "🎪" },
-  preparation: { label: "Préparation", color: "#5b8def", icon: "📋" },
-  tache: { label: "Tâche perso", color: "#2bb673", icon: "✅" },
-  echeance: { label: "Échéance / Deadline", color: "#FF5A45", icon: "⏰" },
-  livraison: { label: "Livraison attendue", color: "#16203a", icon: "📦" },
-  autre: { label: "Autre", color: "#9aa6bd", icon: "•" },
+  appel: { label: "Appel téléphonique", color: "#0EA5A4", icon: "📞" },
+  visio: { label: "Visioconférence", color: "#2563EB", icon: "💻" },
+  relance: { label: "Relance commerciale", color: "#F59E0B", icon: "🔔" },
+  salon: { label: "Salon / Événement pro", color: "#A855F7", icon: "🎪" },
+  preparation: { label: "Préparation", color: "#0891B2", icon: "📋" },
+  tache: { label: "Tâche perso", color: "#22C55E", icon: "✅" },
+  sav: { label: "SAV / Réclamation", color: "#EC4899", icon: "🛠️" },
+  echeance: { label: "Échéance / Deadline", color: "#EF4444", icon: "⏰" },
+  livraison: { label: "Livraison attendue", color: "#475569", icon: "📦" },
+  autre: { label: "Autre", color: "#94A3B8", icon: "•" },
 };
 
 // ====== Export du calendrier au format .ics (iCalendar) ======
@@ -4417,7 +4510,7 @@ function Agenda({ data, persist, go }) {
         {cells.map((c, i) => { const ds = fmtDate(c.y, c.m, c.day); const evs = eventsByDate[ds] || []; const isToday = ds === todayStr; return (
           <div key={i} className={cx("cal-cell", c.out && "cal-out", isToday && "cal-today")} onDoubleClick={() => setEdit(newEvent(ds))} style={{ cursor: "pointer" }} title="Double-clic pour ajouter un événement à cette date">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div className="cal-num">{c.day}</div><button className="iconbtn" style={{ width: 18, height: 18, opacity: .5 }} onClick={(e) => { e.stopPropagation(); setEdit(newEvent(ds)); }} title="Ajouter un événement ce jour"><Plus size={11} /></button></div>
-            {evs.slice(0, 4).map((e, j) => (<div key={j} className="cal-ev" style={{ borderLeftColor: e.color }} title={e.label + (e.sub ? " — " + e.sub : "")} onClick={(ee) => { ee.stopPropagation(); if (e.kind === "custom") setView(e.ev); else if (e.target) go(e.target.tab, e.target.id); }}>{e.label}</div>))}
+            {evs.slice(0, 4).map((e, j) => (<div key={j} className="cal-ev" style={{ borderLeftColor: e.color }} title={e.label + (e.sub ? " — " + e.sub : "")} onClick={(ee) => { ee.stopPropagation(); if (e.kind === "custom") setView(e.ev); else if (e.target) go(e.target.tab, e.target.id); }}>{e.label}{e.sub && <span className="cal-ev-sub"> · {e.sub}</span>}</div>))}
             {evs.length > 4 && <div style={{ fontSize: 10, color: "var(--muted)", textAlign: "center" }}>+{evs.length - 4}</div>}
           </div>
         ); })}
@@ -4450,7 +4543,7 @@ function EventForm({ event, accounts, onSave, onDelete, isExisting }) {
     <div className="fld"><label>Titre</label><input value={f.titre} onChange={(e) => up("titre", e.target.value)} placeholder="Ex : Relancer Cultura, Salon du jouet, Préparer pitch…" autoFocus /></div>
     <div className="row2"><div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div><div className="fld"><label>Heure (optionnel)</label><input type="time" value={f.heure} onChange={(e) => up("heure", e.target.value)} /></div></div>
     <div className="fld"><label>Groupe / établissement lié (optionnel)</label><select value={f.accountId} onChange={(e) => up("accountId", e.target.value)}><option value="">Aucune</option><AccountOptions accounts={accounts} /></select></div>
-    <div className="fld"><label>Couleur (par défaut selon le type, modifiable)</label><div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>{["#2bb673", "#3F60AA", "#F8B133", "#FF5A45", "#7c5cf0", "#5b8def", "#16203a", "#9aa6bd"].map((c) => <button key={c} type="button" onClick={() => up("color", c)} style={{ width: 28, height: 28, borderRadius: 8, background: c, border: f.color === c ? "3px solid var(--ink)" : "1px solid var(--line)", cursor: "pointer" }} />)}<span style={{ fontSize: 11, color: "var(--muted)" }}>{f.color === EVENT_TYPES[f.type]?.color ? "couleur du type" : "couleur personnalisée"}</span></div></div>
+    <div className="fld"><label>Couleur (par défaut selon le type, modifiable)</label><div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>{["#22C55E", "#3F60AA", "#0EA5A4", "#2563EB", "#F59E0B", "#A855F7", "#0891B2", "#EC4899", "#EF4444", "#475569", "#94A3B8"].map((c) => <button key={c} type="button" onClick={() => up("color", c)} style={{ width: 28, height: 28, borderRadius: 8, background: c, border: f.color === c ? "3px solid var(--ink)" : "1px solid var(--line)", cursor: "pointer" }} />)}<span style={{ fontSize: 11, color: "var(--muted)" }}>{f.color === EVENT_TYPES[f.type]?.color ? "couleur du type" : "couleur personnalisée"}</span></div></div>
     <div className="fld"><label>Notes</label><textarea rows={3} value={f.notes} onChange={(e) => up("notes", e.target.value)} placeholder="Détails, points à préparer, lien de visio…" /></div>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>{isExisting ? <button className="btn btn-r btn-s" onClick={onDelete}><Trash2 size={14} /> Supprimer</button> : <span />}<button className="btn btn-p" onClick={() => onSave(f)} disabled={!f.titre || !f.date}>Enregistrer</button></div>
   </>);
