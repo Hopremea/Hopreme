@@ -1035,7 +1035,7 @@ const THEME_PATTERNS = [
   { id: "honeycomb", label: "Nid d'abeille", fn: honeycombSVG, size: "56px 96px", op: 0.4 },
   { id: "chevron", label: "Chevrons", fn: chevronSVG, size: "60px 34px", op: 0.42 },
   { id: "cross", label: "Croix", fn: crossSVG, size: "48px 48px", op: 0.45 },
-  { id: "scales", label: "Écailles", fn: scalesSVG, size: "48px 24px", op: 0.4 },
+  { id: "scales", label: "Écailles", fn: scalesSVG, size: "48px 48px", op: 0.4 },
   { id: "bubbles", label: "Bulles", fn: bubblesSVG, size: "90px 90px", op: 0.4 },
   { id: "diaglines", label: "Lignes obliques", fn: diagLinesSVG, size: "24px 24px", op: 0.4 },
 ];
@@ -1443,7 +1443,7 @@ body:not(.doc-print) .print-area{position:absolute!important;left:0;top:0;width:
 }
 
 /* ===== Carte de prévisualisation au survol prolongé (~0,65 s) ===== */
-.dwell-card{position:fixed;z-index:9999;pointer-events:none;width:max-content;max-width:300px;min-width:212px;box-sizing:border-box;padding:12px 13px;background:var(--card,#fff);color:var(--ink,#1a2233);border:1px solid var(--line,#e6e8ee);border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.06),0 16px 40px -12px rgba(15,23,42,.32);font-size:12.5px;line-height:1.4;border-top:3px solid var(--dw-accent,#3F60AA);}
+.dwell-card{position:fixed;z-index:45;pointer-events:none;width:max-content;max-width:300px;min-width:212px;box-sizing:border-box;padding:12px 13px;background:var(--card,#fff);color:var(--ink,#1a2233);border:1px solid var(--line,#e6e8ee);border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.06),0 16px 40px -12px rgba(15,23,42,.32);font-size:12.5px;line-height:1.4;border-top:3px solid var(--dw-accent,#3F60AA);}
 @media (prefers-reduced-motion: no-preference){.dwell-card{animation:dwellIn .16s cubic-bezier(.2,.8,.3,1) both;transform-origin:top left;}}
 @keyframes dwellIn{from{opacity:0;transform:translateY(5px) scale(.97);}to{opacity:1;transform:none;}}
 .dwell-head{display:flex;align-items:flex-start;gap:9px;}
