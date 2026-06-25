@@ -549,13 +549,16 @@ function deriveStage(account, d) {
   const siteIds = new Set((d.sites || []).filter((s) => s.accountId === accId).map((s) => s.id));
   const contactIds = new Set((d.contacts || []).filter((c) => c.accountId === accId).map((c) => c.id));
   const rel = (x) => x && (x.accountId === accId || (x.siteId && siteIds.has(x.siteId)) || (x.contactId && contactIds.has(x.contactId)));
-  const orders = (d.deals || []).filter((x) => x.accountId === accId && ((x.type === "Commande" && x.statut !== "refuse") || isCaSigne(x)));
+  // Bon de commande réel : une Commande engagée (ni brouillon ni refusée) OU un document signé non
+  // déjà converti en commande (évite de compter deux fois un devis signé puis transformé en commande).
+  const orders = (d.deals || []).filter((x) => x.accountId === accId && ((x.type === "Commande" && x.statut !== "brouillon" && x.statut !== "refuse") || (x.type !== "Commande" && isCaSigne(x) && !x.converti)));
   if (orders.length >= 2) return "actif";
   if (orders.length >= 1) return "referencement";
   const ints = (d.interactions || []).filter(rel);
   const hasRdv = (d.events || []).some((e) => rel(e) && (e.type === "rdv" || e.type === "visio")) || ints.some((i) => i.type === "rdv" || i.type === "visio");
   if (hasRdv) return "rdv";
-  if (ints.some((i) => i.type !== "note")) return "contact";
+  // Démarché = NOUS avons engagé le contact : un échange réel (hors note) qui n'est pas purement entrant.
+  if (ints.some((i) => i.type !== "note" && i.direction !== "entrant")) return "contact";
   return "prospect";
 }
 // Reclasse les comptes (sauf ceux figés à la main) : avance l'étape vers la valeur déduite si elle est
@@ -982,7 +985,7 @@ function computeKPIs(data) {
   const clients = (stageCounts["referencement"] || 0) + actifs; // comptes ayant passé au moins une commande
   const tauxRefer = totalAcc > 0 ? clients / totalAcc * 100 : null;
   // 5b. Durée moyenne de cycle (prospect -> actif) : nécessite l'historique des étapes (stageLog)
-  const cycles = []; (data.accounts || []).forEach((a) => { const log = a.stageLog || []; const first = log[0]; const toActif = log.find((e) => e.stage === "actif"); if (first && toActif) { const dd = (new Date(toActif.date) - new Date(first.date)) / (1000 * 60 * 60 * 24); if (dd >= 0) cycles.push(dd); } });
+  const cycles = []; (data.accounts || []).forEach((a) => { const log = a.stageLog || []; const first = log[0]; const toActif = log.find((e) => e.stage === "actif"); if (first && toActif) { const dd = (new Date(toActif.date) - new Date(first.date)) / (1000 * 60 * 60 * 24); if (dd > 0) cycles.push(dd); } });
   const cycleMoy = cycles.length ? Math.round(cycles.reduce((s, x) => s + x, 0) / cycles.length) : null;
   // 6. Trésorerie : DSO (délai de paiement) à partir des factures ayant une date de paiement
   const fact = (data.deals || []).filter((d) => d.type === "Facture" && d.date && d.datePaiement);
@@ -2823,7 +2826,7 @@ function AccountForm({ acc, accounts, onSave, known = [], onUsage }) {
   return (<>
     <div className="fld"><label>Nom (groupe ou établissement)</label><Combo value={f.enseigne} onChange={(v) => up("enseigne", v)} options={ENSEIGNES_SUGG} placeholder="Cultura, L'Atelier Chez Soi…" /></div>
     {dup && <div className="dup-warn"><AlertTriangle size={15} /> Un compte nommé « {dup.enseigne} » existe déjà. Vérifiez avant d'enregistrer pour éviter un doublon.</div>}
-    <div className="fld"><label>Étape de l'entonnoir</label><select value={f.stage} disabled={f.stageAuto !== false} onChange={(e) => { up("stage", e.target.value); up("stageAuto", false); }}>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select><label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--muted)", marginTop: 7, fontWeight: 600, cursor: "pointer" }}><input type="checkbox" checked={f.stageAuto !== false} onChange={(e) => up("stageAuto", !!e.target.checked)} style={{ width: "auto" }} /> Classer automatiquement selon l'avancement (échanges, RDV, commandes)</label></div>
+    <div className="fld"><label>Étape de l'entonnoir</label><select value={f.stage} disabled={f.stageAuto !== false} onChange={(e) => { up("stage", e.target.value); up("stageAuto", false); }}>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select><label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--muted)", marginTop: 7, fontWeight: 600, cursor: "pointer" }}><input type="checkbox" checked={f.stageAuto !== false} onChange={(e) => up("stageAuto", !!e.target.checked)} style={{ width: "auto" }} /> Classer automatiquement selon l'avancement (échanges, RDV, commandes)</label>{f.stageAuto !== false && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>L'étape avance toute seule (jamais en arrière) et se met à jour à chaque enregistrement. Décochez pour la fixer à la main.</span>}</div>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button type="button" className="btn btn-ai btn-s" onClick={autofill} disabled={aiBusy || !f.enseigne} title="Compléter forme juridique, SIREN, ville et adresse à partir des registres officiels (ne remplit que les champs vides)"><Sparkles size={14} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Compléter les champs vides avec l'IA"}</button></div>
     {aiMsg && <div style={{ fontSize: 12, lineHeight: 1.5, padding: "8px 11px", borderRadius: 9, background: aiMsg.ok ? "#eef6ee" : "#fbf0ee", border: "1px solid " + (aiMsg.ok ? "#bfe0c0" : "#f0c8c0") }}>{aiMsg.t}</div>}
     <div className="row2"><div className="fld"><label>Nature du client (définit le code)</label><select value={f.nature || ""} onChange={(e) => up("nature", e.target.value)}><option value="">— à préciser —</option>{NATURE_ORDER.map((k) => <option key={k} value={k}>{k} · {NATURE_META[k].label}</option>)}</select></div><div className="fld"><label>Code client</label><div style={{ display: "flex", gap: 6, alignItems: "center" }}><input value={f.code || ""} readOnly placeholder={isClientCode(f.code) ? "" : "attribué à l'enregistrement"} style={{ fontWeight: 700, letterSpacing: ".04em", background: "var(--bg)" }} />{isClientCode(f.code) && <button type="button" className="btn btn-g btn-s" onClick={regen} title="Recalculer le code à partir de la nature actuelle (à n'utiliser que pour corriger une erreur de classification)"><RefreshCw size={13} /></button>}</div><span style={{ fontSize: 11, color: "var(--muted)" }}>Figé à la création. Modifier la nature ne change pas le code, sauf via le bouton de recalcul.</span></div></div>
