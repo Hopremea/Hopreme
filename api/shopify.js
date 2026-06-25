@@ -14,6 +14,26 @@ import { verifyToken } from "@clerk/backend";
 const API_VERSION = "2025-01";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Ramene une saisie utilisateur vers le domaine technique « xxx.myshopify.com ».
+// Gere : URL d'admin (https://admin.shopify.com/store/penup3d), domaine complet,
+// identifiant nu (penup3d), et nettoie protocole/chemin/espaces.
+function normalizeShopDomain(raw) {
+  let d = String(raw || "").trim().toLowerCase();
+  if (!d) return "";
+  d = d.replace(/^https?:\/\//, "");
+  // admin.shopify.com/store/<handle>  ->  <handle>.myshopify.com
+  const adminMatch = d.match(/admin\.shopify\.com\/store\/([a-z0-9][a-z0-9-]*)/);
+  if (adminMatch) return adminMatch[1] + ".myshopify.com";
+  d = d.replace(/\/.*$/, ""); // retire tout chemin
+  if (!d) return "";
+  // deja un *.myshopify.com  ->  tel quel
+  if (/\.myshopify\.com$/.test(d)) return d;
+  // identifiant nu (sans point)  ->  <handle>.myshopify.com
+  if (!d.includes(".") && /^[a-z0-9][a-z0-9-]*$/.test(d)) return d + ".myshopify.com";
+  // autre domaine fourni tel quel (ex. domaine personnalise pointant vers la boutique)
+  return d;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Methode non autorisee" });
@@ -56,8 +76,14 @@ export default async function handler(req, res) {
     }
   }
 
-  // Normalisation du domaine : on enleve un eventuel protocole et tout chemin.
-  const shop = rawDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").trim();
+  // Normalisation du domaine vers le domaine technique « xxx.myshopify.com », tolerante aux
+  // saisies courantes : URL d'admin (admin.shopify.com/store/<handle>), simple identifiant
+  // de boutique (<handle>), ou domaine deja correct. L'Admin API n'accepte que le myshopify.com.
+  const shop = normalizeShopDomain(rawDomain);
+  if (!shop) {
+    res.status(400).json({ error: "Domaine de boutique invalide. Attendu : « votre-boutique.myshopify.com »." });
+    return;
+  }
   const endpoint = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
 
   // Appel GraphQL avec gestion simple du throttling (code THROTTLED de Shopify).
