@@ -36,8 +36,11 @@ async function claudeHeaders() {
 
 // Lecture du stock Shopify via le relais serveur /api/shopify (token Admin protege cote serveur).
 // action « test » : verifie la connexion. action « sync » : renvoie les variantes (SKU + quantite).
-async function shopifyApi(action) {
-  const res = await fetch("/api/shopify", { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ action }) });
+async function shopifyApi(action, creds) {
+  const payload = { action };
+  if (creds && creds.domain) payload.domain = String(creds.domain).trim();
+  if (creds && creds.token) payload.token = String(creds.token).trim();
+  const res = await fetch("/api/shopify", { method: "POST", headers: await claudeHeaders(), body: JSON.stringify(payload) });
   let dt = {}; try { dt = await res.json(); } catch (e) {}
   if (!res.ok) throw new Error((dt && dt.error) ? dt.error : ("Erreur Shopify (" + res.status + ")"));
   return dt;
@@ -1048,7 +1051,10 @@ body{background:var(--bg);}
 .nav button:hover{background:var(--blue-l);color:var(--blue);}
 .nav button.on{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;box-shadow:0 6px 18px rgba(63,96,170,.28);}
 .nav button.on svg{color:#fff;}.nav .cnt{margin-left:auto;font-size:11px;background:rgba(255,255,255,.25);padding:1px 7px;border-radius:9px;}.nav button:not(.on) .cnt{background:#eef1f7;color:var(--muted);}
-.sb-foot{margin-top:auto;padding:12px 8px 0;border-top:1px solid var(--line);color:var(--muted);font-size:11px;}
+.sb-brandfoot{margin-top:auto;padding:6px 8px 12px;display:block;}
+.sb-brandfoot img{width:100%;max-width:160px;height:auto;display:block;margin:0 auto;transition:opacity .15s;}
+.sb-brandfoot:hover img{opacity:.78;}
+.sb-foot{padding:12px 8px 0;border-top:1px solid var(--line);color:var(--muted);font-size:11px;}
 .main{flex:1;min-width:0;padding:26px 30px 60px;position:relative;z-index:1;}
 .sb{position:relative;z-index:2;}
 .pu-root::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-repeat:repeat;}
@@ -2904,7 +2910,7 @@ function Stock({ data, persist }) {
   const syncShopify = async () => {
     setShopBusy(true); setShopMsg(null);
     try {
-      const dt = await shopifyApi("sync");
+      const dt = await shopifyApi("sync", { domain: data.settings.shopifyDomain, token: data.settings.shopifyToken });
       const { patch, matched } = shopifyStockPatch(products, dt.variants);
       const total = dt.count != null ? dt.count : (dt.variants ? dt.variants.length : 0);
       if (matched === 0) { setShopMsg("Shopify : aucun SKU ne correspond au catalogue (" + total + " variante(s))."); }
@@ -3945,10 +3951,14 @@ function Connexions({ data, persist }) {
   const [shopMsg, setShopMsg] = useState(null);
   const [shopBusy, setShopBusy] = useState(false);
   const shopSync = data._shopifySync || null;
+  const [shopDomain, setShopDomain] = useState(settings.shopifyDomain || "");
+  const [shopToken, setShopToken] = useState(settings.shopifyToken || "");
+  const [showTok, setShowTok] = useState(false);
+  const saveShopify = () => { persist((p) => ({ ...p, settings: { ...p.settings, shopifyDomain: shopDomain.trim(), shopifyToken: shopToken.trim() } })); setShopMsg("Identifiants Shopify enregistrés."); setTimeout(() => setShopMsg(null), 2200); };
   const runShopify = async (action) => {
     setShopBusy(true); setShopMsg(null);
     try {
-      const dt = await shopifyApi(action);
+      const dt = await shopifyApi(action, { domain: shopDomain, token: shopToken });
       if (action === "test") { const s = dt.shop || {}; setShopMsg("Connexion OK · " + (s.name || s.myshopifyDomain || "boutique") + (s.myshopifyDomain ? " (" + s.myshopifyDomain + ")" : "")); return; }
       const { patch, matched } = shopifyStockPatch(products, dt.variants);
       const total = dt.count != null ? dt.count : (dt.variants ? dt.variants.length : 0);
@@ -3976,13 +3986,17 @@ function Connexions({ data, persist }) {
       <div className="card" style={{ borderLeft: "4px solid #95BF47" }}>
         <div className="sec-h"><h3 className="pu-display">Stock Shopify</h3><span>lecture seule</span></div>
         <p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4, lineHeight: 1.5 }}>Lit l'inventaire disponible de votre boutique Shopify (quantité par SKU) et met à jour la colonne « Dispo » du catalogue. Ce stock alimente ensuite tous les onglets internes : Stock entrepôt, Réassort clients, alertes et KPIs du tableau de bord. Aucune donnée n'est écrite dans Shopify.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, margin: "12px 0 4px" }}>
+          <div><label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 3 }}>Domaine de la boutique</label><input value={shopDomain} onChange={(e) => setShopDomain(e.target.value)} placeholder="ma-boutique.myshopify.com" autoComplete="off" style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 9, fontFamily: "inherit", fontSize: 13 }} /></div>
+          <div><label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", display: "block", marginBottom: 3 }}>Jeton d'accès Admin API</label><div style={{ display: "flex", gap: 6 }}><input type={showTok ? "text" : "password"} value={shopToken} onChange={(e) => setShopToken(e.target.value)} placeholder="shpat_…" autoComplete="off" style={{ flex: 1, minWidth: 0, padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 9, fontFamily: "inherit", fontSize: 13 }} /><button className="btn btn-ghost btn-s" type="button" onClick={() => setShowTok((s) => !s)}>{showTok ? "Masquer" : "Afficher"}</button><button className="btn btn-g btn-s" type="button" onClick={saveShopify}>Enregistrer</button></div></div>
+        </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 6 }}>
           <button className="btn btn-p" disabled={shopBusy} onClick={() => runShopify("sync")}><RefreshCw size={15} /> {shopBusy ? "Synchronisation…" : "Synchroniser le stock"}</button>
           <button className="btn btn-ghost" disabled={shopBusy} onClick={() => runShopify("test")}><Plug size={15} /> Tester la connexion</button>
         </div>
         {shopMsg && <div style={{ marginTop: 10, fontSize: 12.5, fontWeight: 600, color: shopMsg.startsWith("Échec") ? "var(--red)" : "var(--blue)" }}>{shopMsg}</div>}
         <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--muted)" }}>Dernière synchro Shopify : {shopSync && shopSync.at ? (new Date(shopSync.at).toLocaleString("fr-FR") + " · " + shopSync.matched + "/" + shopSync.total + " référence(s) appariée(s)") : "—"}</div>
-        <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>Configuration (Vercel → Settings → Environment Variables) : <code>SHOPIFY_STORE_DOMAIN</code> (ex. <code>ma-boutique.myshopify.com</code>) et <code>SHOPIFY_ADMIN_TOKEN</code> (jeton d'accès Admin d'une app personnalisée Shopify, scopes <code>read_products</code> + <code>read_inventory</code>). Le rapprochement se fait sur le SKU Shopify = code article MITMIT.</div>
+        <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>Le domaine et le jeton sont enregistrés dans vos données (synchronisées, accès protégé par votre connexion) et ne sont jamais affichés publiquement. Utilisez de préférence un jeton <strong>en lecture seule</strong> (scopes <code>read_products</code> + <code>read_inventory</code>). Alternative plus sûre : définir <code>SHOPIFY_STORE_DOMAIN</code> + <code>SHOPIFY_ADMIN_TOKEN</code> côté serveur (Vercel) — ils prennent le relais si les champs ci-dessus sont vides. Le rapprochement se fait sur le SKU Shopify = code article MITMIT.</div>
       </div>
     </div>
     <div style={{ marginTop: 16 }}><div className="sec-h"><h3 className="pu-display">Partenaires & écosystème</h3><span>écosystème français</span></div>
@@ -4959,7 +4973,8 @@ export default function App() {
     <aside className="sb">
       <div className="brand"><img src="/favicon.svg" alt="MITMIT" style={{ width: 84, height: 84, maxWidth: 84, borderRadius: 20, alignSelf: "center" }} /><div className="brand-accent" /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><small style={{ letterSpacing: ".12em" }}>MITMIT · Poste de pilotage B2B</small><span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600, lineHeight: 1.3, textTransform: "none", letterSpacing: 0 }} title="Le petit nom du cockpit">Module Intégré de Traitement, Marges, Inventaire &amp; Tarification</span></div></div>
       <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { navTo(t.id); setNavOpen(false); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
-      <div className="sb-foot">{typeof LOGO_DATA_URI !== "undefined" && LOGO_DATA_URI && <img src={LOGO_DATA_URI} alt="PEN'UP 3D" style={{ height: 30, display: "block", margin: "0 auto 10px" }} />}PEN'UP 3D, SAS · Montauban<br />Données locales à cet appareil.<br /><span className="lnk" style={{ fontSize: 11 }} onClick={() => setHelpOpen(true)}>⌨ Raccourcis clavier</span></div>
+      {typeof LOGO_DATA_URI !== "undefined" && LOGO_DATA_URI && <a className="sb-brandfoot" href="https://penup3d.com" target="_blank" rel="noreferrer" title="Ouvrir le site penup3d.com"><img src={LOGO_DATA_URI} alt="PEN'UP 3D — penup3d.com" /></a>}
+      <div className="sb-foot">PEN'UP 3D, SAS · Montauban<br />Données locales à cet appareil.<br /><span className="lnk" style={{ fontSize: 11 }} onClick={() => setHelpOpen(true)}>⌨ Raccourcis clavier</span></div>
     </aside>
     <main className="main">
       <div className="mobilebar no-print">
