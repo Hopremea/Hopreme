@@ -15,23 +15,29 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Protection par Clerk : active des que CLERK_SECRET_KEY est presente.
+  // Protection par Clerk OBLIGATOIRE : on refuse si la cle n'est pas configuree
+  // (evite tout relais ouvert non authentifie vers l'API payante Anthropic).
   const clerkSecret = process.env.CLERK_SECRET_KEY;
-  if (clerkSecret) {
-    const authHeader = req.headers.authorization || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-    if (!token) {
-      res.status(401).json({ error: "Non authentifie." });
-      return;
-    }
-    try {
-      await verifyToken(token, { secretKey: clerkSecret });
-    } catch (e) {
-      res.status(401).json({ error: "Session invalide ou expiree." });
-      return;
-    }
+  if (!clerkSecret) {
+    res.status(500).json({ error: "Authentification non configuree cote serveur." });
+    return;
+  }
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) {
+    res.status(401).json({ error: "Non authentifie." });
+    return;
+  }
+  try {
+    await verifyToken(token, { secretKey: clerkSecret });
+  } catch (e) {
+    res.status(401).json({ error: "Session invalide ou expiree." });
+    return;
   }
 
+  // Garde-fou anti-blocage : on abandonne l'appel amont au-dela de 50 s (renvoie un 502 controle).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 50000);
   try {
     const payload =
       typeof req.body === "string" ? req.body : JSON.stringify(req.body || {});
@@ -43,14 +49,16 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: payload,
+      signal: controller.signal,
     });
     const text = await upstream.text();
     res.status(upstream.status);
     res.setHeader("Content-Type", "application/json");
     res.send(text);
   } catch (e) {
-    res
-      .status(502)
-      .json({ error: "Relais IA indisponible : " + (e && e.message ? e.message : String(e)) });
+    const msg = e && e.name === "AbortError" ? "Relais IA : delai depasse." : "Relais IA indisponible : " + (e && e.message ? e.message : String(e));
+    res.status(502).json({ error: msg });
+  } finally {
+    clearTimeout(timer);
   }
 }

@@ -92,7 +92,7 @@ export default async function handler(req, res) {
       if (!mRes.ok) continue;
       const m = await mRes.json();
       const headers = (m.payload && m.payload.headers) || [];
-      const h = (name) => { const x = headers.find((y) => y.name.toLowerCase() === name); return x ? x.value : ""; };
+      const h = (name) => { const x = headers.find((y) => (y.name || "").toLowerCase() === name); return x ? x.value : ""; };
       const subject = h("subject") || "(sans objet)";
       const from = h("from");
       const rawDate = h("date");
