@@ -4022,6 +4022,10 @@ function EtatLogiciel({ data }) {
 function Connexions({ data, persist }) {
   const { settings, products } = data; const [email, setEmail] = useState(settings.myEmail); const [msg, setMsg] = useState(null);
   const saveEmail = () => { persist((p) => ({ ...p, settings: { ...p.settings, myEmail: email.trim() } })); setMsg("Adresse enregistrée."); setTimeout(() => setMsg(null), 1800); };
+  // Diagnostic des connexions / variables (statuts uniquement, aucune valeur secrète).
+  const [diag, setDiag] = useState(null); const [diagBusy, setDiagBusy] = useState(false);
+  const loadDiag = async () => { setDiagBusy(true); try { const res = await fetch("/api/status", { method: "POST", headers: await claudeHeaders() }); const dt = await res.json().catch(() => ({})); setDiag(res.ok ? dt : { error: dt.error || ("Erreur " + res.status) }); } catch (e) { setDiag({ error: (e && e.message) || String(e) }); } finally { setDiagBusy(false); } };
+  useEffect(() => { loadDiag(); }, []);
   const applyRows = (rows) => {
     if (!rows || !rows.length) { setMsg("Fichier vide ou illisible."); return; }
     const headers = Object.keys(rows[0]); const norm = (s) => (s || "").toString().toLowerCase();
@@ -4069,6 +4073,33 @@ function Connexions({ data, persist }) {
   const Section = ({ children, note }) => (<div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "26px 0 10px", borderBottom: "1px solid var(--line)", paddingBottom: 6 }}><h2 className="pu-display" style={{ fontSize: 16, margin: 0 }}>{children}</h2>{note && <span style={{ fontSize: 12, color: "var(--muted)" }}>{note}</span>}</div>);
   return (<div className="fade">
     <EtatLogiciel data={data} />
+
+    <Section note="ce qui est connecté côté serveur (Vercel) — valeurs jamais affichées">État des connexions & variables</Section>
+    <div className="card">
+      <div className="sec-h"><h3 className="pu-display">Variables d'environnement & intégrations</h3><button className="btn btn-ghost btn-s" onClick={loadDiag} disabled={diagBusy}><RefreshCw size={14} className={diagBusy ? "spin" : ""} /> {diagBusy ? "…" : "Rafraîchir"}</button></div>
+      {!diag ? <div className="empty">Chargement du diagnostic…</div> : diag.error ? <div style={{ color: "var(--red)", fontSize: 13, fontWeight: 600 }}>Diagnostic indisponible : {diag.error}</div> : (() => {
+        const groups = {}; (diag.vars || []).forEach((v) => { (groups[v.group] = groups[v.group] || []).push(v); });
+        const dotColor = (v) => v.set ? "var(--green)" : (v.optional ? "var(--orange)" : "var(--red)");
+        return (<div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {Object.entries(groups).map(([g, list]) => (<div key={g}>
+            <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 6 }}>{g}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>{list.map((v) => (
+              <div key={v.key} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, flexWrap: "wrap" }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: dotColor(v), flexShrink: 0, display: "inline-block" }} />
+                <code style={{ fontSize: 11, color: "var(--muted)" }}>{v.key}</code>
+                <span style={{ flex: 1, minWidth: 120 }}>{v.label}</span>
+                {v.preview ? <span style={{ fontFamily: "monospace", fontSize: 11, color: "var(--muted)" }}>{v.preview}</span> : null}
+                <span style={{ fontWeight: 700, color: dotColor(v) }}>{v.set ? "définie" : (v.optional ? "non définie" : "manquante")}</span>
+              </div>))}</div>
+          </div>))}
+          <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10, fontSize: 12.5, display: "flex", flexDirection: "column", gap: 5 }}>
+            <div><strong>Clerk :</strong> {diag.clerk && diag.clerk.authenticated ? "authentifié ✅" : "non authentifié ❌"}{diag.clerk && diag.clerk.secretSet ? " · clé serveur définie" : " · clé serveur manquante"}</div>
+            <div><strong>Gmail :</strong> {!diag.gmail || !diag.gmail.configured ? "non configuré (variables Google manquantes) ⚠️" : diag.gmail.email ? ("connecté comme " + diag.gmail.email + " ✅") : ("configuré mais non connecté ❌" + (diag.gmail.error ? " — " + diag.gmail.error : ""))}</div>
+            {diag.at && <div style={{ color: "var(--muted)", fontSize: 11 }}>Dernier diagnostic : {new Date(diag.at).toLocaleString("fr-FR")}</div>}
+          </div>
+        </div>); })()}
+      <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.5 }}>🔒 Les valeurs secrètes ne sont <strong>jamais</strong> affichées — seul leur statut (définie / manquante) est indiqué. Les aperçus masqués ne concernent que des identifiants publics (Client ID, domaines, URL). 🟢 défini · 🟠 optionnel non défini · 🔴 requis manquant.</p>
+    </div>
 
     <Section note="courriel, boutique et partenaires">Connexions & synchronisations</Section>
     <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
