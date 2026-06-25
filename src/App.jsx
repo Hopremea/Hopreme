@@ -1092,6 +1092,13 @@ const THEME_ACCENTS = [
   { id: "green", label: "Vert", c: "#2bb673", cd: "#1f9d61", t: "#fff" },
   { id: "orange", label: "Orange", c: "#F8B133", cd: "#dc9412", t: "#16203a" },
   { id: "purple", label: "Violet", c: "#7c5cf0", cd: "#5f3fd0", t: "#fff" },
+  { id: "teal", label: "Turquoise", c: "#0EA5A4", cd: "#0b8281", t: "#fff" },
+  { id: "rose", label: "Rose", c: "#E94D6B", cd: "#cc2f4f", t: "#fff" },
+  { id: "indigo", label: "Indigo", c: "#6366F1", cd: "#4f46e5", t: "#fff" },
+  { id: "slate", label: "Ardoise", c: "#475569", cd: "#334155", t: "#fff" },
+  { id: "gradsun", label: "Dégradé soleil", c: "linear-gradient(135deg,#ff8a4c,#ff4d8d)", cd: "#e23d72", t: "#fff" },
+  { id: "gradocean", label: "Dégradé océan", c: "linear-gradient(135deg,#2bb6c9,#2f6fd0)", cd: "#2a5fb0", t: "#fff" },
+  { id: "gradgold", label: "Dégradé or", c: "linear-gradient(135deg,#FFD212,#F8B133)", cd: "#dc9412", t: "#16203a" },
 ];
 // Reprise d'un ancien réglage « bgTheme » combiné vers le nouveau couple couleur + motif.
 const LEGACY_BGTHEME = {
@@ -1113,8 +1120,33 @@ const DARK_BG_TEXT = THEME_COLORS.filter((c) => c.dark).map((c) => c.id).map((t)
 .pu-root.color-${t} .topbar p{color:rgba(255,255,255,.85);}
 `).join("");
 // Accentuation auto : selon le fond (foncé → jaune, jaune → bleu, clair → rouge).
+// Accent « automatique » accordé à CHAQUE fond (y compris les dégradés) : couleur des boutons de la
+// barre du haut et des filtres actifs, choisie pour bien ressortir sur ce fond précis.
+const AUTO_ACCENT_BY_BG = {
+  cream:       { c: "#FF5A45", cd: "#cd2a24", t: "#fff" },
+  plain:       { c: "#3F60AA", cd: "#2c4582", t: "#fff" },
+  sage:        { c: "#E25A4D", cd: "#c23e32", t: "#fff" },
+  mint:        { c: "#0EA5A4", cd: "#0b8281", t: "#fff" },
+  peach:       { c: "#E94D6B", cd: "#cc2f4f", t: "#fff" },
+  lavender:    { c: "#7c5cf0", cd: "#5f3fd0", t: "#fff" },
+  yellow:      { c: "#3F60AA", cd: "#2c4582", t: "#fff" },
+  blue:        { c: "#FFD212", cd: "#dcae00", t: "#16203a" },
+  red:         { c: "#FFD212", cd: "#dcae00", t: "#16203a" },
+  forest:      { c: "#F8B133", cd: "#dc9412", t: "#16203a" },
+  plum:        { c: "#FFD212", cd: "#dcae00", t: "#16203a" },
+  midnight:    { c: "#38bdf8", cd: "#0ea5e9", t: "#06283a" },
+  cottoncandy: { c: "#7c5cf0", cd: "#5f3fd0", t: "#fff" },
+  peachsky:    { c: "#0EA5A4", cd: "#0b8281", t: "#fff" },
+  mintglow:    { c: "#0E8F8E", cd: "#0b7170", t: "#fff" },
+  sunset:      { c: "#21d4b4", cd: "#13b39a", t: "#08312a" },
+  ocean:       { c: "#F8B133", cd: "#dc9412", t: "#16203a" },
+  aurora:      { c: "#ff6f8b", cd: "#e84f6e", t: "#fff" },
+  grape:       { c: "#FFD212", cd: "#dcae00", t: "#16203a" },
+  ember:       { c: "#22d3c4", cd: "#12b3a6", t: "#06302b" },
+  steel:       { c: "#38bdf8", cd: "#0ea5e9", t: "#06283a" },
+};
 const AUTO_ACCENT_CSS = THEME_COLORS.map((c) => {
-  const a = c.dark ? { c: "#FFD212", cd: "#dcae00", t: "#16203a" } : c.id === "yellow" ? { c: "#3F60AA", cd: "#2c4582", t: "#fff" } : { c: "#FF5A45", cd: "#cd2a24", t: "#fff" };
+  const a = AUTO_ACCENT_BY_BG[c.id] || (c.dark ? { c: "#FFD212", cd: "#dcae00", t: "#16203a" } : c.id === "yellow" ? { c: "#3F60AA", cd: "#2c4582", t: "#fff" } : { c: "#FF5A45", cd: "#cd2a24", t: "#fff" });
   return `.pu-root.acc-auto.color-${c.id} .topbar .btn-ghost{background:${a.c};color:${a.t};border-color:${a.cd};}
 .pu-root.acc-auto.color-${c.id} .topbar .btn-ghost:hover{background:${a.cd};border-color:${a.cd};}
 .pu-root.acc-auto.color-${c.id} .main .chip.on,.pu-root.acc-auto.color-${c.id} .main .chip-all.on{background:${a.c};color:${a.t};border-color:${a.cd};}`;
