@@ -89,10 +89,14 @@ const KEY_OLD = ["penup_cockpit_v2", "penup_cockpit_v1"];
 const TODAY = () => new Date().toISOString().slice(0, 10);
 const SIEGE = { lat: 44.0177, lng: 1.3550, ville: "Montauban" };
 
+// Entonnoir commercial. Les 5 étapes sont déterminées AUTOMATIQUEMENT selon l'avancement de la
+// relation (voir deriveStage) : enregistré-non-contacté → démarché → RDV découverte → 1re commande
+// → commandes récurrentes. L'utilisateur peut figer une étape à la main (stageAuto=false).
 const STAGES = [
-  { id: "prospect", label: "Prospect", color: "#9aa6bd" }, { id: "contact", label: "Contact établi", color: "#5b8def" },
-  { id: "rdv", label: "RDV / Présentation", color: "#7c5cf0" }, { id: "referencement", label: "En référencement", color: "#FFD212" }, { id: "actif", label: "Actif / Référencé", color: "#2bb673" },
+  { id: "prospect", label: "Prospect", color: "#9aa6bd" }, { id: "contact", label: "Contacté", color: "#5b8def" },
+  { id: "rdv", label: "RDV découverte", color: "#7c5cf0" }, { id: "referencement", label: "Client", color: "#FFD212" }, { id: "actif", label: "Client fidèle", color: "#2bb673" },
 ];
+const STAGE_ORDER = ["prospect", "contact", "rdv", "referencement", "actif"];
 const DEAL_STATUS = { brouillon: { label: "Brouillon", color: "#9aa6bd" }, envoye: { label: "Envoyé", color: "#5b8def" }, accepte: { label: "Accepté / Signé", color: "#2bb673" }, expediee: { label: "En cours de livraison", color: "#F8B133" }, refuse: { label: "Refusé", color: "#FF5A45" }, livre: { label: "Livré", color: "#3F60AA" } };
 // Devis non validé (brouillon ou envoyé) → alimente le « CA HT en attente ». Document signé → « CA HT signé ».
 const isDevisEnAttente = (d) => d && d.type === "Devis" && (d.statut === "brouillon" || d.statut === "envoye");
@@ -532,6 +536,44 @@ function buildSeed() { return { products: seedProducts(), accounts: seedAccounts
 // (drapeaux a true) pour ne jamais reinjecter de donnees fictives. Le seed n'est
 // charge que volontairement via le bouton "Demo".
 function emptyData() { return { products: [], accounts: [], contacts: [], interactions: [], deals: [], tickets: [], sites: [], prospects: [], attachments: {}, events: [], rotations: {}, savedCalcs: [], claudeUsage: { calls: 0, inputTokens: 0, outputTokens: 0 }, settings: { ...SETTINGS, coefBasisTTC: true, _tarif2026: true, _kind: true, _pdvMono: true, _migrated_sourire: true, _migrated_jer: true, _unifyOrphans: true, _fresh: true }, _imported: "" }; }
+// Étape déduite automatiquement de l'avancement de la relation avec un compte, d'après les signaux
+// réellement enregistrés (échanges, RDV/visio, bons de commande). Sert de plancher : on ne fait
+// qu'avancer un compte vers le haut de l'entonnoir, jamais reculer (les données saisies priment).
+//   prospect       : enregistré, jamais contacté
+//   contact        : démarché (au moins un échange autre qu'une note interne)
+//   rdv            : rendez-vous de découverte (RDV ou visio) programmé/tenu
+//   referencement  : au moins un bon de commande (ou un document signé) → « Client »
+//   actif          : plusieurs commandes → « Client fidèle »
+function deriveStage(account, d) {
+  const accId = account.id;
+  const siteIds = new Set((d.sites || []).filter((s) => s.accountId === accId).map((s) => s.id));
+  const contactIds = new Set((d.contacts || []).filter((c) => c.accountId === accId).map((c) => c.id));
+  const rel = (x) => x && (x.accountId === accId || (x.siteId && siteIds.has(x.siteId)) || (x.contactId && contactIds.has(x.contactId)));
+  // Bon de commande réel : une Commande engagée (ni brouillon ni refusée) OU un document signé non
+  // déjà converti en commande (évite de compter deux fois un devis signé puis transformé en commande).
+  const orders = (d.deals || []).filter((x) => x.accountId === accId && ((x.type === "Commande" && x.statut !== "brouillon" && x.statut !== "refuse") || (x.type !== "Commande" && isCaSigne(x) && !x.converti)));
+  if (orders.length >= 2) return "actif";
+  if (orders.length >= 1) return "referencement";
+  const ints = (d.interactions || []).filter(rel);
+  const hasRdv = (d.events || []).some((e) => rel(e) && (e.type === "rdv" || e.type === "visio")) || ints.some((i) => i.type === "rdv" || i.type === "visio");
+  if (hasRdv) return "rdv";
+  // Démarché = NOUS avons engagé le contact : un échange réel (hors note) qui n'est pas purement entrant.
+  if (ints.some((i) => i.type !== "note" && i.direction !== "entrant")) return "contact";
+  return "prospect";
+}
+// Reclasse les comptes (sauf ceux figés à la main) : avance l'étape vers la valeur déduite si elle est
+// plus avancée que l'actuelle, et journalise la transition dans stageLog. Idempotent.
+function autoClassifyStages(d) {
+  const today = TODAY();
+  return (d.accounts || []).map((a) => {
+    if (a.stageAuto === false) return a;
+    const want = deriveStage(a, d);
+    const wi = STAGE_ORDER.indexOf(want), ci = STAGE_ORDER.indexOf(a.stage);
+    if (wi < 0 || wi <= ci) return a; // on n'avance que vers le haut
+    const log = Array.isArray(a.stageLog) ? a.stageLog : [];
+    return { ...a, stage: want, stageLog: [...log, { stage: want, date: today, auto: true }] };
+  });
+}
 function normalize(d) {
   const __secured = securedFrom({ ...SETTINGS, ...(d.settings || {}) });
   d.products = (d.products || seedProducts()).map((p) => { const o = { cout: null, ...p }; if (o.vendable === undefined) { const unitaire = /^PU3D-FIL-/.test(o.code) && !/^lot/i.test(o.designation || ""); const kit = (o.code || "").includes("-KIT-"); o.vendable = !(unitaire || kit); } if (o.poidsG === undefined || o.poidsG === null) { if (o.poidsKg != null) { o.poidsG = Math.round(o.poidsKg * 1000); } else { o.poidsG = Math.round(poidsProvisoire(o.code, o.designation) * 1000); o.poidsEstime = true; } } delete o.poidsKg; if (o.coutInit === undefined) { const parts = coutRevientParts(o.code, o.designation); if (parts) { o.coutUsd = parts.usd; o.coutEurFixe = parts.eur; } o.coutInit = true; } if (o.coutUsd != null) o.cout = deriveCout(o, __secured); return o; });
@@ -675,6 +717,7 @@ function normalize(d) {
     }
     d.events = out;
   }
+  d.accounts = autoClassifyStages(d);
   return d;
 }
 
@@ -939,9 +982,10 @@ function computeKPIs(data) {
   // 5. Pipeline : entonnoir par étape
   const stageCounts = {}; STAGES.forEach((s) => stageCounts[s.id] = 0); (data.accounts || []).forEach((a) => { if (stageCounts[a.stage] != null) stageCounts[a.stage]++; });
   const totalAcc = (data.accounts || []).length; const actifs = stageCounts["actif"] || 0;
-  const tauxRefer = totalAcc > 0 ? actifs / totalAcc * 100 : null;
+  const clients = (stageCounts["referencement"] || 0) + actifs; // comptes ayant passé au moins une commande
+  const tauxRefer = totalAcc > 0 ? clients / totalAcc * 100 : null;
   // 5b. Durée moyenne de cycle (prospect -> actif) : nécessite l'historique des étapes (stageLog)
-  const cycles = []; (data.accounts || []).forEach((a) => { const log = a.stageLog || []; const first = log[0]; const toActif = log.find((e) => e.stage === "actif"); if (first && toActif) { const dd = (new Date(toActif.date) - new Date(first.date)) / (1000 * 60 * 60 * 24); if (dd >= 0) cycles.push(dd); } });
+  const cycles = []; (data.accounts || []).forEach((a) => { const log = a.stageLog || []; const first = log[0]; const toActif = log.find((e) => e.stage === "actif"); if (first && toActif) { const dd = (new Date(toActif.date) - new Date(first.date)) / (1000 * 60 * 60 * 24); if (dd > 0) cycles.push(dd); } });
   const cycleMoy = cycles.length ? Math.round(cycles.reduce((s, x) => s + x, 0) / cycles.length) : null;
   // 6. Trésorerie : DSO (délai de paiement) à partir des factures ayant une date de paiement
   const fact = (data.deals || []).filter((d) => d.type === "Facture" && d.date && d.datePaiement);
@@ -961,7 +1005,7 @@ function computeKPIs(data) {
     margeConsoShare: { v: margeConsoShare, state: coutsConnus && margeTot > 0 ? "ok" : "partiel" },
     dormants: { v: dormants, actifs: pdvActifs, total: accIds.length, state: accIds.length ? "ok" : "todo" },
     joursStock: { v: joursStockMoy, state: daysArr.length ? "ok" : "todo" },
-    funnel: { counts: stageCounts, tauxRefer, total: totalAcc, state: totalAcc ? "ok" : "todo" },
+    funnel: { counts: stageCounts, tauxRefer, clients, total: totalAcc, state: totalAcc ? "ok" : "todo" },
     cycle: { v: cycleMoy, n: cycles.length, state: cycles.length ? "ok" : "todo" },
     dso: { v: dso, n: dsoArr.length, factTotal, state: dsoArr.length ? "ok" : "todo" },
     couverture: { v: couvertureJours, valeur: stockValeur, state: couvertureJours != null ? "ok" : "todo" },
@@ -1917,7 +1961,7 @@ function Performance({ data, go }) {
           {STAGES.map((s) => { const n = K.funnel.counts[s.id] || 0; return (<div key={s.id} style={{ marginBottom: 8 }}><div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 3 }}><span>{s.label}</span><span className="tnum" style={{ fontWeight: 700 }}>{n}</span></div><div style={{ height: 9, background: "var(--bg)", borderRadius: 6, overflow: "hidden" }}><div style={{ width: `${n / totFunnel * 100}%`, height: "100%", background: s.color }} /></div></div>); })}
         </div>
         <div className="grid" style={{ gridTemplateColumns: "1fr", gap: 12 }}>
-          <KpiTile label="Taux de référencement" value={fp(K.funnel.tauxRefer)} color="#2bb673" state={K.funnel.state} note={K.funnel.state === "ok" ? `${K.funnel.counts.actif || 0} comptes actifs sur ${K.funnel.total}.` : "Aucun compte."} />
+          <KpiTile label="Taux de clients" value={fp(K.funnel.tauxRefer)} color="#2bb673" state={K.funnel.state} note={K.funnel.state === "ok" ? `${K.funnel.clients || 0} client(s) dont ${K.funnel.counts.actif || 0} fidèle(s) sur ${K.funnel.total}.` : "Aucun compte."} />
           <KpiTile label="Durée moyenne de cycle" value={fd(K.cycle.v)} color="#7c5cf0" state={K.cycle.state} note={K.cycle.state === "ok" ? `De prospect à référencé, sur ${K.cycle.n} compte(s) au parcours complet.` : "À activer : l'historique des étapes est désormais enregistré à chaque changement. La durée se calculera dès qu'un compte aura parcouru prospect → actif."} />
         </div>
       </div>
@@ -2782,7 +2826,7 @@ function AccountForm({ acc, accounts, onSave, known = [], onUsage }) {
   return (<>
     <div className="fld"><label>Nom (groupe ou établissement)</label><Combo value={f.enseigne} onChange={(v) => up("enseigne", v)} options={ENSEIGNES_SUGG} placeholder="Cultura, L'Atelier Chez Soi…" /></div>
     {dup && <div className="dup-warn"><AlertTriangle size={15} /> Un compte nommé « {dup.enseigne} » existe déjà. Vérifiez avant d'enregistrer pour éviter un doublon.</div>}
-    <div className="fld"><label>Étape</label><select value={f.stage} onChange={(e) => up("stage", e.target.value)}>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
+    <div className="fld"><label>Étape de l'entonnoir</label><select value={f.stage} disabled={f.stageAuto !== false} onChange={(e) => { up("stage", e.target.value); up("stageAuto", false); }}>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select><label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--muted)", marginTop: 7, fontWeight: 600, cursor: "pointer" }}><input type="checkbox" checked={f.stageAuto !== false} onChange={(e) => up("stageAuto", !!e.target.checked)} style={{ width: "auto" }} /> Classer automatiquement selon l'avancement (échanges, RDV, commandes)</label>{f.stageAuto !== false && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>L'étape avance toute seule (jamais en arrière) et se met à jour à chaque enregistrement. Décochez pour la fixer à la main.</span>}</div>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button type="button" className="btn btn-ai btn-s" onClick={autofill} disabled={aiBusy || !f.enseigne} title="Compléter forme juridique, SIREN, ville et adresse à partir des registres officiels (ne remplit que les champs vides)"><Sparkles size={14} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Compléter les champs vides avec l'IA"}</button></div>
     {aiMsg && <div style={{ fontSize: 12, lineHeight: 1.5, padding: "8px 11px", borderRadius: 9, background: aiMsg.ok ? "#eef6ee" : "#fbf0ee", border: "1px solid " + (aiMsg.ok ? "#bfe0c0" : "#f0c8c0") }}>{aiMsg.t}</div>}
     <div className="row2"><div className="fld"><label>Nature du client (définit le code)</label><select value={f.nature || ""} onChange={(e) => up("nature", e.target.value)}><option value="">— à préciser —</option>{NATURE_ORDER.map((k) => <option key={k} value={k}>{k} · {NATURE_META[k].label}</option>)}</select></div><div className="fld"><label>Code client</label><div style={{ display: "flex", gap: 6, alignItems: "center" }}><input value={f.code || ""} readOnly placeholder={isClientCode(f.code) ? "" : "attribué à l'enregistrement"} style={{ fontWeight: 700, letterSpacing: ".04em", background: "var(--bg)" }} />{isClientCode(f.code) && <button type="button" className="btn btn-g btn-s" onClick={regen} title="Recalculer le code à partir de la nature actuelle (à n'utiliser que pour corriger une erreur de classification)"><RefreshCw size={13} /></button>}</div><span style={{ fontSize: 11, color: "var(--muted)" }}>Figé à la création. Modifier la nature ne change pas le code, sauf via le bouton de recalcul.</span></div></div>
