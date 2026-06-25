@@ -2507,7 +2507,7 @@ function MessageComposer({ account, site, contacts, contact, defaultContactId, i
     }
     const recent = (interactions || []).slice(0, 6);
     if (recent.length) {
-      L.push(""); L.push("HISTORIQUE DES ÉCHANGES (du plus récent au plus ancien ; « reçu » = le client nous a écrit, « envoyé » = nous lui avons écrit) :");
+      L.push(""); L.push("HISTORIQUE DES ÉCHANGES (du plus récent au plus ancien ; « reçu » = le client nous a écrit, « envoyé » = nous lui avons écrit ; les personnes nommées dans les résumés sont des employés du client) :");
       recent.forEach((i) => { const tm = INT_META[i.type] || {}; L.push("- " + (i.date || "?") + " · " + (tm.label || i.type) + " " + (i.direction === "entrant" ? "(reçu du client)" : i.direction === "sortant" ? "(envoyé par nous)" : "") + (i.sujet ? " — " + i.sujet : "") + (i.resume ? " : " + i.resume : "")); });
     } else {
       L.push(""); L.push("HISTORIQUE DES ÉCHANGES : aucun échange enregistré — n'écris donc PAS « faisant suite à notre dernier échange/appel ».");
@@ -2533,9 +2533,17 @@ function MessageComposer({ account, site, contacts, contact, defaultContactId, i
       const u = "CONTEXTE :\n" + buildContext() + "\n\nOBJECTIF DU MESSAGE : " + obj + "\n\nRédige le message pour le destinataire indiqué, en exploitant ce contexte.";
       const res = await aiGenerate(sys, u, onUsage, canal === "sms" ? 280 : 800);
       if (canal === "email") {
-        const subj = (res.match(/^\s*Objet\s*:\s*(.*)$/im) || [, ""])[1].trim();
-        const body = res.replace(/^\s*Objet\s*:.*\n?/i, "").trim();
-        setSubject(subj || ("PEN'UP 3D — " + estabName)); setOut(body);
+        // Extraction robuste de l'objet : on cherche dans les premières lignes une ligne « Objet : … »
+        // (tolérante au gras markdown / préfixes), on récupère le sujet et on retire CETTE ligne du corps.
+        const lines = res.split(/\r?\n/);
+        let subj = "", idx = -1;
+        for (let i = 0; i < Math.min(lines.length, 3); i++) {
+          const m = lines[i].match(/^[\s*_#>]*objet\s*:\s*(.*)$/i);
+          if (m) { subj = (m[1] || "").replace(/\*\*|__/g, "").trim(); idx = i; break; }
+        }
+        let rest = res;
+        if (idx >= 0) { const arr = lines.slice(); arr.splice(idx, 1); rest = arr.join("\n"); }
+        setSubject(subj || ("PEN'UP 3D — " + estabName)); setOut(rest.replace(/^\s+/, "").trim());
       } else { setSubject(""); setOut(res.trim()); }
     } catch (e) { setOut("Génération IA indisponible ici (fonctionne dans l'app Claude)."); }
     finally { setBusy(false); }
@@ -2555,7 +2563,7 @@ function MessageComposer({ account, site, contacts, contact, defaultContactId, i
   };
   const recMail = recipient && recipient.email;
   const recMobile = recipient && (recipient.mobile || recipient.fixe);
-  const smsHref = recMobile ? ("sms:" + String(recMobile).replace(/[^+\d]/g, "") + "?&body=" + encodeURIComponent(out)) : null;
+  const smsHref = recMobile ? ("sms:" + String(recMobile).replace(/[^+\d]/g, "") + "?body=" + encodeURIComponent(out)) : null;
   const mailHref = recMail ? ("mailto:" + recipient.email + "?subject=" + encodeURIComponent(subject || "") + "&body=" + encodeURIComponent(out)) : null;
   return (<Modal title={"Message IA — " + (recipient ? fullName(recipient) : estabName)} onClose={onClose} xl>
     <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>{MSG_CANALS.map((c) => { const Ic = c.Icon; const on = canal === c.key; return (<button key={c.key} type="button" onClick={() => setCanal(c.key)} style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "9px 10px", borderRadius: 11, border: on ? "2px solid " + c.color : "1px solid var(--line)", background: on ? c.color + "14" : "var(--card)", color: on ? c.color : "var(--muted)", fontWeight: 700, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}><Ic size={16} /> {c.label}</button>); })}</div>
@@ -2934,7 +2942,7 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
     {vcardOpen && (() => { const vcf = contactVCard(c, account); const dl = () => { const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" }); const url = URL.createObjectURL(blob); const a2 = document.createElement("a"); a2.href = url; a2.download = fullName(c).replace(/\s+/g, "_") + ".vcf"; document.body.appendChild(a2); a2.click(); document.body.removeChild(a2); URL.revokeObjectURL(url); }; return (<Modal title={"Carte de visite — " + fullName(c)} onClose={() => setVcardOpen(false)}>
       <div style={{ textAlign: "center" }}><img src={"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(vcf)} alt="QR contact" width={220} height={220} style={{ borderRadius: 12, border: "1px solid var(--line)" }} /><div style={{ fontSize: 12.5, color: "var(--muted)", margin: "10px 0 14px", lineHeight: 1.5 }}>Scannez ce QR code avec l'appareil photo de votre téléphone pour enregistrer {fullName(c)} dans vos contacts, ou téléchargez la fiche vCard.</div><button className="btn btn-p" onClick={dl}><Download size={15} /> Télécharger .vcf</button></div>
     </Modal>); })()}
-    {msgOpen && <MessageComposer account={account} contacts={[c, ...data.contacts.filter((x) => x.accountId === c.accountId && x.id !== c.id)]} defaultContactId={c.id} interactions={interactions} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setMsgOpen(false)} />}
+    {msgOpen && <MessageComposer account={account} contacts={[c, ...(c.accountId ? data.contacts.filter((x) => x.accountId === c.accountId && x.id !== c.id) : [])]} defaultContactId={c.id} interactions={interactions} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setMsgOpen(false)} />}
     {editModal}
   </div>);
 }
@@ -5268,7 +5276,7 @@ function SidebarStatus() {
         if (!cancelled && d && d.current) setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code });
       } catch (e) {}
     };
-    const start = (lat, lon) => { coords = { lat, lon }; load(); timer = setInterval(load, 1800000); };
+    const start = (lat, lon) => { if (cancelled) return; coords = { lat, lon }; load(); timer = setInterval(load, 1800000); };
     const fallback = () => start(48.8566, 2.3522); // repli : France
     try {
       if (typeof navigator !== "undefined" && navigator.geolocation) navigator.geolocation.getCurrentPosition((pos) => start(pos.coords.latitude, pos.coords.longitude), () => fallback(), { timeout: 6000, maximumAge: 1800000 });
