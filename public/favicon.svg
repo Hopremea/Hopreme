@@ -1,1 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#F8B133"/><text x="16" y="22" font-family="Arial" font-size="15" font-weight="700" text-anchor="middle" fill="#1d1d1f">M</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="MITMIT">
+  <defs>
+    <radialGradient id="mitmitBg" cx="50%" cy="44%" r="72%">
+      <stop offset="0%" stop-color="#FFE500"/>
+      <stop offset="100%" stop-color="#F4BB00"/>
+    </radialGradient>
+  </defs>
+  <rect width="240" height="240" rx="52" fill="url(#mitmitBg)"/>
+  <!-- whiskers (drawn first so only the parts outside the head show on the yellow) -->
+  <g stroke="#111111" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M110,146 Q72,146 26,150"/>
+    <path d="M110,156 Q72,158 24,166"/>
+    <path d="M110,166 Q74,173 30,185"/>
+    <path d="M130,146 Q168,146 214,150"/>
+    <path d="M130,156 Q168,158 216,166"/>
+    <path d="M130,166 Q166,173 210,185"/>
+  </g>
+  <!-- cat head + ears -->
+  <path fill="#0D0D0D" d="M62,70 L80,22 L104,66 Q120,72 136,66 L160,22 L178,70 C200,90 198,160 168,186 Q120,212 72,186 C42,160 40,90 62,70 Z"/>
+  <!-- eyes -->
+  <ellipse cx="98" cy="118" rx="15" ry="22" fill="#3DE04A"/>
+  <ellipse cx="142" cy="118" rx="15" ry="22" fill="#3DE04A"/>
+  <ellipse cx="98" cy="118" rx="7.5" ry="18" fill="#0B0B0B"/>
+  <ellipse cx="142" cy="118" rx="7.5" ry="18" fill="#0B0B0B"/>
+  <!-- nose -->
+  <path fill="#2B2B2B" d="M111,149 L129,149 L120,161 Z"/>
+</svg>
