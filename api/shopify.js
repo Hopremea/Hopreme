@@ -20,12 +20,21 @@ export default async function handler(req, res) {
     return;
   }
 
-  const rawDomain = process.env.SHOPIFY_STORE_DOMAIN;
-  const adminToken = process.env.SHOPIFY_ADMIN_TOKEN;
+  // Corps de requete (parse une seule fois) : action + identifiants eventuels saisis dans l'app.
+  let body = {};
+  try {
+    body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+  } catch (e) {}
+  const action = body.action ? String(body.action) : "sync";
+
+  // Identifiants : ceux fournis par l'application (onglet Integrations) priment ; a defaut,
+  // repli sur les variables d'environnement Vercel. Le jeton n'est jamais journalise.
+  const rawDomain = (body.domain && String(body.domain).trim()) || process.env.SHOPIFY_STORE_DOMAIN;
+  const adminToken = (body.token && String(body.token).trim()) || process.env.SHOPIFY_ADMIN_TOKEN;
   if (!rawDomain || !adminToken) {
     res.status(503).json({
       error:
-        "Shopify non configure cote serveur. Definissez SHOPIFY_STORE_DOMAIN (ex. ma-boutique.myshopify.com) et SHOPIFY_ADMIN_TOKEN (jeton Admin API, scopes read_products + read_inventory).",
+        "Shopify non configure : renseignez le domaine de la boutique et le jeton Admin (onglet Integrations), ou definissez SHOPIFY_STORE_DOMAIN + SHOPIFY_ADMIN_TOKEN cote serveur (scopes read_products + read_inventory).",
     });
     return;
   }
@@ -46,13 +55,6 @@ export default async function handler(req, res) {
       return;
     }
   }
-
-  let action = "sync";
-  try {
-    const body =
-      typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
-    if (body.action) action = String(body.action);
-  } catch (e) {}
 
   // Normalisation du domaine : on enleve un eventuel protocole et tout chemin.
   const shop = rawDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").trim();
