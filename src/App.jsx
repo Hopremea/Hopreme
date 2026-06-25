@@ -4092,10 +4092,22 @@ function Connexions({ data, persist }) {
                 <span style={{ fontWeight: 700, color: dotColor(v) }}>{v.set ? "définie" : (v.optional ? "non définie" : "manquante")}</span>
               </div>))}</div>
           </div>))}
-          <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10, fontSize: 12.5, display: "flex", flexDirection: "column", gap: 5 }}>
-            <div><strong>Clerk :</strong> {diag.clerk && diag.clerk.authenticated ? "authentifié ✅" : "non authentifié ❌"}{diag.clerk && diag.clerk.secretSet ? " · clé serveur définie" : " · clé serveur manquante"}</div>
-            <div><strong>Gmail :</strong> {!diag.gmail || !diag.gmail.configured ? "non configuré (variables Google manquantes) ⚠️" : diag.gmail.email ? ("connecté comme " + diag.gmail.email + " ✅") : ("configuré mais non connecté ❌" + (diag.gmail.error ? " — " + diag.gmail.error : ""))}</div>
-            {diag.at && <div style={{ color: "var(--muted)", fontSize: 11 }}>Dernier diagnostic : {new Date(diag.at).toLocaleString("fr-FR")}</div>}
+          <div style={{ borderTop: "1px solid var(--line)", paddingTop: 10, fontSize: 12.5, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ fontWeight: 800, fontSize: 12.5, marginBottom: 2 }}>Intégrations (état réel)</div>
+            {(() => {
+              const vget = (k) => (diag.vars || []).find((v) => v.key === k);
+              const vset = (k) => { const v = vget(k); return !!(v && v.set); };
+              const shopInApp = !!(settings.shopifyDomain && settings.shopifyToken);
+              const items = [
+                { n: "IA (Claude)", ok: vset("ANTHROPIC_API_KEY"), d: vset("ANTHROPIC_API_KEY") ? "relais serveur actif" : "clé manquante" },
+                { n: "Authentification (Clerk)", ok: !!(diag.clerk && diag.clerk.authenticated), d: diag.clerk && diag.clerk.authenticated ? "session active" : "non authentifié" },
+                { n: "Synchro (Supabase)", ok: !!supabaseEnabled, d: supabaseEnabled ? "base partagée active" : "stockage local uniquement" },
+                { n: "Stock (Shopify)", ok: shopInApp || vset("SHOPIFY_ADMIN_TOKEN"), d: shopInApp ? "configuré dans l'app ✅" : (vset("SHOPIFY_ADMIN_TOKEN") ? "variables serveur" : "non configuré") },
+                { n: "E-mails (Gmail)", ok: !!(diag.gmail && diag.gmail.email), d: diag.gmail && diag.gmail.email ? ("connecté : " + diag.gmail.email) : (diag.gmail && diag.gmail.configured ? ("configuré, non connecté" + (diag.gmail.error ? " — " + diag.gmail.error : "")) : "non configuré") },
+              ];
+              return items.map((it) => (<div key={it.n} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, flexWrap: "wrap" }}><span style={{ width: 9, height: 9, borderRadius: "50%", background: it.ok ? "var(--green)" : "var(--orange)", flexShrink: 0, display: "inline-block" }} /><strong style={{ minWidth: 180 }}>{it.n}</strong><span style={{ color: "var(--muted)", flex: 1 }}>{it.d}</span><span style={{ fontWeight: 700, color: it.ok ? "var(--green)" : "var(--orange)" }}>{it.ok ? "connecté" : "à configurer"}</span></div>));
+            })()}
+            {diag.at && <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 2 }}>Dernier diagnostic : {new Date(diag.at).toLocaleString("fr-FR")}</div>}
           </div>
         </div>); })()}
       <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.5 }}>🔒 Les valeurs secrètes ne sont <strong>jamais</strong> affichées — seul leur statut (définie / manquante) est indiqué. Les aperçus masqués ne concernent que des identifiants publics (Client ID, domaines, URL). 🟢 défini · 🟠 optionnel non défini · 🔴 requis manquant.</p>
