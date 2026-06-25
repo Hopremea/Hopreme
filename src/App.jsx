@@ -1390,15 +1390,47 @@ function favStars(c, account, size = 13) {
   if (c.principalEtab || (!grp && c.principal)) out.push(<FavStar key="e" kind="etab" size={size} title="Favori de l'établissement" />);
   return out;
 }
+function cleanDomain(domain) {
+  return String(domain || "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^www\./i, "").trim().toLowerCase();
+}
+// Logo d'une marque à partir de son domaine. Clearbit ayant fermé son API gratuite (fin 2024),
+// on s'appuie sur Unavatar (agrège logo + favicon de plusieurs sources, 404 si rien avec fallback=false).
 function logoFromDomain(domain) {
-  const d = String(domain || "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^www\./i, "").trim();
+  const d = cleanDomain(domain);
   if (!d || !d.includes(".")) return "";
-  return "https://logo.clearbit.com/" + d;
+  return "https://unavatar.io/" + encodeURIComponent(d) + "?fallback=false";
 }
 function faviconFromDomain(domain) {
-  const d = String(domain || "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^www\./i, "").trim();
+  const d = cleanDomain(domain);
   if (!d || !d.includes(".")) return "";
   return "https://www.google.com/s2/favicons?sz=128&domain=" + encodeURIComponent(d);
+}
+// Vérifie qu'une URL d'image se charge réellement (évite de mémoriser un logo cassé).
+function imageLoads(url) {
+  return new Promise((resolve) => {
+    if (!url || typeof Image === "undefined") return resolve(false);
+    const img = new Image();
+    let done = false;
+    const finish = (ok) => { if (!done) { done = true; resolve(ok); } };
+    img.onload = () => finish(img.naturalWidth > 1);
+    img.onerror = () => finish(false);
+    setTimeout(() => finish(false), 6000); // garde-fou réseau
+    img.src = url;
+  });
+}
+// Résout le meilleur logo AFFICHABLE pour un domaine : essaie plusieurs sources et renvoie la
+// première qui se charge vraiment, sinon le favicon Google (qui renvoie quasi toujours quelque chose).
+async function resolveLogoUrl(domain) {
+  const d = cleanDomain(domain);
+  if (!d || !d.includes(".")) return "";
+  const gfav = "https://www.google.com/s2/favicons?sz=128&domain=" + encodeURIComponent(d);
+  const candidates = [
+    "https://unavatar.io/" + encodeURIComponent(d) + "?fallback=false",
+    "https://icons.duckduckgo.com/ip3/" + d + ".ico",
+    gfav,
+  ];
+  for (const url of candidates) { if (await imageLoads(url)) return url; }
+  return gfav;
 }
 // Recherche web (via Claude) du domaine du site officiel d'une enseigne, pour en déduire le logo.
 async function webFindDomain(query, persistUsage) {
@@ -1449,7 +1481,7 @@ function EntityPhoto({ value, onChange, initials: ini, bg, round, size = 64, ens
     setBusy(true); setMsg(null);
     try {
       const dom = await webFindDomain(enseigne || "", persistUsage);
-      const logo = logoFromDomain(dom) || faviconFromDomain(dom);
+      const logo = await resolveLogoUrl(dom);
       if (logo) { onChange(logo); close(); }
       else setMsg("Aucun logo trouvé automatiquement. Téléversez une image ou collez une URL.");
     } catch (e) { setMsg("Recherche web indisponible ici (fonctionne dans l'app Claude). Téléversez une image ou collez une URL."); }
@@ -1790,7 +1822,7 @@ function LogosBulk({ data, persist, onClose }) {
   const persistUsage = (u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }));
   const search = async (a) => {
     setSt((s) => ({ ...s, [a.id]: { busy: true } }));
-    try { const dom = await webFindDomain([a.enseigne, a.ville].filter(Boolean).join(" "), persistUsage); const url = logoFromDomain(dom) || faviconFromDomain(dom); setSt((s) => ({ ...s, [a.id]: { busy: false, url, msg: url ? "" : "Aucun logo trouvé — ajoutez-le manuellement depuis la fiche." } })); }
+    try { const dom = await webFindDomain([a.enseigne, a.ville].filter(Boolean).join(" "), persistUsage); const url = await resolveLogoUrl(dom); setSt((s) => ({ ...s, [a.id]: { busy: false, url, msg: url ? "" : "Aucun logo trouvé — ajoutez-le manuellement depuis la fiche." } })); }
     catch (e) { setSt((s) => ({ ...s, [a.id]: { busy: false, msg: "Recherche IA indisponible ici (fonctionne dans l'app Claude)." } })); }
   };
   const apply = (a) => { const url = st[a.id] && st[a.id].url; if (!url) return; persist((p) => ({ ...p, accounts: p.accounts.map((x) => x.id === a.id ? { ...x, logo: url } : x) })); setSt((s) => ({ ...s, [a.id]: { ...s[a.id], applied: true } })); };
@@ -1944,6 +1976,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
           {(s.type === "pdv" || s.type === "decision") && (() => { const groups = data.accounts.filter((x) => isGroupe(x)); const cur = (grp && acc) ? acc.id : "indep"; const onChange = (val) => { if (val === cur) return; if (val === "indep") { if (grp) persist((p) => detachSiteToIndependent(p, s.id)); } else if (indep && acc) persist((p) => attachAccountToGroup(p, acc.id, val)); else if (grp) persist((p) => moveSiteToGroup(p, s.id, val)); }; return (<div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}><span style={{ fontSize: 12, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}><Link2 size={13} /> Rattachement</span><select value={cur} onChange={(e) => onChange(e.target.value)} style={{ padding: "5px 9px", border: "1px solid var(--line)", borderRadius: 8, fontFamily: "inherit", fontSize: 12.5, background: "#fff" }}><option value="indep">— Indépendant (aucun groupe) —</option>{groups.map((g) => <option key={g.id} value={g.id}>{g.enseigne}</option>)}</select></div>); })()}
           {s.adresse && <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 8, display: "inline-flex", alignItems: "center", gap: 6 }}><MapPin size={14} />{s.adresse}</div>}
           {s.telFixe && <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6 }}><Phone size={14} /><a href={"tel:" + s.telFixe.replace(/\s/g, "")} style={{ color: "inherit" }} title="Téléphone fixe du magasin">{s.telFixe}</a></div>}
+          {s.site && <div style={{ fontSize: 13, marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6 }}><Globe size={14} style={{ color: "var(--muted)" }} /><a className="lnk" href={ensureHttp(s.site)} target="_blank" rel="noreferrer" title="Site internet de l'établissement">{cleanDomain(s.site) || s.site}</a></div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9, alignItems: "center" }}>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{s.siret && <span className="tnum" style={{ fontSize: 12, color: "var(--muted)" }}>SIRET {s.siret}</span>}{!s.lat && <Badge color="#c0392b">à géolocaliser</Badge>}</div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{indep && <button className="btn btn-p" onClick={promoteIndepToGroup} title="Faire de cet établissement une chaîne / un groupe, pour y rattacher d'autres établissements"><GitBranch size={15} /> Transformer en groupe</button>}{s.lat != null && <button className="btn btn-g" onClick={() => go("carte", s.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-g" onClick={() => setGmapOpen(true)} title="Voir la fiche Google de cet établissement dans le logiciel"><MapPin size={15} /> Fiche Google</button><button className="btn btn-g" onClick={() => openPrint("Fiche " + (s.label || ""), ficheBody(s.label || "Établissement", [acc ? acc.enseigne : "Indépendant", s.adresse].filter(Boolean).join(" · "), [s.type === "decision" ? "Siège" : "Établissement", s.typeSurface].filter(Boolean), [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(siteContacts.length) }, { l: "Documents", v: num(deals.length) }], siteContacts, deals, ints, acc))}><Printer size={15} /> PDF</button><button className="btn btn-g" onClick={() => setEdit({ ...s })}><Pencil size={15} /> Modifier</button><button className="btn btn-g" style={{ color: "var(--red)" }} onClick={delThis}><Trash2 size={15} /> Supprimer</button></div>
@@ -3283,6 +3316,7 @@ function SiteForm({ site, accounts, onSave, known = [], contacts = [], onOpenCon
       if (!f.typeSurface && r.typeEtablissement && TYPE_SURFACE.includes(r.typeEtablissement)) { patch.typeSurface = r.typeEtablissement; filled.push("type d'établissement"); }
       if (!f.siret && r.siret) { patch.siret = r.siret; filled.push("SIRET"); }
       if (!f.telFixe && r.telephone) { patch.telFixe = r.telephone; filled.push("téléphone du magasin"); }
+      if (!f.site && r.site) { patch.site = ensureHttp(r.site); filled.push("site web"); }
       let adr = f.adresse;
       if (!f.adresse) {
         if (parentAcc && parentAcc.adressePostale) { patch.adresse = parentAcc.adressePostale; adr = parentAcc.adressePostale; filled.push("adresse (depuis le compte)"); }
@@ -3325,6 +3359,7 @@ function SiteForm({ site, accounts, onSave, known = [], contacts = [], onOpenCon
     {msg && <div style={{ fontSize: 12, color: "var(--muted)" }}>{msg}</div>}
     <div className="row2"><div className="fld"><label>Latitude</label><input type="number" step="0.0001" value={f.lat ?? ""} onChange={(e) => up("lat", e.target.value === "" ? null : +e.target.value)} /></div><div className="fld"><label>Longitude</label><input type="number" step="0.0001" value={f.lng ?? ""} onChange={(e) => up("lng", e.target.value === "" ? null : +e.target.value)} /></div></div>
     <div className="fld"><label>Téléphone fixe du magasin</label><input value={f.telFixe || ""} onChange={(e) => up("telFixe", e.target.value)} placeholder="05 ..." /><span style={{ fontSize: 11, color: "var(--muted)" }}>Ligne fixe / standard de l'établissement (accueil du magasin), distincte du portable d'un interlocuteur.</span></div>
+    <div className="fld"><label>Site web de l'établissement</label><div style={{ display: "flex", gap: 6 }}><input value={f.site || ""} onChange={(e) => up("site", e.target.value)} placeholder="https://www.exemple.fr" />{f.site ? <a className="btn btn-g btn-s" href={ensureHttp(f.site)} target="_blank" rel="noreferrer" title="Ouvrir le site"><ExternalLink size={14} /></a> : null}</div><span style={{ fontSize: 11, color: "var(--muted)" }}>Site internet de l'établissement ou de son enseigne. Le bouton « Compléter avec l'IA » peut le retrouver.</span></div>
     <div style={{ borderTop: "1px solid var(--line)", margin: "4px 0 2px", paddingTop: 10, fontSize: 11.5, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em" }}>Interlocuteur sur place (facultatif)</div>
     <div className="fld"><label>Contact rattaché</label><select value={f.contactId || ""} onChange={(e) => up("contactId", e.target.value)} disabled={!f.accountId}><option value="">— saisie libre (non liée) —</option>{enseigneContacts.map((c) => <option key={c.id} value={c.id}>{fullName(c)}{c.fonction ? " · " + c.fonction : ""}</option>)}</select>
       {!f.accountId && <span style={{ fontSize: 11, color: "var(--muted)" }}>Choisissez d'abord un groupe ou un établissement pour proposer ses contacts.</span>}
@@ -3389,8 +3424,8 @@ async function aiAutofill({ kind, enseigne, ville, adresse, typesEtab }) {
   const cible = [enseigne, adresse, ville].filter(Boolean).join(", ");
   let user, schema;
   if (kind === "établissement") {
-    user = `Pour cet établissement précis : ${cible}.\nTrouve dans les sources officielles ou la fiche Google de l'établissement :\n- siret : SIRET (14 chiffres) de l'établissement situé EXACTEMENT à cette adresse et cette ville (ni le siège social, ni un autre établissement). Si tu n'es pas certain qu'il corresponde à cette adresse, laisse vide.\n- adresse : adresse postale complète et exacte de l'établissement (numéro, voie, code postal, ville).\n- telephone : numéro de téléphone fixe (standard / accueil) de CE magasin à cette adresse précise, au format français (ex. « 05 63 12 34 56 »). Vérifie qu'il correspond bien à cet établissement et pas au siège ou à un autre point de vente ; en cas de doute, laisse vide.\n- typeEtablissement : choisis la valeur la plus juste UNIQUEMENT parmi cette liste : ${(typesEtab || []).join(" | ")}. Si aucune ne convient avec certitude, laisse vide.\n- note : une phrase factuelle décrivant l'établissement (univers de produits, implantation centre-ville ou périphérie). Aucun superlatif commercial.\nAttention aux homonymes : ne retiens que l'établissement de la ville indiquée.`;
-    schema = '{"siret":"","adresse":"","telephone":"","typeEtablissement":"","note":"","confiance":"haute/moyenne/faible","source":""}';
+    user = `Pour cet établissement précis : ${cible}.\nTrouve dans les sources officielles ou la fiche Google de l'établissement :\n- siret : SIRET (14 chiffres) de l'établissement situé EXACTEMENT à cette adresse et cette ville (ni le siège social, ni un autre établissement). Si tu n'es pas certain qu'il corresponde à cette adresse, laisse vide.\n- adresse : adresse postale complète et exacte de l'établissement (numéro, voie, code postal, ville).\n- telephone : numéro de téléphone fixe (standard / accueil) de CE magasin à cette adresse précise, au format français (ex. « 05 63 12 34 56 »). Vérifie qu'il correspond bien à cet établissement et pas au siège ou à un autre point de vente ; en cas de doute, laisse vide.\n- site : URL du site internet officiel de l'établissement ou de son enseigne (ex. « https://www.cultura.com »), trouvée sur le web. Privilégie le site officiel de la marque ; pas d'annuaire ni de page Google. En cas de doute, laisse vide.\n- typeEtablissement : choisis la valeur la plus juste UNIQUEMENT parmi cette liste : ${(typesEtab || []).join(" | ")}. Si aucune ne convient avec certitude, laisse vide.\n- note : une phrase factuelle décrivant l'établissement (univers de produits, implantation centre-ville ou périphérie). Aucun superlatif commercial.\nAttention aux homonymes : ne retiens que l'établissement de la ville indiquée.`;
+    schema = '{"siret":"","adresse":"","telephone":"","site":"","typeEtablissement":"","note":"","confiance":"haute/moyenne/faible","source":""}';
   } else {
     user = `Pour l'entreprise qui exploite l'enseigne : ${cible}.\nTrouve dans les sources officielles :\n- siren : SIREN (9 chiffres) de la personne morale, ou numéro RNA (W + 9 chiffres) si c'est une association. NE METS PAS de SIRET ici.\n- raisonSociale, formeJuridique.\n- ville : ville du siège social ou de rattachement.\n- adresse : adresse postale complète du siège ou de l'établissement principal.\nAttention aux homonymes : si une ville est fournie, ne retiens que l'entité qui lui correspond.`;
     schema = '{"siren":"","raisonSociale":"","formeJuridique":"","ville":"","adresse":"","confiance":"haute/moyenne/faible","source":""}';
@@ -3406,7 +3441,7 @@ async function aiAutofill({ kind, enseigne, ville, adresse, typesEtab }) {
   const m = text.match(/\{[\s\S]*\}/); if (!m) throw new Error("réponse illisible");
   const o = JSON.parse(m[0]);
   const onlyNum = (v) => (typeof v === "string" ? v.replace(/\s/g, "") : "");
-  return { siren: onlyNum(o.siren), siret: onlyNum(o.siret), raisonSociale: (o.raisonSociale || "").trim(), formeJuridique: (o.formeJuridique || "").trim(), ville: (o.ville || "").trim(), adresse: (o.adresse || "").trim(), telephone: (o.telephone || "").trim(), typeEtablissement: (o.typeEtablissement || "").trim(), note: (o.note || "").trim(), confiance: o.confiance || "?", source: (o.source || "").trim(), usage: data.usage || null };
+  return { siren: onlyNum(o.siren), siret: onlyNum(o.siret), raisonSociale: (o.raisonSociale || "").trim(), formeJuridique: (o.formeJuridique || "").trim(), ville: (o.ville || "").trim(), adresse: (o.adresse || "").trim(), telephone: (o.telephone || "").trim(), site: (o.site || "").trim(), typeEtablissement: (o.typeEtablissement || "").trim(), note: (o.note || "").trim(), confiance: o.confiance || "?", source: (o.source || "").trim(), usage: data.usage || null };
 }
 function Prospection({ data, persist, go }) {
   const { prospects } = data;
