@@ -1099,6 +1099,10 @@ body{background:var(--bg);}
 .nav button:hover{background:var(--blue-l);color:var(--blue);}
 .nav button.on{background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;box-shadow:0 6px 18px rgba(63,96,170,.28);}
 .nav button.on svg{color:#fff;}.nav .cnt{margin-left:auto;font-size:11px;background:rgba(255,255,255,.25);padding:1px 7px;border-radius:9px;}.nav button:not(.on) .cnt{background:#eef1f7;color:var(--muted);}
+.sb-status{margin:2px 6px 12px;padding:10px 12px;border-radius:13px;background:linear-gradient(135deg,rgba(63,96,170,.12),rgba(255,210,18,.10));border:1px solid var(--line);}
+.sb-status-time{font-family:'Bricolage Grotesque','Plus Jakarta Sans',sans-serif;font-weight:800;font-size:23px;line-height:1;color:var(--ink);}
+.sb-status-date{font-size:11.5px;color:var(--muted);text-transform:capitalize;margin-top:3px;}
+.sb-status-weather{font-size:12px;color:var(--ink);font-weight:700;margin-top:7px;}
 .sb-brandfoot{margin-top:auto;padding:6px 8px 12px;display:block;}
 .sb-brandfoot img{width:100%;max-width:160px;height:auto;display:block;margin:0 auto;transition:opacity .15s;}
 .sb-brandfoot:hover img{opacity:.78;}
@@ -2062,6 +2066,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
   const [preview, setPreview] = useState(null);
   const [addInt, setAddInt] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [intEdit, setIntEdit] = useState(null);
   const [dealEdit, setDealEdit] = useState(null);
   const [eventEdit, setEventEdit] = useState(null);
@@ -2124,7 +2129,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
           {s.site && <div style={{ fontSize: 13, marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6 }}><Globe size={14} style={{ color: "var(--muted)" }} /><a className="lnk" href={ensureHttp(s.site)} target="_blank" rel="noreferrer" title="Site internet de l'établissement">{cleanDomain(s.site) || s.site}</a></div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9, alignItems: "center" }}>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{s.siret && <span className="tnum" style={{ fontSize: 12, color: "var(--muted)" }}>SIRET {s.siret}</span>}{!s.lat && <Badge color="#c0392b">à géolocaliser</Badge>}</div>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{indep && <button className="btn btn-p" onClick={promoteIndepToGroup} title="Faire de cet établissement une chaîne / un groupe, pour y rattacher d'autres établissements"><GitBranch size={15} /> Transformer en groupe</button>}{s.lat != null && <button className="btn btn-g" onClick={() => go("carte", s.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-ai" onClick={runSiteAI} disabled={aiBusy} title="Rechercher en ligne le site web (et réseaux) de l'établissement"><Sparkles size={15} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Recherche IA"}</button><button className="btn btn-g" onClick={() => setGmapOpen(true)} title="Voir la fiche Google de cet établissement dans le logiciel"><MapPin size={15} /> Fiche Google</button><button className="btn btn-g" onClick={() => openPrint("Fiche " + (s.label || ""), ficheBody(s.label || "Établissement", [acc ? acc.enseigne : "Indépendant", s.adresse].filter(Boolean).join(" · "), [s.type === "decision" ? "Siège" : "Établissement", s.typeSurface].filter(Boolean), [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(siteContacts.length) }, { l: "Documents", v: num(deals.length) }], siteContacts, deals, ints, acc))}><Printer size={15} /> PDF</button><button className="btn btn-g" onClick={() => setEdit({ ...s })}><Pencil size={15} /> Modifier</button><button className="btn btn-g" style={{ color: "var(--red)" }} onClick={delThis}><Trash2 size={15} /> Supprimer</button></div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{indep && <button className="btn btn-p" onClick={promoteIndepToGroup} title="Faire de cet établissement une chaîne / un groupe, pour y rattacher d'autres établissements"><GitBranch size={15} /> Transformer en groupe</button>}{s.lat != null && <button className="btn btn-g" onClick={() => go("carte", s.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-ai" onClick={runSiteAI} disabled={aiBusy} title="Rechercher en ligne le site web (et réseaux) de l'établissement"><Sparkles size={15} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Recherche IA"}</button><button className="btn btn-g" onClick={() => setChatOpen(true)} title="Conseil IA : discuter de ce compte (analyse, prochaine action, arguments de vente)"><MessageSquare size={15} /> Conseil IA</button><button className="btn btn-g" onClick={() => setGmapOpen(true)} title="Voir la fiche Google de cet établissement dans le logiciel"><MapPin size={15} /> Fiche Google</button><button className="btn btn-g" onClick={() => openPrint("Fiche " + (s.label || ""), ficheBody(s.label || "Établissement", [acc ? acc.enseigne : "Indépendant", s.adresse].filter(Boolean).join(" · "), [s.type === "decision" ? "Siège" : "Établissement", s.typeSurface].filter(Boolean), [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(siteContacts.length) }, { l: "Documents", v: num(deals.length) }], siteContacts, deals, ints, acc))}><Printer size={15} /> PDF</button><button className="btn btn-g" onClick={() => setEdit({ ...s })}><Pencil size={15} /> Modifier</button><button className="btn btn-g" style={{ color: "var(--red)" }} onClick={delThis}><Trash2 size={15} /> Supprimer</button></div>
       </div>
       <div style={{ display: "flex", gap: 26, marginTop: 16, flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 14 }}><Stat label="Contacts" value={num(siteContacts.length)} />{caAttente > 0 && <Stat label="CA HT en attente" value={eur(caAttente)} />}<Stat label="CA HT signé" value={eur(caSigne)} /><Stat label="Échanges" value={num(ints.length)} /><Stat label="Documents" value={num(deals.length)} /></div>
       {aiMsg && <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>{aiMsg}</div>}
@@ -2141,7 +2146,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
       </div>
     </div>
     <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "start", marginTop: 16 }}>
-      <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MessageSquare size={15} />Fil des échanges</h3><div style={{ display: "flex", gap: 6 }}><button className="btn btn-g btn-s" onClick={() => setChatOpen(true)} title="Discuter avec l'IA à propos de ce compte (contacts, échanges, devis)"><Sparkles size={14} /> Chat IA</button><button className="btn btn-y btn-s" onClick={() => setAddInt(true)}><Plus size={14} /> Ajouter</button></div></div>
+      <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MessageSquare size={15} />Fil des échanges</h3><div style={{ display: "flex", gap: 6 }}><button className="btn btn-g btn-s" onClick={() => setComposerOpen(true)} title="Rédiger un e-mail, message LinkedIn ou SMS avec l'IA (canal et ton au choix)"><MessageSquare size={14} /> Message IA</button><button className="btn btn-y btn-s" onClick={() => setAddInt(true)}><Plus size={14} /> Ajouter</button></div></div>
         <InteractionThread interactions={ints} data={data} onView={(it) => setIntView(it)} onEdit={(it) => setIntEdit(it)} onDelete={delInteraction} showContact />
       </div>
       <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><Paperclip size={15} />Pièces jointes</h3><div><input ref={fileRef} type="file" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) uploadFile(f); e.target.value = ""; }} /><button className="btn btn-y btn-s" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={14} /> Téléverser</button></div></div>
@@ -2152,6 +2157,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
     {preview && <DevisPreview deal={preview} account={acc} settings={data.settings} products={data.products} onClose={() => setPreview(null)} />}
     {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><AccountInteractionForm contactId={siteContacts[0]?.id || ""} accountId={s.accountId} contacts={siteContacts} onCancel={() => setAddInt(false)} onSave={(it) => { addInteraction({ ...it, siteId: s.id }); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: s.accountId, siteId: s.id, contactId: f.contactId || "" })] }))} /></Modal>}
     {chatOpen && <EstablishmentChat account={acc} site={s} contacts={siteContacts} interactions={ints} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setChatOpen(false)} />}
+    {composerOpen && <MessageComposer account={acc} site={s} contacts={siteContacts} interactions={ints} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setComposerOpen(false)} />}
     {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={s.accountId} contacts={siteContacts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction({ ...it, siteId: s.id }); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: s.accountId, siteId: s.id, contactId: f.contactId || "" })] }))} /></Modal>}
     {dealEdit && <Modal title={(dealEdit.ref || "Document") + " · " + dealEdit.type} onClose={() => setDealEdit(null)} xl><DealForm deal={dealEdit} accounts={data.accounts} products={data.products} sites={data.sites} onPreview={(d) => setPreview(d)} onSave={(d) => { saveDeal(d); setDealEdit(null); }} /></Modal>}
     {edit && <Modal title="Modifier l'établissement" onClose={() => setEdit(null)} wide><SiteForm site={edit} accounts={data.accounts} contacts={data.contacts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onOpenContact={(cid) => { setEdit(null); go("repertoire", cid); }} onCreateContact={(c) => persist((p) => ({ ...p, contacts: [...p.contacts, c] }))} known={collectKnownAddresses(data)} onSave={(x) => { saveSite(x); setEdit(null); }} /></Modal>}
@@ -2173,6 +2179,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   const [preview, setPreview] = useState(null);
   const [addInt, setAddInt] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [intEdit, setIntEdit] = useState(null);
   const [intView, setIntView] = useState(null);
   const [siteEdit, setSiteEdit] = useState(null);
@@ -2244,7 +2251,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
         <div style={{ flex: 1, minWidth: 220 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><h2 className="pu-display" style={{ margin: 0, fontSize: 23 }}>{a.enseigne}</h2>{a.code && <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: ".04em", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 8, padding: "3px 9px", color: "var(--ink)" }} className="tnum">{a.code}</span>}<Badge color={st.color}>{st.label}</Badge>{isGroupe(a) ? <Badge color="#3F60AA">Groupe</Badge> : <Badge color="#7a8699">Établissement</Badge>}</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9 }}><Badge color={(NATURE_META[a.nature] || NATURE_META.DV).color}>{(NATURE_META[a.nature] || NATURE_META.DV).label}</Badge><Badge color={seg.color}>{seg.label}</Badge>{a.ville && <span style={{ color: "var(--muted)", fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={13} />{a.ville}</span>}</div>
           {(a.siren || a.formeJuridique) && <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><Building2 size={13} />{[a.formeJuridique, a.siren && ("SIREN " + a.siren)].filter(Boolean).join(" · ")}</div>}</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{(() => { const sl = smartLink(a); const SI = sl.Icon; return <a className="btn btn-g" href={sl.url} target="_blank" rel="noreferrer" title={a.site || a.facebook || a.instagram ? sl.url : "Rechercher cet établissement sur Google"}><SI size={15} /> {sl.label}</a>; })()}<button className="btn btn-ai" onClick={runFicheAI} disabled={aiBusy} title="Rechercher en ligne le site, les réseaux sociaux et l'identité légale (comme la prospection)"><Sparkles size={15} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Recherche IA"}</button><button className="btn btn-g" onClick={() => setGmapOpen(true)} title="Voir la fiche Google de cet établissement dans le logiciel"><MapPin size={15} /> Fiche Google</button>{a.lat && <button className="btn btn-g" onClick={() => go("carte", a.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-g" onClick={() => openPrint("Fiche " + (a.enseigne || ""), ficheBody(a.enseigne || "Établissement", [a.code, (NATURE_META[a.nature] || {}).label, a.ville].filter(Boolean).join(" · "), [isGroupe(a) ? "Groupe" : "Établissement", stageMeta(a.stage).label], [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(conts.length) }, { l: "Documents", v: num(deals.length) }], conts, deals, accInteractions, a))}><Printer size={15} /> PDF</button><button className="btn btn-g" onClick={onEdit}><Pencil size={15} /> Modifier</button>{onDelete && <button className="btn btn-g" style={{ color: "var(--red)" }} onClick={onDelete}><Trash2 size={15} /> Supprimer</button>}</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{(() => { const sl = smartLink(a); const SI = sl.Icon; return <a className="btn btn-g" href={sl.url} target="_blank" rel="noreferrer" title={a.site || a.facebook || a.instagram ? sl.url : "Rechercher cet établissement sur Google"}><SI size={15} /> {sl.label}</a>; })()}<button className="btn btn-ai" onClick={runFicheAI} disabled={aiBusy} title="Rechercher en ligne le site, les réseaux sociaux et l'identité légale (comme la prospection)"><Sparkles size={15} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Recherche IA"}</button><button className="btn btn-g" onClick={() => setChatOpen(true)} title="Conseil IA : discuter de ce compte (analyse, prochaine action, arguments de vente)"><MessageSquare size={15} /> Conseil IA</button><button className="btn btn-g" onClick={() => setGmapOpen(true)} title="Voir la fiche Google de cet établissement dans le logiciel"><MapPin size={15} /> Fiche Google</button>{a.lat && <button className="btn btn-g" onClick={() => go("carte", a.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-g" onClick={() => openPrint("Fiche " + (a.enseigne || ""), ficheBody(a.enseigne || "Établissement", [a.code, (NATURE_META[a.nature] || {}).label, a.ville].filter(Boolean).join(" · "), [isGroupe(a) ? "Groupe" : "Établissement", stageMeta(a.stage).label], [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(conts.length) }, { l: "Documents", v: num(deals.length) }], conts, deals, accInteractions, a))}><Printer size={15} /> PDF</button><button className="btn btn-g" onClick={onEdit}><Pencil size={15} /> Modifier</button>{onDelete && <button className="btn btn-g" style={{ color: "var(--red)" }} onClick={onDelete}><Trash2 size={15} /> Supprimer</button>}</div>
       </div>
       <div style={{ display: "flex", gap: 26, marginTop: 16, flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 14 }}><Stat label="Établissements suivis" value={num(pdvSites.length)} />{(a.magasins || 0) > pdvSites.length && <Stat label="Établissements du groupe" value={num(a.magasins)} />}<Stat label="CA HT en attente" value={eur(caAttente)} /><Stat label="CA HT signé" value={eur(caSigne)} /><Stat label="Contacts" value={conts.length} /><Stat label="Échanges" value={accInteractions.length} /><Stat label="Documents" value={deals.length} /></div>
       {a.prochaineAction && <div style={{ marginTop: 14, fontSize: 13, display: "flex", gap: 8, alignItems: "center", color: "var(--muted)", flexWrap: "wrap" }}><Calendar size={14} /> Prochaine action : <strong style={{ color: "var(--ink)" }}>{a.prochaineAction}</strong>{a.dateAction && (() => { const n = daysFromToday(a.dateAction); const late = n != null && n < 0; return <span style={{ color: late ? "var(--red)" : "var(--muted)", fontWeight: late ? 700 : 400 }}>· {relDate(a.dateAction)} ({a.dateAction}){late ? " — en retard" : ""}</span>; })()}</div>}
@@ -2267,7 +2274,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
       </div>
     </div>
     <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "start", marginTop: 16 }}>
-      <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MessageSquare size={15} />Fil des échanges</h3><div style={{ display: "flex", gap: 6 }}><button className="btn btn-g btn-s" onClick={() => setChatOpen(true)} title="Discuter avec l'IA à propos de ce compte (contacts, échanges, devis)"><Sparkles size={14} /> Chat IA</button><button className="btn btn-y btn-s" onClick={() => setAddInt(true)}><Plus size={14} /> Ajouter</button></div></div>
+      <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MessageSquare size={15} />Fil des échanges</h3><div style={{ display: "flex", gap: 6 }}><button className="btn btn-g btn-s" onClick={() => setComposerOpen(true)} title="Rédiger un e-mail, message LinkedIn ou SMS avec l'IA (canal et ton au choix)"><MessageSquare size={14} /> Message IA</button><button className="btn btn-y btn-s" onClick={() => setAddInt(true)}><Plus size={14} /> Ajouter</button></div></div>
         <InteractionThread interactions={accInteractions} data={data} onView={(it) => setIntView(it)} onEdit={(it) => setIntEdit(it)} onDelete={delInteraction} showContact />
       </div>
       <div className="card"><div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><Paperclip size={15} />Pièces jointes</h3><div><input ref={fileRef} type="file" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) uploadFile(f); e.target.value = ""; }} /><button className="btn btn-y btn-s" onClick={() => fileRef.current && fileRef.current.click()}><Upload size={14} /> Téléverser</button></div></div>
@@ -2278,6 +2285,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
     {preview && <DevisPreview deal={preview} account={a} settings={data.settings} products={data.products} onClose={() => setPreview(null)} />}
     {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><AccountInteractionForm contactId={conts[0]?.id || ""} accountId={a.id} contacts={conts} onCancel={() => setAddInt(false)} onSave={(it) => { addInteraction(it); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: a.id, contactId: f.contactId || "" })] }))} /></Modal>}
     {chatOpen && <EstablishmentChat account={a} contacts={conts} interactions={accInteractions} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setChatOpen(false)} />}
+    {composerOpen && <MessageComposer account={a} contacts={conts} interactions={accInteractions} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setComposerOpen(false)} />}
     {dwell.node}
     {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={a.id} contacts={conts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: a.id, contactId: f.contactId || "" })] }))} /></Modal>}
     {siteEdit && <Modal title={data.sites.some((x) => x.id === siteEdit.id) ? "Modifier le site" : (siteEdit.type === "decision" ? "Nouveau siège" : "Nouvel établissement")} onClose={() => setSiteEdit(null)} wide><SiteForm site={siteEdit} accounts={data.accounts} contacts={data.contacts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onOpenContact={(cid) => { setSiteEdit(null); go("repertoire", cid); }} onCreateContact={(c) => persist((p) => ({ ...p, contacts: [...p.contacts, c] }))} known={collectKnownAddresses(data)} onSave={(x) => { saveSite(x); setSiteEdit(null); }} /></Modal>}
@@ -2411,34 +2419,98 @@ const MSG_TYPES = [
 ];
 // Rédaction IA d'un e-mail ou message LinkedIn contextualisé pour un contact : l'IA s'appuie sur les
 // informations de l'entreprise, de l'interlocuteur et de l'historique pour personnaliser, sans rien inventer.
-function MessageComposer({ contact, account, interactions = [], deals = [], onUsage, onClose }) {
+// Tons proposés : guident la rédaction de l'IA sans changer le fond du message.
+const MSG_TONES = [
+  { key: "professionnel", label: "Professionnel", hint: "un ton professionnel, courtois et posé" },
+  { key: "chaleureux", label: "Chaleureux", hint: "un ton chaleureux et bienveillant" },
+  { key: "direct", label: "Direct", hint: "un ton direct et efficace, qui va à l'essentiel" },
+  { key: "enthousiaste", label: "Enthousiaste", hint: "un ton enthousiaste et positif" },
+  { key: "formel", label: "Formel", hint: "un ton formel et soutenu, vouvoiement strict" },
+  { key: "decontracte", label: "Décontracté", hint: "un ton décontracté et accessible, tout en restant pro" },
+];
+const MSG_CANALS = [
+  { key: "email", label: "Email", Icon: Mail, color: "#3F60AA" },
+  { key: "linkedin", label: "LinkedIn", Icon: Linkedin, color: "#0A66C2" },
+  { key: "sms", label: "SMS", Icon: MessageSquare, color: "#2bb673" },
+];
+// Aperçu du message dans le style du canal choisi (Email type Gmail, LinkedIn, SMS).
+function ChannelPreview({ canal, recipient, estabName, subject, setSubject, out, setOut }) {
+  if (canal === "email") {
+    return (<div style={{ border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", background: "var(--card)" }}>
+      <div style={{ background: "var(--blue-l)", borderBottom: "1px solid var(--line)", padding: "6px 12px", fontSize: 12.5 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", borderBottom: "1px solid var(--line)" }}><span style={{ color: "var(--muted)", width: 46, flexShrink: 0 }}>À</span><span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recipient && recipient.email ? recipient.email : (recipient ? fullName(recipient) : "—")}</span></div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0" }}><span style={{ color: "var(--muted)", width: 46, flexShrink: 0 }}>Objet</span><input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet de l'e-mail" style={{ border: 0, padding: 0, fontSize: 13, fontWeight: 700, background: "transparent", borderRadius: 0 }} /></div>
+      </div>
+      <textarea rows={11} value={out} onChange={(e) => setOut(e.target.value)} style={{ width: "100%", border: 0, borderRadius: 0, resize: "vertical", fontSize: 13.5 }} />
+    </div>);
+  }
+  if (canal === "linkedin") {
+    return (<div style={{ border: "1px solid var(--line)", borderRadius: 12, overflow: "hidden", background: "var(--card)" }}>
+      <div style={{ background: "#0A66C2", color: "#fff", padding: "10px 13px", display: "flex", alignItems: "center", gap: 10 }}><Linkedin size={20} /><div style={{ minWidth: 0 }}><div style={{ fontWeight: 800, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{recipient ? fullName(recipient) : estabName}</div><div style={{ fontSize: 11, opacity: .85 }}>{recipient && recipient.fonction ? recipient.fonction : "Message LinkedIn"}</div></div></div>
+      <textarea rows={7} value={out} onChange={(e) => setOut(e.target.value)} placeholder="Message LinkedIn…" style={{ width: "100%", border: 0, borderRadius: 0, resize: "vertical", fontSize: 13.5 }} />
+    </div>);
+  }
+  const len = (out || "").length; const segs = Math.max(1, Math.ceil(len / 160));
+  return (<div style={{ background: "#e9eef5", borderRadius: 18, padding: 14 }}>
+    <div style={{ textAlign: "center", fontSize: 11, color: "#5b6478", marginBottom: 9 }}>{recipient ? fullName(recipient) : estabName}{recipient && (recipient.mobile || recipient.fixe) ? " · " + (recipient.mobile || recipient.fixe) : ""}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <textarea rows={4} value={out} onChange={(e) => setOut(e.target.value)} placeholder="Votre SMS…" style={{ width: "86%", background: "#2bb673", color: "#fff", border: 0, borderRadius: 16, padding: "10px 13px", resize: "vertical", fontSize: 13.5, lineHeight: 1.45 }} />
+    </div>
+    <div style={{ textAlign: "right", fontSize: 11, color: len > 320 ? "var(--red)" : "#5b6478", marginTop: 6 }}>{len} caractère{len > 1 ? "s" : ""} · {segs} SMS</div>
+  </div>);
+}
+// Rédaction IA d'un message (e-mail, LinkedIn ou SMS) pour un destinataire d'un établissement client.
+// L'IA s'appuie sur le dossier (entreprise cliente, destinataire, historique daté, devis) ; les contacts
+// listés sont des employés du CLIENT (jamais des collègues de PEN'UP), et la temporalité est respectée.
+function MessageComposer({ account, site, contacts, contact, defaultContactId, interactions = [], deals = [], onUsage, onClose }) {
+  const list = (contacts && contacts.length) ? contacts : (contact ? [contact] : []);
+  const pickDefault = () => {
+    if (defaultContactId && list.some((c) => c.id === defaultContactId)) return defaultContactId;
+    if (contact && list.some((c) => c.id === contact.id)) return contact.id;
+    const withEmail = list.find((c) => c.email); if (withEmail) return withEmail.id;
+    return list[0] ? list[0].id : "";
+  };
+  const [recipientId, setRecipientId] = useState(pickDefault);
+  const recipient = list.find((c) => c.id === recipientId) || list[0] || null;
   const [canal, setCanal] = useState("email");
   const [typeKey, setTypeKey] = useState("prospection");
   const [obj, setObj] = useState(MSG_TYPES[0].obj);
-  const [busy, setBusy] = useState(false); const [out, setOut] = useState(""); const [copied, setCopied] = useState(false);
+  const [tone, setTone] = useState("chaleureux");
+  const [busy, setBusy] = useState(false); const [subject, setSubject] = useState(""); const [out, setOut] = useState(""); const [copied, setCopied] = useState(false);
+  const estabName = (site && (site.label || site.adresse)) || (account && account.enseigne) || "Établissement";
   const pickType = (t) => { setTypeKey(t.key); setObj(t.obj); };
-  // Construit le bloc de contexte transmis à l'IA : entreprise, interlocuteur, derniers échanges et devis.
+  // Contexte transmis à l'IA. On distingue clairement l'EXPÉDITEUR (PEN'UP) du CLIENT et de ses
+  // employés (l'équipe du revendeur), et on date l'historique pour que la temporalité soit juste.
   const buildContext = () => {
     const L = [];
+    L.push("Date du jour : " + TODAY() + ".");
+    L.push("");
+    L.push("EXPÉDITEUR : PEN'UP 3D — c'est NOUS (marque française de stylos 3D et de loisirs créatifs pour enfants). Nous écrivons à un revendeur.");
     if (account) {
-      L.push("ENTREPRISE (revendeur ciblé) :");
+      L.push("");
+      L.push("ENTREPRISE CLIENTE (le revendeur ciblé ; le destinataire y travaille) :");
       L.push("- Enseigne : " + (account.enseigne || "—"));
       if (account.nature && NATURE_META[account.nature]) L.push("- Activité : " + NATURE_META[account.nature].label);
       if (account.stage) L.push("- Étape du cycle commercial : " + stageMeta(account.stage).label);
       if (account.ville) L.push("- Ville : " + account.ville);
       if (account.magasins) L.push("- Réseau : " + magasinLabel(account.magasins) + " (" + networkSeg(account.magasins).label + ")");
-      if (account.notes) L.push("- Notes internes : " + account.notes);
-      L.push("");
+      if (account.notes) L.push("- Notes internes (ne pas citer telles quelles) : " + account.notes);
     }
-    L.push("INTERLOCUTEUR :");
-    L.push("- Nom : " + fullName(contact));
-    if (contact.fonction) L.push("- Fonction : " + contact.fonction);
-    if (ROLE_META[contact.role]) L.push("- Rôle : " + ROLE_META[contact.role].label);
-    if (contact.notes) L.push("- Notes : " + contact.notes);
-    const recent = (interactions || []).slice(0, 4);
+    if (site) L.push("", "ÉTABLISSEMENT CONCERNÉ : " + (site.label || "—") + ([site.adresse, site.ville].filter(Boolean).length ? " (" + [site.adresse, site.ville].filter(Boolean).join(", ") + ")" : ""));
+    if (list.length) {
+      L.push(""); L.push("ÉQUIPE DU CLIENT (employés du revendeur — ce ne sont PAS des collègues de PEN'UP) :");
+      list.forEach((c) => L.push("- " + fullName(c) + (c.fonction ? " · " + c.fonction : "") + (ROLE_META[c.role] ? " · " + ROLE_META[c.role].label : "") + (c.id === recipientId ? "   ← DESTINATAIRE de ce message" : "")));
+    }
+    if (recipient) {
+      L.push(""); L.push("DESTINATAIRE : " + fullName(recipient) + (recipient.fonction ? " (" + recipient.fonction + ")" : "") + " — employé du client.");
+      if (recipient.notes) L.push("- Notes sur le destinataire : " + recipient.notes);
+    }
+    const recent = (interactions || []).slice(0, 6);
     if (recent.length) {
-      L.push(""); L.push("DERNIERS ÉCHANGES (du plus récent au plus ancien) :");
-      recent.forEach((i) => { const tm = INT_META[i.type] || {}; L.push("- " + (i.date || "") + " · " + (tm.label || i.type) + " " + (i.direction === "entrant" ? "(entrant)" : "(sortant)") + (i.sujet ? " — " + i.sujet : "") + (i.resume ? " : " + i.resume : "")); });
+      L.push(""); L.push("HISTORIQUE DES ÉCHANGES (du plus récent au plus ancien ; « reçu » = le client nous a écrit, « envoyé » = nous lui avons écrit ; les personnes nommées dans les résumés sont des employés du client) :");
+      recent.forEach((i) => { const tm = INT_META[i.type] || {}; L.push("- " + (i.date || "?") + " · " + (tm.label || i.type) + " " + (i.direction === "entrant" ? "(reçu du client)" : i.direction === "sortant" ? "(envoyé par nous)" : "") + (i.sujet ? " — " + i.sujet : "") + (i.resume ? " : " + i.resume : "")); });
+    } else {
+      L.push(""); L.push("HISTORIQUE DES ÉCHANGES : aucun échange enregistré — n'écris donc PAS « faisant suite à notre dernier échange/appel ».");
     }
     const rd = (deals || []).slice(0, 4);
     if (rd.length) {
@@ -2447,40 +2519,72 @@ function MessageComposer({ contact, account, interactions = [], deals = [], onUs
     }
     return L.join("\n");
   };
+  const [sending, setSending] = useState(false); const [sentMsg, setSentMsg] = useState("");
+  const toneHint = (MSG_TONES.find((t) => t.key === tone) || MSG_TONES[0]).hint;
   const gen = async () => {
-    setBusy(true); setCopied(false);
+    setBusy(true); setCopied(false); setSentMsg("");
     try {
-      const sys = canal === "email"
-        ? "Tu rédiges un e-mail commercial B2B en français pour PEN'UP 3D (marque française de stylos 3D et de loisirs créatifs pour enfants), adressé à un revendeur (magasin de jouets). Ton professionnel, chaleureux et concis (8 à 12 lignes). Tu t'APPUIES sur le contexte fourni (entreprise, interlocuteur, historique des échanges et devis) pour personnaliser le message et faire des références naturelles et pertinentes. Tu n'inventes AUCUN chiffre, date, fait ni engagement absent du contexte. Première ligne = « Objet : … », puis le corps, et une signature générique « L'équipe PEN'UP 3D »."
-        : "Tu rédiges un message LinkedIn court (4 à 6 lignes), professionnel, personnalisé et cordial, en français, de la part de PEN'UP 3D (stylos 3D et loisirs créatifs) vers un interlocuteur d'un magasin de jouets. Tu t'APPUIES sur le contexte fourni (entreprise, interlocuteur, historique) pour personnaliser, sans inventer aucun chiffre ni fait absent du contexte.";
-      const u = `CONTEXTE :\n${buildContext()}\n\nOBJECTIF DU MESSAGE : ${obj}\n\nRédige le message en exploitant ce contexte pour le rendre personnalisé et pertinent.`;
-      setOut(await aiGenerate(sys, u, onUsage, 800));
+      const baseRules = " Tu écris AU NOM de PEN'UP 3D (l'expéditeur). RÈGLE ABSOLUE : le destinataire et toutes les personnes listées sous « ÉQUIPE DU CLIENT » sont des employés du revendeur (le client) ; ce ne sont JAMAIS des collègues de PEN'UP. Ne présente jamais l'un d'eux comme « notre collègue », « notre équipe » ou un membre de PEN'UP, et ne lui attribue pas une action faite de notre côté. Respecte la temporalité : appuie-toi uniquement sur les dates réelles de l'historique fourni ; n'invente aucun appel, rendez-vous, envoi ou échange absent de l'historique ; n'emploie « faisant suite à notre appel/échange du … » que si un échange correspondant figure réellement dans l'historique (sinon, ouvre autrement). N'invente AUCUN chiffre, date, fait ni engagement absent du contexte. Adresse-toi directement au destinataire.";
+      const toneClause = " Adopte " + toneHint + ".";
+      let sys;
+      if (canal === "email") sys = "Tu rédiges un e-mail commercial B2B en français pour PEN'UP 3D, adressé à un revendeur (magasin de jouets). Concis (8 à 12 lignes)." + toneClause + " Tu t'APPUIES sur le contexte (entreprise cliente, destinataire, historique daté, devis) pour personnaliser avec des références naturelles et justes. Première ligne EXACTEMENT « Objet : … », puis une ligne vide, le corps, et une signature « L'équipe PEN'UP 3D »." + baseRules;
+      else if (canal === "linkedin") sys = "Tu rédiges un message LinkedIn court (4 à 6 lignes), personnalisé et cordial, en français, de la part de PEN'UP 3D vers un interlocuteur d'un magasin de jouets." + toneClause + " Pas d'objet, pas de « Objet : ». Tu t'APPUIES sur le contexte pour personnaliser." + baseRules;
+      else sys = "Tu rédiges un SMS commercial B2B en français pour PEN'UP 3D, très court (2 à 3 phrases, moins de 320 caractères), sans objet ni formule de politesse lourde, signé « PEN'UP 3D »." + toneClause + " Va à l'essentiel et propose une action simple (rappel, RDV, lien)." + baseRules;
+      const u = "CONTEXTE :\n" + buildContext() + "\n\nOBJECTIF DU MESSAGE : " + obj + "\n\nRédige le message pour le destinataire indiqué, en exploitant ce contexte.";
+      const res = await aiGenerate(sys, u, onUsage, canal === "sms" ? 280 : 800);
+      if (canal === "email") {
+        // Extraction robuste de l'objet : on cherche dans les premières lignes une ligne « Objet : … »
+        // (tolérante au gras markdown / préfixes), on récupère le sujet et on retire CETTE ligne du corps.
+        const lines = res.split(/\r?\n/);
+        let subj = "", idx = -1;
+        for (let i = 0; i < Math.min(lines.length, 3); i++) {
+          const m = lines[i].match(/^[\s*_#>]*objet\s*:\s*(.*)$/i);
+          if (m) { subj = (m[1] || "").replace(/\*\*|__/g, "").trim(); idx = i; break; }
+        }
+        let rest = res;
+        if (idx >= 0) { const arr = lines.slice(); arr.splice(idx, 1); rest = arr.join("\n"); }
+        setSubject(subj || ("PEN'UP 3D — " + estabName)); setOut(rest.replace(/^\s+/, "").trim());
+      } else { setSubject(""); setOut(res.trim()); }
     } catch (e) { setOut("Génération IA indisponible ici (fonctionne dans l'app Claude)."); }
     finally { setBusy(false); }
   };
-  const copy = () => { try { navigator.clipboard.writeText(out); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {} };
-  const [sending, setSending] = useState(false); const [sentMsg, setSentMsg] = useState("");
+  const copy = () => { const txt = (canal === "email" && subject) ? ("Objet : " + subject + "\n\n" + out) : out; try { navigator.clipboard.writeText(txt); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {} };
   // Envoi direct via la boîte Gmail connectée (matthis-anael@…), avec signature auto.
   const sendViaGmail = async () => {
-    if (!contact.email) { setSentMsg("❌ Le contact n'a pas d'adresse e-mail."); return; }
-    const subject = (out.match(/^Objet\s*:\s*(.*)$/im) || [, "PEN'UP 3D"])[1];
-    const text = out.replace(/^Objet\s*:.*\n?/i, "").trim();
+    if (!recipient || !recipient.email) { setSentMsg("❌ Le destinataire n'a pas d'adresse e-mail."); return; }
     setSending(true); setSentMsg("");
     try {
-      const res = await fetch("/api/gmail-send", { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ to: contact.email, subject, body: text }) });
+      const res = await fetch("/api/gmail-send", { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ to: recipient.email, subject: subject || ("PEN'UP 3D — " + estabName), body: out }) });
       const dt = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(dt.error || ("Erreur " + res.status));
-      setSentMsg("✅ E-mail envoyé à " + contact.email);
+      setSentMsg("✅ E-mail envoyé à " + recipient.email);
     } catch (e) { setSentMsg("❌ Échec : " + (e && e.message ? e.message : String(e))); }
     finally { setSending(false); }
   };
-  return (<Modal title={"Message IA — " + fullName(contact)} onClose={onClose} wide>
+  const recMail = recipient && recipient.email;
+  const recMobile = recipient && (recipient.mobile || recipient.fixe);
+  const smsHref = recMobile ? ("sms:" + String(recMobile).replace(/[^+\d]/g, "") + "?body=" + encodeURIComponent(out)) : null;
+  const mailHref = recMail ? ("mailto:" + recipient.email + "?subject=" + encodeURIComponent(subject || "") + "&body=" + encodeURIComponent(out)) : null;
+  return (<Modal title={"Message IA — " + (recipient ? fullName(recipient) : estabName)} onClose={onClose} xl>
+    <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>{MSG_CANALS.map((c) => { const Ic = c.Icon; const on = canal === c.key; return (<button key={c.key} type="button" onClick={() => setCanal(c.key)} style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "9px 10px", borderRadius: 11, border: on ? "2px solid " + c.color : "1px solid var(--line)", background: on ? c.color + "14" : "var(--card)", color: on ? c.color : "var(--muted)", fontWeight: 700, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}><Ic size={16} /> {c.label}</button>); })}</div>
+    <div className="row2">
+      <div className="fld"><label>Destinataire</label>{list.length > 1 ? <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)}>{list.map((c) => <option key={c.id} value={c.id}>{fullName(c)}{c.fonction ? " — " + c.fonction : ""}</option>)}</select> : <input readOnly value={recipient ? fullName(recipient) : "—"} />}<span style={{ fontSize: 11, color: "var(--muted)" }}>{canal === "sms" ? (recMobile ? "📱 " + recMobile : "Aucun mobile renseigné") : canal === "email" ? (recMail ? "✉️ " + recipient.email : "Aucune adresse e-mail") : (recipient && recipient.linkedin ? "Profil LinkedIn renseigné" : "Recherche LinkedIn")}</span></div>
+      <div className="fld"><label>Objectif (adaptable)</label><input value={obj} onChange={(e) => setObj(e.target.value)} placeholder="Ex : présenter la gamme, relancer un devis…" /></div>
+    </div>
     <div className="fld"><label>Type de message</label><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{MSG_TYPES.map((t) => <button key={t.key} type="button" className={cx("btn", "btn-s", typeKey === t.key ? "btn-p" : "btn-g")} onClick={() => pickType(t)} title={t.obj}>{t.label}</button>)}</div></div>
-    <div className="row2"><div className="fld"><label>Canal</label><select value={canal} onChange={(e) => setCanal(e.target.value)}><option value="email">E-mail</option><option value="linkedin">Message LinkedIn</option></select></div><div className="fld"><label>Objectif (adaptable)</label><input value={obj} onChange={(e) => setObj(e.target.value)} placeholder="Ex : présenter la gamme, relancer un devis…" /></div></div>
-    <div style={{ fontSize: 11, color: "var(--muted)", margin: "-2px 0 6px", display: "inline-flex", alignItems: "center", gap: 5 }}><Sparkles size={12} /> L'IA tient compte de l'entreprise, de l'interlocuteur et de l'historique ({(interactions || []).length} échange{(interactions || []).length > 1 ? "s" : ""}, {(deals || []).length} document{(deals || []).length > 1 ? "s" : ""}).</div>
-    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}><button className="btn btn-p" onClick={gen} disabled={busy}><Sparkles size={15} className={busy ? "spin" : ""} /> {busy ? "Rédaction…" : "Générer"}</button></div>
-    {out && <><textarea rows={canal === "email" ? 12 : 6} value={out} onChange={(e) => setOut(e.target.value)} style={{ width: "100%" }} /><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8, flexWrap: "wrap" }}>{canal === "email" && contact.email && <button className="btn btn-p" onClick={sendViaGmail} disabled={sending} title="Envoyer directement depuis la boîte Gmail connectée (signature auto)"><Send size={15} className={sending ? "spin" : ""} /> {sending ? "Envoi…" : "Envoyer via Gmail"}</button>}{canal === "email" && contact.email && <a className="btn btn-g" href={"mailto:" + contact.email + "?subject=" + encodeURIComponent((out.match(/^Objet\s*:\s*(.*)$/im) || [, "PEN'UP 3D"])[1]) + "&body=" + encodeURIComponent(out.replace(/^Objet\s*:.*\n?/i, "").trim())}><Mail size={15} /> Ouvrir dans le client mail</a>}<button className="btn btn-g" onClick={copy}><Copy size={15} /> {copied ? "Copié !" : "Copier"}</button></div>{sentMsg && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 8, textAlign: "right", color: sentMsg.startsWith("❌") ? "var(--red)" : "var(--green)" }}>{sentMsg}</div>}</>}
-    <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Brouillon généré par l'IA — à relire et personnaliser avant envoi. « Envoyer via Gmail » nécessite l'intégration Gmail configurée (voir Intégrations).</p>
+    <div className="fld"><label>Ton du message</label><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{MSG_TONES.map((t) => <button key={t.key} type="button" className={cx("btn", "btn-s", tone === t.key ? "btn-p" : "btn-g")} onClick={() => setTone(t.key)} title={t.hint}>{t.label}</button>)}</div></div>
+    <div style={{ fontSize: 11, color: "var(--muted)", margin: "2px 0 8px", display: "inline-flex", alignItems: "center", gap: 5 }}><Sparkles size={12} /> L'IA s'appuie sur l'entreprise cliente, le destinataire et l'historique daté ({(interactions || []).length} échange{(interactions || []).length > 1 ? "s" : ""}, {(deals || []).length} document{(deals || []).length > 1 ? "s" : ""}). Les contacts du client ne sont pas des collègues de PEN'UP.</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}><button className="btn btn-p" onClick={gen} disabled={busy}><Sparkles size={15} className={busy ? "spin" : ""} /> {busy ? "Rédaction…" : (out ? "Régénérer" : "Générer")}</button></div>
+    {out && <ChannelPreview canal={canal} recipient={recipient} estabName={estabName} subject={subject} setSubject={setSubject} out={out} setOut={setOut} />}
+    {out && <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+      {canal === "email" && recMail && <button className="btn btn-p" onClick={sendViaGmail} disabled={sending} title="Envoyer depuis la boîte Gmail connectée (signature auto)"><Send size={15} className={sending ? "spin" : ""} /> {sending ? "Envoi…" : "Envoyer via Gmail"}</button>}
+      {canal === "email" && mailHref && <a className="btn btn-g" href={mailHref}><Mail size={15} /> Client mail</a>}
+      {canal === "sms" && smsHref && <a className="btn btn-p" href={smsHref}><MessageSquare size={15} /> Ouvrir l'app SMS</a>}
+      {canal === "linkedin" && <a className="btn btn-p" href={recipient && recipient.linkedin ? ensureHttp(recipient.linkedin) : linkedinSearch(recipient || {}, account && account.enseigne)} target="_blank" rel="noreferrer"><Linkedin size={15} /> Ouvrir LinkedIn</a>}
+      <button className="btn btn-g" onClick={copy}><Copy size={15} /> {copied ? "Copié !" : "Copier"}</button>
+    </div>}
+    {sentMsg && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 8, textAlign: "right", color: sentMsg.startsWith("❌") ? "var(--red)" : "var(--green)" }}>{sentMsg}</div>}
+    <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>Brouillon IA — à relire avant envoi. « Envoyer via Gmail » nécessite l'intégration Gmail (voir Intégrations) ; « Ouvrir l'app SMS » ouvre l'application de messages de l'appareil.</p>
   </Modal>);
 }
 // Construit le dossier complet d'un compte (groupe / établissement) transmis au chat IA :
@@ -2838,7 +2942,7 @@ function Fiche({ c, account, data, myEmail, settings, deals, interactions, onBac
     {vcardOpen && (() => { const vcf = contactVCard(c, account); const dl = () => { const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" }); const url = URL.createObjectURL(blob); const a2 = document.createElement("a"); a2.href = url; a2.download = fullName(c).replace(/\s+/g, "_") + ".vcf"; document.body.appendChild(a2); a2.click(); document.body.removeChild(a2); URL.revokeObjectURL(url); }; return (<Modal title={"Carte de visite — " + fullName(c)} onClose={() => setVcardOpen(false)}>
       <div style={{ textAlign: "center" }}><img src={"https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=" + encodeURIComponent(vcf)} alt="QR contact" width={220} height={220} style={{ borderRadius: 12, border: "1px solid var(--line)" }} /><div style={{ fontSize: 12.5, color: "var(--muted)", margin: "10px 0 14px", lineHeight: 1.5 }}>Scannez ce QR code avec l'appareil photo de votre téléphone pour enregistrer {fullName(c)} dans vos contacts, ou téléchargez la fiche vCard.</div><button className="btn btn-p" onClick={dl}><Download size={15} /> Télécharger .vcf</button></div>
     </Modal>); })()}
-    {msgOpen && <MessageComposer contact={c} account={account} interactions={interactions} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setMsgOpen(false)} />}
+    {msgOpen && <MessageComposer account={account} contacts={[c, ...(c.accountId ? data.contacts.filter((x) => x.accountId === c.accountId && x.id !== c.id) : [])]} defaultContactId={c.id} interactions={interactions} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setMsgOpen(false)} />}
     {editModal}
   </div>);
 }
@@ -5142,6 +5246,53 @@ function ConfirmHost() {
     </div>
   </div>);
 }
+// Code météo WMO (Open-Meteo) → emoji + libellé court FR.
+function wmoMeta(code) {
+  if (code === 0) return { e: "☀️", l: "Ensoleillé" };
+  if (code === 1 || code === 2) return { e: "🌤️", l: "Éclaircies" };
+  if (code === 3) return { e: "☁️", l: "Couvert" };
+  if (code === 45 || code === 48) return { e: "🌫️", l: "Brouillard" };
+  if (code >= 51 && code <= 57) return { e: "🌦️", l: "Bruine" };
+  if (code >= 61 && code <= 67) return { e: "🌧️", l: "Pluie" };
+  if (code >= 71 && code <= 77) return { e: "🌨️", l: "Neige" };
+  if (code >= 80 && code <= 82) return { e: "🌧️", l: "Averses" };
+  if (code >= 85 && code <= 86) return { e: "🌨️", l: "Averses de neige" };
+  if (code >= 95) return { e: "⛈️", l: "Orage" };
+  return { e: "🌡️", l: "" };
+}
+// Volet d'état en haut du menu latéral : heure (live), date et météo locale (Open-Meteo, sans clé).
+// La géolocalisation est facultative : si elle est refusée/indisponible, on retombe sur la France.
+function SidebarStatus() {
+  const [now, setNow] = useState(() => new Date());
+  const [weather, setWeather] = useState(null); // { temp, code }
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    let cancelled = false, coords = null, timer = null;
+    const load = async () => {
+      if (!coords) return;
+      try {
+        const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + coords.lat + "&longitude=" + coords.lon + "&current=temperature_2m,weather_code");
+        const d = await r.json();
+        if (!cancelled && d && d.current) setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code });
+      } catch (e) {}
+    };
+    const start = (lat, lon) => { if (cancelled) return; coords = { lat, lon }; load(); timer = setInterval(load, 1800000); };
+    const fallback = () => start(48.8566, 2.3522); // repli : France
+    try {
+      if (typeof navigator !== "undefined" && navigator.geolocation) navigator.geolocation.getCurrentPosition((pos) => start(pos.coords.latitude, pos.coords.longitude), () => fallback(), { timeout: 6000, maximumAge: 1800000 });
+      else fallback();
+    } catch (e) { fallback(); }
+    return () => { cancelled = true; if (timer) clearInterval(timer); };
+  }, []);
+  const time = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const date = now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  const w = weather ? wmoMeta(weather.code) : null;
+  return (<div className="sb-status">
+    <div className="sb-status-time tnum">{time}</div>
+    <div className="sb-status-date">{date}</div>
+    {weather ? <div className="sb-status-weather" title={w.l}>{w.e} {weather.temp}°C{w.l ? " · " + w.l : ""}</div> : <div className="sb-status-weather" style={{ opacity: .6 }}>🌡️ météo…</div>}
+  </div>);
+}
 export default function App() {
   const [data, setData] = useState(() => normalize(emptyData()));
   const undoRef = useRef(null); const [canUndo, setCanUndo] = useState(false);
@@ -5379,6 +5530,7 @@ export default function App() {
     <div className="sb-scrim no-print" onClick={() => setNavOpen(false)} aria-hidden="true" />
     <aside className="sb">
       <div className="brand"><img src="/logo-mitmit.png" alt="MITMIT" style={{ width: 88, height: 88, maxWidth: 88, borderRadius: 20, alignSelf: "center" }} /><div className="brand-accent" /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><small style={{ letterSpacing: ".12em" }}>MITMIT · Poste de pilotage B2B</small><span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600, lineHeight: 1.3, textTransform: "none", letterSpacing: 0 }} title="Le petit nom du cockpit">Module Intégré de Traitement, Marges, Inventaire &amp; Tarification</span></div></div>
+      <SidebarStatus />
       <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { navTo(t.id); setNavOpen(false); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
       <a className="sb-brandfoot" href="https://penup3d.com" target="_blank" rel="noreferrer" title="Ouvrir le site penup3d.com"><img src="/logo-penup.png" alt="PEN'UP 3D — penup3d.com" /></a>
       <div className="sb-foot">PEN'UP 3D, SAS · Montauban<br />Données locales à cet appareil.<br /><span className="lnk" style={{ fontSize: 11 }} onClick={() => setHelpOpen(true)}>⌨ Raccourcis clavier</span></div>
