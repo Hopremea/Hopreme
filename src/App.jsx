@@ -2266,13 +2266,28 @@ function MessageComposer({ contact, account, interactions = [], deals = [], onUs
     finally { setBusy(false); }
   };
   const copy = () => { try { navigator.clipboard.writeText(out); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {} };
+  const [sending, setSending] = useState(false); const [sentMsg, setSentMsg] = useState("");
+  // Envoi direct via la boîte Gmail connectée (matthis-anael@…), avec signature auto.
+  const sendViaGmail = async () => {
+    if (!contact.email) { setSentMsg("❌ Le contact n'a pas d'adresse e-mail."); return; }
+    const subject = (out.match(/^Objet\s*:\s*(.*)$/im) || [, "PEN'UP 3D"])[1];
+    const text = out.replace(/^Objet\s*:.*\n?/i, "").trim();
+    setSending(true); setSentMsg("");
+    try {
+      const res = await fetch("/api/gmail-send", { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ to: contact.email, subject, body: text }) });
+      const dt = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(dt.error || ("Erreur " + res.status));
+      setSentMsg("✅ E-mail envoyé à " + contact.email);
+    } catch (e) { setSentMsg("❌ Échec : " + (e && e.message ? e.message : String(e))); }
+    finally { setSending(false); }
+  };
   return (<Modal title={"Message IA — " + fullName(contact)} onClose={onClose} wide>
     <div className="fld"><label>Type de message</label><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{MSG_TYPES.map((t) => <button key={t.key} type="button" className={cx("btn", "btn-s", typeKey === t.key ? "btn-p" : "btn-g")} onClick={() => pickType(t)} title={t.obj}>{t.label}</button>)}</div></div>
     <div className="row2"><div className="fld"><label>Canal</label><select value={canal} onChange={(e) => setCanal(e.target.value)}><option value="email">E-mail</option><option value="linkedin">Message LinkedIn</option></select></div><div className="fld"><label>Objectif (adaptable)</label><input value={obj} onChange={(e) => setObj(e.target.value)} placeholder="Ex : présenter la gamme, relancer un devis…" /></div></div>
     <div style={{ fontSize: 11, color: "var(--muted)", margin: "-2px 0 6px", display: "inline-flex", alignItems: "center", gap: 5 }}><Sparkles size={12} /> L'IA tient compte de l'entreprise, de l'interlocuteur et de l'historique ({(interactions || []).length} échange{(interactions || []).length > 1 ? "s" : ""}, {(deals || []).length} document{(deals || []).length > 1 ? "s" : ""}).</div>
     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}><button className="btn btn-p" onClick={gen} disabled={busy}><Sparkles size={15} className={busy ? "spin" : ""} /> {busy ? "Rédaction…" : "Générer"}</button></div>
-    {out && <><textarea rows={canal === "email" ? 12 : 6} value={out} onChange={(e) => setOut(e.target.value)} style={{ width: "100%" }} /><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>{canal === "email" && contact.email && <a className="btn btn-g" href={"mailto:" + contact.email + "?subject=" + encodeURIComponent((out.match(/^Objet\s*:\s*(.*)$/im) || [, "PEN'UP 3D"])[1]) + "&body=" + encodeURIComponent(out.replace(/^Objet\s*:.*\n?/i, "").trim())}><Mail size={15} /> Ouvrir l'e-mail</a>}<button className="btn btn-g" onClick={copy}><Copy size={15} /> {copied ? "Copié !" : "Copier"}</button></div></>}
-    <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Brouillon généré par l'IA — à relire et personnaliser avant envoi.</p>
+    {out && <><textarea rows={canal === "email" ? 12 : 6} value={out} onChange={(e) => setOut(e.target.value)} style={{ width: "100%" }} /><div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8, flexWrap: "wrap" }}>{canal === "email" && contact.email && <button className="btn btn-p" onClick={sendViaGmail} disabled={sending} title="Envoyer directement depuis la boîte Gmail connectée (signature auto)"><Send size={15} className={sending ? "spin" : ""} /> {sending ? "Envoi…" : "Envoyer via Gmail"}</button>}{canal === "email" && contact.email && <a className="btn btn-g" href={"mailto:" + contact.email + "?subject=" + encodeURIComponent((out.match(/^Objet\s*:\s*(.*)$/im) || [, "PEN'UP 3D"])[1]) + "&body=" + encodeURIComponent(out.replace(/^Objet\s*:.*\n?/i, "").trim())}><Mail size={15} /> Ouvrir dans le client mail</a>}<button className="btn btn-g" onClick={copy}><Copy size={15} /> {copied ? "Copié !" : "Copier"}</button></div>{sentMsg && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 8, textAlign: "right", color: sentMsg.startsWith("❌") ? "var(--red)" : "var(--green)" }}>{sentMsg}</div>}</>}
+    <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Brouillon généré par l'IA — à relire et personnaliser avant envoi. « Envoyer via Gmail » nécessite l'intégration Gmail configurée (voir Intégrations).</p>
   </Modal>);
 }
 function AccountInteractionForm({ contactId, accountId, contacts, onCancel, onSave, interaction, onUsage, onPlanEvents }) {
