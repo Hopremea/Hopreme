@@ -4118,11 +4118,67 @@ const EVENT_TYPES = {
   autre: { label: "Autre", color: "#9aa6bd", icon: "•" },
 };
 
+// ====== Export du calendrier au format .ics (iCalendar) ======
+// Fichier standard importable dans Google Agenda, Samsung Calendar, Apple Calendar ou Outlook,
+// en attendant une synchronisation directe via l'API Google. Sont inclus : les événements de
+// l'agenda, les prochaines actions des comptes et les anniversaires (récurrents chaque année).
+const icsEscape = (s) => String(s == null ? "" : s).replace(/\\/g, "\\\\").replace(/[;,]/g, (m) => "\\" + m).replace(/\r?\n/g, "\\n");
+const icsFold = (line) => { if (line.length <= 73) return line; let out = "", r = line; while (r.length > 73) { out += r.slice(0, 73) + "\r\n "; r = r.slice(73); } return out + r; };
+const icsDay = (ymd) => (ymd || "").replace(/-/g, "");
+const icsNextDay = (ymd) => { const d = new Date(ymd + "T00:00:00"); d.setDate(d.getDate() + 1); const p = (n) => String(n).padStart(2, "0"); return "" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()); };
+const icsStamp = () => { const d = new Date(), p = (n) => String(n).padStart(2, "0"); return "" + d.getUTCFullYear() + p(d.getUTCMonth() + 1) + p(d.getUTCDate()) + "T" + p(d.getUTCHours()) + p(d.getUTCMinutes()) + p(d.getUTCSeconds()) + "Z"; };
+function calendarEventsCount(data) {
+  const ev = (data.events || []).filter((e) => e.date).length;
+  const act = (data.accounts || []).filter((a) => a.dateAction && a.prochaineAction).length;
+  const anniv = (data.contacts || []).filter((c) => c.naissance && /^\d{4}-\d{2}-\d{2}$/.test(c.naissance)).length;
+  return { ev, act, anniv, total: ev + act + anniv };
+}
+function buildCalendarICS(data) {
+  const stamp = icsStamp();
+  const acc = (id) => (data.accounts || []).find((a) => a.id === id);
+  const raw = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//PEN'UP 3D//MITMIT Cockpit//FR", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:MITMIT — PEN'UP 3D", "X-WR-TIMEZONE:Europe/Paris"];
+  (data.events || []).forEach((e) => {
+    if (!e.date) return;
+    const a = e.accountId ? acc(e.accountId) : null;
+    const tm = EVENT_TYPES[e.type] || EVENT_TYPES.autre;
+    const desc = [a ? a.enseigne : "", e.notes || ""].filter(Boolean).join(" — ");
+    raw.push("BEGIN:VEVENT", "UID:" + e.id + "@mitmit.penup3d", "DTSTAMP:" + stamp);
+    if (e.heure && /^\d{1,2}:\d{2}$/.test(e.heure)) {
+      const [hh, mm] = e.heure.split(":"); const p = (n) => String(n).padStart(2, "0");
+      const end = new Date(e.date + "T" + p(hh) + ":" + mm + ":00"); end.setHours(end.getHours() + 1);
+      raw.push("DTSTART:" + icsDay(e.date) + "T" + p(hh) + mm + "00");
+      raw.push("DTEND:" + icsDay(e.date) + "T" + p(end.getHours()) + p(end.getMinutes()) + "00");
+    } else {
+      raw.push("DTSTART;VALUE=DATE:" + icsDay(e.date), "DTEND;VALUE=DATE:" + icsNextDay(e.date));
+    }
+    raw.push("SUMMARY:" + icsEscape((tm.icon ? tm.icon + " " : "") + (e.titre || "Événement")));
+    if (desc) raw.push("DESCRIPTION:" + icsEscape(desc));
+    raw.push("END:VEVENT");
+  });
+  (data.accounts || []).filter((a) => a.dateAction && a.prochaineAction).forEach((a) => {
+    raw.push("BEGIN:VEVENT", "UID:action_" + a.id + "@mitmit.penup3d", "DTSTAMP:" + stamp, "DTSTART;VALUE=DATE:" + icsDay(a.dateAction), "DTEND;VALUE=DATE:" + icsNextDay(a.dateAction), "SUMMARY:" + icsEscape("🔔 " + a.prochaineAction + (a.enseigne ? " — " + a.enseigne : "")), "END:VEVENT");
+  });
+  (data.contacts || []).filter((c) => c.naissance && /^\d{4}-\d{2}-\d{2}$/.test(c.naissance)).forEach((c) => {
+    const a = acc(c.accountId);
+    raw.push("BEGIN:VEVENT", "UID:anniv_" + c.id + "@mitmit.penup3d", "DTSTAMP:" + stamp, "DTSTART;VALUE=DATE:" + icsDay(c.naissance), "DTEND;VALUE=DATE:" + icsNextDay(c.naissance), "RRULE:FREQ=YEARLY", "SUMMARY:" + icsEscape("🎂 Anniversaire " + fullName(c) + (a ? " (" + a.enseigne + ")" : "")), "END:VEVENT");
+  });
+  raw.push("END:VCALENDAR");
+  return raw.map(icsFold).join("\r\n");
+}
+function downloadICS(data) {
+  const blob = new Blob([buildCalendarICS(data)], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = "penup3d-calendrier-" + new Date().toISOString().slice(0, 10) + ".ics";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 // ============== AGENDA / CALENDRIER ==============
 function Agenda({ data, persist, go }) {
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [edit, setEdit] = useState(null);
   const [view, setView] = useState(null);
+  const [icsOpen, setIcsOpen] = useState(false);
   const monthName = new Date(cursor.y, cursor.m, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
   const first = new Date(cursor.y, cursor.m, 1);
   const offset = (first.getDay() + 6) % 7; // lundi = 0
@@ -4162,6 +4218,7 @@ function Agenda({ data, persist, go }) {
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#7c5cf0" }} />Échange</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: "#2bb673" }} />Perso</span>
         </div>
+        <button className="btn btn-g btn-s" onClick={() => setIcsOpen(true)} title="Exporter le calendrier (.ics) pour Google Agenda, Samsung Calendar…"><Download size={14} /> Exporter (.ics)</button>
         <button className="btn btn-p btn-s" onClick={() => setEdit(newEvent(todayStr))}><Plus size={14} /> Nouvel événement</button>
       </div>
     </div>
@@ -4192,6 +4249,16 @@ function Agenda({ data, persist, go }) {
     </div>
     {edit && <Modal title={(data.events || []).some((e) => e.id === edit.id) ? "Modifier l'événement" : "Nouvel événement"} onClose={() => setEdit(null)}><EventForm event={edit} accounts={data.accounts} onSave={(ev) => { saveEvent(ev); setEdit(null); }} onDelete={() => { delEvent(edit.id); setEdit(null); }} isExisting={(data.events || []).some((e) => e.id === edit.id)} /></Modal>}
     {view && <Modal title="Événement" onClose={() => setView(null)}><EventView event={view} data={data} go={go} onClose={() => setView(null)} onEdit={() => { const ev = view; setView(null); setEdit(ev); }} onDelete={() => { delEvent(view.id); setView(null); }} /></Modal>}
+    {icsOpen && (() => { const c = calendarEventsCount(data); return (<Modal title="Exporter le calendrier" onClose={() => setIcsOpen(false)} wide>
+      <p style={{ fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>Téléchargez vos événements au format <strong>.ics</strong> (standard iCalendar), puis importez le fichier dans Google Agenda ou Samsung Calendar. En attendant la synchronisation automatique via l'API Google.</p>
+      <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: -4 }}>Inclus : <strong>{c.ev}</strong> événement{c.ev > 1 ? "s" : ""} d'agenda · <strong>{c.act}</strong> action{c.act > 1 ? "s" : ""} de compte · <strong>{c.anniv}</strong> anniversaire{c.anniv > 1 ? "s" : ""} récurrent{c.anniv > 1 ? "s" : ""}.</p>
+      <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 14px" }}><button className="btn btn-p" onClick={() => downloadICS(data)} disabled={c.total === 0}><Download size={15} /> Télécharger le fichier .ics</button></div>
+      {c.total === 0 ? <div className="empty">Aucun événement à exporter pour le moment.</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 12 }}>
+        <div className="card" style={{ margin: 0 }}><div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6 }}>📅 Google Agenda</div><ol style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.55, color: "var(--muted)" }}><li>Sur ordinateur, ouvrez <strong>calendar.google.com</strong>.</li><li>Roue dentée → <strong>Paramètres</strong> → <strong>Importer/Exporter</strong>.</li><li>Choisissez le fichier .ics et l'agenda de destination, puis <strong>Importer</strong>.</li></ol></div>
+        <div className="card" style={{ margin: 0 }}><div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6 }}>📱 Samsung Calendar</div><ol style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.55, color: "var(--muted)" }}><li>Enregistrez le fichier .ics sur le téléphone.</li><li>Calendrier → menu ☰ → <strong>Gérer les calendriers</strong> → <strong>Importer</strong>.</li><li>Sélectionnez le fichier et confirmez l'agenda.</li></ol></div>
+      </div>}
+      <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 12 }}>Astuce : sur iPhone, ouvrez le .ics depuis Mail ou Fichiers pour l'ajouter au calendrier Apple. Cet export est une photo à l'instant T : refaites-le après vos modifications, tant que la synchronisation automatique n'est pas en place.</p>
+    </Modal>); })()}
   </div>);
 }
 function EventForm({ event, accounts, onSave, onDelete, isExisting }) {
