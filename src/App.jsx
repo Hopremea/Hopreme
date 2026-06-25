@@ -4235,7 +4235,10 @@ function InteractionView({ interaction: it, data, go, onClose, onEdit }) {
 // Liste d'échanges présentée comme un fil de discussion (entrant à gauche, sortant à droite), avec Voir / Modifier / Supprimer.
 function InteractionThread({ interactions, data, onView, onEdit, onDelete, showContact }) {
   if (!interactions || interactions.length === 0) return <div className="empty">Aucun échange.</div>;
-  return (<div className="thread">{interactions.map((it) => {
+  // Sens d'affichage inversé par rapport au tri reçu (qui place le plus récent en premier) :
+  // le fil se lit du plus ancien (en haut) au plus récent (en bas), comme une discussion.
+  const ordered = interactions.slice().reverse();
+  return (<div className="thread">{ordered.map((it) => {
     const m = INT_META[it.type] || INT_META.note; const Ic = m.icon;
     const ct = showContact && it.contactId ? (data.contacts || []).find((c) => c.id === it.contactId) : null;
     const inbound = it.direction === "entrant";
