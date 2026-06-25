@@ -987,6 +987,13 @@ const triSVG = (fill) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width=
 const starsSVG = (fill) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><g fill='${fill}'><path d='M28 10 q4 14 18 18 q-14 4 -18 18 q-4 -14 -18 -18 q14 -4 18 -18 z'/><path d='M88 60 q3 10 13 13 q-10 3 -13 13 q-3 -10 -13 -13 q10 -3 13 -13 z'/><path d='M52 86 q2 8 10 10 q-8 2 -10 10 q-2 -8 -10 -10 q8 -2 10 -10 z'/></g></svg>`);
 // Vagues / écailles — lignes ondulées douces.
 const wavesSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='80' height='44'><g fill='none' stroke='${stroke}' stroke-width='3' stroke-linecap='round'><path d='M-5 14 q20 -16 40 0 q20 16 40 0 q20 -16 40 0'/><path d='M-5 36 q20 -16 40 0 q20 16 40 0 q20 -16 40 0'/></g></svg>`);
+// Motifs supplémentaires : nid d'abeille, chevrons, croix, écailles, bulles, lignes obliques.
+const honeycombSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='56' height='96'><g fill='none' stroke='${stroke}' stroke-width='2' stroke-linejoin='round'><path d='M14 0 L0 8 L0 24 L14 32 L28 24 L28 8 Z'/><path d='M42 0 L28 8 L28 24 L42 32 L56 24 L56 8 Z'/><path d='M14 48 L0 56 L0 72 L14 80 L28 72 L28 56 Z'/><path d='M42 48 L28 56 L28 72 L42 80 L56 72 L56 56 Z'/><path d='M28 24 L28 56 M0 24 L0 56 M56 24 L56 56'/></g></svg>`);
+const chevronSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='60' height='34'><g fill='none' stroke='${stroke}' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M-2 10 L15 24 L32 10 L49 24 L66 10'/><path d='M-2 26 L15 40 L32 26 L49 40 L66 26'/></g></svg>`);
+const crossSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><g fill='none' stroke='${stroke}' stroke-width='2.4' stroke-linecap='round'><path d='M12 4 L12 20 M4 12 L20 12'/><path d='M36 28 L36 44 M28 36 L44 36'/></g></svg>`);
+const scalesSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><g fill='none' stroke='${stroke}' stroke-width='2'><path d='M0 24 A24 24 0 0 1 24 0 A24 24 0 0 1 48 24'/><path d='M-24 48 A24 24 0 0 1 0 24 A24 24 0 0 1 24 48'/><path d='M24 48 A24 24 0 0 1 48 24 A24 24 0 0 1 72 48'/></g></svg>`);
+const bubblesSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><g fill='none' stroke='${stroke}' stroke-width='2'><circle cx='20' cy='24' r='11'/><circle cx='62' cy='16' r='6'/><circle cx='74' cy='54' r='13'/><circle cx='34' cy='66' r='8'/><circle cx='8' cy='72' r='4'/><circle cx='52' cy='44' r='3.5'/></g></svg>`);
+const diagLinesSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><g fill='none' stroke='${stroke}' stroke-width='2.2' stroke-linecap='round'><path d='M-6 6 L6 -6 M0 24 L24 0 M18 30 L30 18'/></g></svg>`);
 // Sélecteurs de thème décomposés : couleur de fond, motif, accentuation des boutons.
 // COULEUR : bg = fond, stroke = teinte du motif sur ce fond, dark = texte clair hors carte.
 const THEME_COLORS = [
@@ -996,14 +1003,25 @@ const THEME_COLORS = [
   { id: "mint", label: "Menthe", bg: "#e2f3ec", stroke: "#3fb68a", dark: false },
   { id: "peach", label: "Pêche", bg: "#fdeadf", stroke: "#e8916b", dark: false },
   { id: "lavender", label: "Lavande", bg: "#efeafb", stroke: "#9b87d4", dark: false },
+  { id: "cottoncandy", label: "Barbe à papa", bg: "linear-gradient(135deg,#ffe3f1 0%,#e7ecff 55%,#e0fbff 100%)", meta: "#f1e6fb", stroke: "#c98fc4", dark: false },
+  { id: "peachsky", label: "Ciel pêche", bg: "radial-gradient(120% 120% at 20% 0%,#fff3da 0%,#ffd9c0 45%,#ffbcd0 100%)", meta: "#ffd0c4", stroke: "#e6896f", dark: false },
+  { id: "mintglow", label: "Halo menthe", bg: "radial-gradient(120% 120% at 80% 10%,#f3fff6 0%,#cdf6e2 45%,#a7e8df 100%)", meta: "#bdeede", stroke: "#3fa78a", dark: false },
   { id: "yellow", label: "Jaune", bg: "#FFD212", stroke: "#3F60AA", dark: false },
   { id: "blue", label: "Bleu", bg: "#3F60AA", stroke: "#ffffff", dark: true },
   { id: "red", label: "Rouge", bg: "#FF5A45", stroke: "#ffffff", dark: true },
   { id: "forest", label: "Vert forêt", bg: "#1f5e44", stroke: "#3a7d60", dark: true },
   { id: "plum", label: "Prune", bg: "#5b3a6e", stroke: "#7d5a90", dark: true },
   { id: "midnight", label: "Bleu nuit", bg: "#1b2440", stroke: "#34406b", dark: true },
+  { id: "sunset", label: "Coucher de soleil", bg: "linear-gradient(135deg,#ff9a5a 0%,#ff5a8c 50%,#a84bd6 100%)", meta: "#ff6f8b", stroke: "rgba(255,255,255,.85)", dark: true },
+  { id: "ocean", label: "Océan", bg: "linear-gradient(160deg,#1fb6c9 0%,#2f6fd0 55%,#2a3b8f 100%)", meta: "#2a72c4", stroke: "rgba(255,255,255,.8)", dark: true },
+  { id: "aurora", label: "Aurore", bg: "linear-gradient(150deg,#0f2a4a 0%,#1f6e6a 45%,#3fae8e 75%,#7be0a8 100%)", meta: "#1f6e6a", stroke: "rgba(255,255,255,.78)", dark: true },
+  { id: "grape", label: "Raisin", bg: "linear-gradient(150deg,#3a1c5e 0%,#6a2fa0 55%,#b94bd6 100%)", meta: "#6e35a2", stroke: "rgba(255,255,255,.82)", dark: true },
+  { id: "ember", label: "Braise", bg: "radial-gradient(130% 130% at 15% 15%,#ffae3b 0%,#ff5a45 45%,#a01f3c 100%)", meta: "#e6452f", stroke: "rgba(255,255,255,.85)", dark: true },
+  { id: "steel", label: "Acier", bg: "conic-gradient(from 220deg at 30% 20%,#2c3550 0%,#3f4f7a 30%,#23304f 60%,#1a2238 100%)", meta: "#2b3656", stroke: "rgba(255,255,255,.72)", dark: true },
 ];
-const THEME_COLOR_BG = {}; THEME_COLORS.forEach((c) => { THEME_COLOR_BG[c.id] = c.bg; });
+// Pour body + <meta name=theme-color> (qui doit rester une couleur unie) : les fonds en dégradé
+// fournissent une couleur de repli unie via `meta`. Les fonds unis utilisent directement `bg`.
+const THEME_COLOR_BG = {}; THEME_COLORS.forEach((c) => { THEME_COLOR_BG[c.id] = c.meta || c.bg; });
 // MOTIF : fn = générateur SVG (null = aucun), size = taille de tuile, op = opacité.
 const THEME_PATTERNS = [
   { id: "none", label: "Aucun", fn: null },
@@ -1014,6 +1032,12 @@ const THEME_PATTERNS = [
   { id: "grid", label: "Quadrillage", fn: gridSVG, size: "44px 44px", op: 0.6 },
   { id: "tri", label: "Confettis", fn: triSVG, size: "110px 110px", op: 0.45 },
   { id: "waves", label: "Vagues", fn: wavesSVG, size: "80px 44px", op: 0.5 },
+  { id: "honeycomb", label: "Nid d'abeille", fn: honeycombSVG, size: "56px 96px", op: 0.4 },
+  { id: "chevron", label: "Chevrons", fn: chevronSVG, size: "60px 34px", op: 0.42 },
+  { id: "cross", label: "Croix", fn: crossSVG, size: "48px 48px", op: 0.45 },
+  { id: "scales", label: "Écailles", fn: scalesSVG, size: "48px 24px", op: 0.4 },
+  { id: "bubbles", label: "Bulles", fn: bubblesSVG, size: "90px 90px", op: 0.4 },
+  { id: "diaglines", label: "Lignes obliques", fn: diagLinesSVG, size: "24px 24px", op: 0.4 },
 ];
 // ACCENTUATION : couleur des boutons concernés (barre du haut + filtres actifs). « auto » = selon le fond.
 const THEME_ACCENTS = [
@@ -1358,6 +1382,82 @@ body:not(.doc-print) .print-area,body:not(.doc-print) .print-area *{visibility:v
 body:not(.doc-print) .print-area{position:absolute!important;left:0;top:0;width:100%;padding:0;}
 .no-print{display:none!important;}
 }
+
+/* ============================================================
+   Micro-animations au survol — composent avec les transitions
+   et :hover déjà définis (transform/opacity/box-shadow only).
+   Respecte prefers-reduced-motion. OK fond clair / sombre / thèmes.
+   ============================================================ */
+@media (prefers-reduced-motion: no-preference){
+  .lnk,.back,.star,.zbtn,.cmdk-item,.cal-ev{transition:transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .18s ease,color .15s ease,background .15s ease,opacity .15s ease;}
+  .btn{will-change:transform;}
+  .btn:not(:disabled):hover{transform:translateY(-1px);}
+  .btn:not(:disabled):active{transform:translateY(0) scale(.97);transition-duration:.06s;}
+  .btn-g:not(:disabled):hover,.btn-d:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(20,32,58,.10);}
+  .btn-ghost:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(63,96,170,.14);}
+  .btn-p:not(:disabled):active,.btn-y:not(:disabled):active,.btn-r:not(:disabled):active,.btn-ai:not(:disabled):active{transform:translateY(0) scale(.97);transition-duration:.06s;}
+  .btn-save:active{transform:translateY(0) scale(.98);}
+  .btn-ai:not(:disabled):hover{transform:translateY(-1px) scale(1.01);}
+  .btn svg,.btn-save svg,.back svg,.lnk svg{transition:transform .18s cubic-bezier(.2,.8,.2,1);}
+  .back:hover svg{transform:translateX(-3px);}
+  .lnk:hover svg{transform:translateX(2px);}
+  .lnk{position:relative;text-decoration:none;}
+  .lnk::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1.5px;background:currentColor;border-radius:2px;transform:scaleX(0);transform-origin:left;opacity:.85;transition:transform .22s cubic-bezier(.2,.8,.2,1);}
+  .lnk:hover{text-decoration:none;}
+  .lnk:hover::after{transform:scaleX(1);}
+  .lnk:active{transform:translateY(.5px);}
+  .back:hover{transform:translateX(-1px);}
+  .iconbtn{transition:background .15s ease,color .15s ease,transform .16s cubic-bezier(.2,.8,.2,1),box-shadow .18s ease;}
+  .iconbtn:not(:disabled):hover{transform:translateY(-1px) scale(1.06);box-shadow:0 4px 12px rgba(20,32,58,.12);}
+  .iconbtn:not(:disabled):active{transform:translateY(0) scale(.94);transition-duration:.06s;}
+  .zbtn:hover{transform:translateY(-1px) scale(1.04);}
+  .zbtn:active{transform:translateY(0) scale(.95);transition-duration:.06s;}
+  .chip,.chip-all{will-change:transform;}
+  .chip:hover,.chip-all:hover{transform:translateY(-1px);}
+  .chip:active,.chip-all:active{transform:translateY(0) scale(.96);transition-duration:.06s;}
+  .chip.on:hover,.chip-all.on:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(63,96,170,.30);}
+  .star{transition:transform .18s cubic-bezier(.34,1.56,.64,1);}
+  .star:hover{transform:scale(1.18) rotate(-8deg);}
+  .star:active{transform:scale(.9);transition-duration:.06s;}
+  .acc-card:active,.crow:active,.deal-card:active,.ev-link:active{transform:translateY(0) scale(.995);transition-duration:.08s;}
+  .nav button:not(.on):hover{transform:translateX(2px);}
+  .nav button:active{transform:translateX(2px) scale(.99);transition-duration:.06s;}
+  .cmdk-item:hover{transform:translateX(2px);}
+  .cal-ev:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(20,32,58,.10);}
+  .drop:hover{transform:translateY(-1px);}
+  .photo-menu button:hover{transform:translateX(2px);}
+}
+@media (prefers-reduced-motion: no-preference){
+  .pu-root.dark .btn-g:not(:disabled):hover,
+  .pu-root.dark .btn-d:not(:disabled):hover,
+  .pu-root.dark .iconbtn:not(:disabled):hover{box-shadow:0 6px 16px rgba(0,0,0,.35);}
+  .pu-root.dark .btn-ghost:not(:disabled):hover{box-shadow:0 6px 16px rgba(0,0,0,.35);}
+  .pu-root.dark .cal-ev:hover{box-shadow:0 4px 10px rgba(0,0,0,.4);}
+}
+@media (prefers-reduced-motion: reduce){
+  .btn:hover,.btn:active,.btn-save:active,.iconbtn:hover,.iconbtn:active,
+  .zbtn:hover,.zbtn:active,.chip:hover,.chip:active,.chip-all:hover,.chip-all:active,
+  .star:hover,.star:active,.nav button:hover,.nav button:active,.cmdk-item:hover,
+  .cal-ev:hover,.drop:hover,.back:hover,.lnk:active,.photo-menu button:hover{transform:none;}
+  .lnk::after{transition:none;}
+}
+
+/* ===== Carte de prévisualisation au survol prolongé (~0,65 s) ===== */
+.dwell-card{position:fixed;z-index:9999;pointer-events:none;width:max-content;max-width:300px;min-width:212px;box-sizing:border-box;padding:12px 13px;background:var(--card,#fff);color:var(--ink,#1a2233);border:1px solid var(--line,#e6e8ee);border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.06),0 16px 40px -12px rgba(15,23,42,.32);font-size:12.5px;line-height:1.4;border-top:3px solid var(--dw-accent,#3F60AA);}
+@media (prefers-reduced-motion: no-preference){.dwell-card{animation:dwellIn .16s cubic-bezier(.2,.8,.3,1) both;transform-origin:top left;}}
+@keyframes dwellIn{from{opacity:0;transform:translateY(5px) scale(.97);}to{opacity:1;transform:none;}}
+.dwell-head{display:flex;align-items:flex-start;gap:9px;}
+.dwell-ic{flex-shrink:0;width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:#fff;}
+.dwell-h-txt{flex:1;min-width:0;}
+.dwell-title{font-weight:800;font-size:13.5px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:188px;}
+.dwell-sub{color:var(--muted,#7a8699);font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:188px;}
+.dwell-badge{flex-shrink:0;align-self:flex-start;margin-top:1px;font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:2px 7px;border-radius:999px;color:var(--bdg,#3F60AA);background:color-mix(in srgb, var(--bdg,#3F60AA) 14%, transparent);}
+.dwell-rows{margin-top:10px;padding-top:9px;border-top:1px solid var(--line,#e6e8ee);display:flex;flex-direction:column;gap:5px;}
+.dwell-row{display:flex;gap:10px;align-items:baseline;justify-content:space-between;}
+.dwell-k{color:var(--muted,#7a8699);font-size:11.5px;font-weight:600;flex-shrink:0;}
+.dwell-v{font-weight:600;text-align:right;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:178px;}
+.dwell-foot{margin-top:9px;padding-top:8px;border-top:1px solid var(--line,#e6e8ee);color:var(--muted,#7a8699);font-size:11.5px;font-style:italic;}
+@media (prefers-reduced-motion: reduce){.dwell-card{animation:none;}}
 `;
 
 const Badge = ({ color, children }) => (<span className="badge" style={{ background: color + "18", color: darkenHex(color) }}><i className="dot" style={{ background: color }} />{children}</span>);
@@ -2076,6 +2176,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   const [intEdit, setIntEdit] = useState(null);
   const [intView, setIntView] = useState(null);
   const [siteEdit, setSiteEdit] = useState(null);
+  const dwell = useDwellPreview();
   const [eventEdit, setEventEdit] = useState(null);
   const [eventView, setEventView] = useState(null);
   const [attachOpen, setAttachOpen] = useState(false);
@@ -2153,12 +2254,12 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
     <div ref={sitesRef} className="card" style={{ marginBottom: 16 }}>
       <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: 0 }}><MapPin size={15} />Établissements & sites rattachés</h3><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{!isGroupe(a) && <button className="btn btn-p btn-s" onClick={promoteToGroup} title="Faire de cet établissement une chaîne / un groupe, pour y rattacher d'autres établissements"><GitBranch size={14} /> Transformer en groupe</button>}<button className="btn btn-g btn-s" onClick={() => setAttachOpen(true)} title="Rattacher à ce groupe un établissement indépendant qui existe déjà"><Link2 size={14} /> Rattacher un existant</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit(newSite("decision"))} title="Ajouter le siège décisionnaire"><Plus size={14} /> Siège</button><button className="btn btn-y btn-s" onClick={() => setSiteEdit(newSite("pdv"))}><Plus size={14} /> Établissement</button><button className="btn btn-g btn-s" onClick={() => setSiteEdit({ ...newSite("pdv"), adresse: a.adressePostale || a.adresseLivraison || "", adresseLivraison: a.adresseLivraison || "", livraisonIdentique: a.livraisonIdentique !== false, lat: a.lat ?? null, lng: a.lng ?? null, typeSurface: a.typeSurface || "" })} title="Créer un établissement reprenant l'adresse postale et les coordonnées du compte"><Plus size={14} /> Depuis l'adresse</button></div></div>
       {!isGroupe(a) && <div style={{ fontSize: 12, color: "var(--muted)", margin: "-2px 0 10px", lineHeight: 1.5 }}>Cet établissement est indépendant. S'il s'agit d'une chaîne (plusieurs adresses), cliquez sur <strong>Transformer en groupe</strong> : l'établissement actuel devient le premier point de vente et vous pourrez rattacher les autres.</div>}
-      {accSites.length === 0 ? <div className="empty">Aucun site rattaché. Ajoutez le siège décisionnaire et/ou les établissements de ce groupe. Pour un indépendant ou une association, un seul site suffit : le siège et le local sont au même endroit.</div> : (<div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{accSites.slice().sort((x, y) => (x.type === "decision" ? 0 : 1) - (y.type === "decision" ? 0 : 1)).map((s) => { const tm = SITE_TYPES[s.type]; const col = siteColor(s, a); return (<div key={s.id} onClick={() => onOpenSite && onOpenSite(s.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid " + (s.id === hlSite ? "var(--blue)" : "var(--line)"), borderRadius: 11, background: s.id === hlSite ? "var(--blue-l)" : "#fff", boxShadow: s.id === hlSite ? "0 0 0 3px rgba(63,96,170,.15)" : "none", transition: "background .3s, border-color .3s, box-shadow .3s" }}><svg width="20" height="20" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(tm.shape)} fill={col} stroke="#fff" strokeWidth={1.5} /></svg><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{s.label}<Badge color={s.type === "decision" ? "#7c5cf0" : "#F8B133"}>{s.type === "decision" ? "Siège" : "Établissement"}</Badge>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{!s.lat && <span style={{ fontSize: 11, color: "var(--red)" }}>à géolocaliser</span>}</div>{s.adresse && <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.adresse}</div>}{s.siret && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 1 }} className="tnum">SIRET {s.siret}</div>}{(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.mobile || lc.fixe || "") : (s.contactTel || ""); if (!nm && !tel) return null; return <div style={{ fontSize: 11.5, color: "var(--blue)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}><Phone size={11} />{lc ? <span className="lnk" onClick={(e) => { e.stopPropagation(); go("repertoire", lc.id); }}>{nm}</span> : nm}{tel ? " · " + tel : ""}{lc ? <span style={{ color: "var(--muted)", fontWeight: 600 }}> · lié</span> : null}</div>; })()}</div><div style={{ display: "flex", gap: 4, flexShrink: 0 }}>{s.lat != null && <button className="iconbtn" title="Voir sur la carte" onClick={(e) => { e.stopPropagation(); go("carte", s.id); }}><MapIcon size={15} /></button>}<a className="iconbtn" href={siteGmaps(s, a && a.enseigne)} target="_blank" rel="noreferrer" title="Fiche Google" onClick={(e) => e.stopPropagation()}><ExternalLink size={15} /></a><button className="iconbtn" title="Modifier" onClick={(e) => { e.stopPropagation(); setSiteEdit(s); }}><Pencil size={15} /></button><button className="iconbtn" title="Supprimer" onClick={(e) => { e.stopPropagation(); appConfirm("Supprimer l'établissement « " + s.label + " » ?", { title: "Supprimer cet établissement ?" }).then((ok) => { if (ok) delSite(s.id); }); }}><Trash2 size={15} /></button></div></div>); })}</div>)}
+      {accSites.length === 0 ? <div className="empty">Aucun site rattaché. Ajoutez le siège décisionnaire et/ou les établissements de ce groupe. Pour un indépendant ou une association, un seul site suffit : le siège et le local sont au même endroit.</div> : (<div style={{ display: "flex", flexDirection: "column", gap: 7 }}>{accSites.slice().sort((x, y) => (x.type === "decision" ? 0 : 1) - (y.type === "decision" ? 0 : 1)).map((s) => { const tm = SITE_TYPES[s.type]; const col = siteColor(s, a); return (<div key={s.id} onClick={() => onOpenSite && onOpenSite(s.id)} {...dwell.bind(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.mobile || lc.fixe || "") : (s.contactTel || ""); return { title: s.label, subtitle: s.adresse || "Adresse à renseigner", badge: s.type === "decision" ? "Siège" : "Établissement", badgeColor: s.type === "decision" ? "#7c5cf0" : "#F8B133", accent: col, rows: [{ label: "Type", value: tm.label }, { label: "Surface", value: s.typeSurface }, { label: "SIRET", value: s.siret }, { label: "Contact", value: nm }, { label: "Téléphone", value: tel }, { label: "Géoloc.", value: s.lat == null ? "À géolocaliser" : null }], foot: lc ? "Contact lié à ce site" : null }; })} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 11, padding: "9px 11px", border: "1px solid " + (s.id === hlSite ? "var(--blue)" : "var(--line)"), borderRadius: 11, background: s.id === hlSite ? "var(--blue-l)" : "#fff", boxShadow: s.id === hlSite ? "0 0 0 3px rgba(63,96,170,.15)" : "none", transition: "background .3s, border-color .3s, box-shadow .3s" }}><svg width="20" height="20" viewBox="-12 -16 24 26" style={{ flexShrink: 0 }}><path d={shapePath(tm.shape)} fill={col} stroke="#fff" strokeWidth={1.5} /></svg><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13.5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>{s.label}<Badge color={s.type === "decision" ? "#7c5cf0" : "#F8B133"}>{s.type === "decision" ? "Siège" : "Établissement"}</Badge>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{!s.lat && <span style={{ fontSize: 11, color: "var(--red)" }}>à géolocaliser</span>}</div>{s.adresse && <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.adresse}</div>}{s.siret && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 1 }} className="tnum">SIRET {s.siret}</div>}{(() => { const lc = resolveSiteContact(s, data.contacts); const nm = lc ? fullName(lc) : [s.contactPrenom, s.contactNom].filter(Boolean).join(" "); const tel = lc ? (lc.mobile || lc.fixe || "") : (s.contactTel || ""); if (!nm && !tel) return null; return <div style={{ fontSize: 11.5, color: "var(--blue)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}><Phone size={11} />{lc ? <span className="lnk" onClick={(e) => { e.stopPropagation(); go("repertoire", lc.id); }}>{nm}</span> : nm}{tel ? " · " + tel : ""}{lc ? <span style={{ color: "var(--muted)", fontWeight: 600 }}> · lié</span> : null}</div>; })()}</div><div style={{ display: "flex", gap: 4, flexShrink: 0 }}>{s.lat != null && <button className="iconbtn" title="Voir sur la carte" onClick={(e) => { e.stopPropagation(); go("carte", s.id); }}><MapIcon size={15} /></button>}<a className="iconbtn" href={siteGmaps(s, a && a.enseigne)} target="_blank" rel="noreferrer" title="Fiche Google" onClick={(e) => e.stopPropagation()}><ExternalLink size={15} /></a><button className="iconbtn" title="Modifier" onClick={(e) => { e.stopPropagation(); setSiteEdit(s); }}><Pencil size={15} /></button><button className="iconbtn" title="Supprimer" onClick={(e) => { e.stopPropagation(); appConfirm("Supprimer l'établissement « " + s.label + " » ?", { title: "Supprimer cet établissement ?" }).then((ok) => { if (ok) delSite(s.id); }); }}><Trash2 size={15} /></button></div></div>); })}</div>)}
     </div>
     <div style={{ marginBottom: 16 }}><EntityAgenda events={accEvents} onMerge={async () => { const usage = (u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) })); const groups = await aiMergeEvents(accEvents, usage); const dropped = (groups || []).reduce((n, g) => n + Math.max(0, g.ids.filter((id) => accEvents.some((e) => e.id === id)).length - 1), 0); if (dropped > 0) persist((p) => ({ ...p, events: applyEventMerges(p.events, groups) })); return dropped; }} onAdd={() => setEventEdit(newAccEvent())} onOpen={(e) => setEventEdit(e)} onView={(e) => setEventView(e)} onSuggest={async () => { try { const last = accInteractions[0]; const r = await aiSuggestAction({ enseigne: a.enseigne, stageLabel: stageMeta(a.stage).label, lastInt: last ? (last.date + " — " + (last.sujet || last.type) + (last.resume ? (" : " + last.resume) : "")) : "", caAttente: eur(caAttente), contactsLabel: conts.map((c) => fullName(c) + (c.fonction ? " (" + c.fonction + ")" : "")).join(", ") }, (u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))); const d = new Date(Date.now() + r.jours * 86400000).toISOString().slice(0, 10); setEventEdit({ id: "ev_" + Date.now(), date: d, heure: "", titre: r.titre || ("Relancer " + (a.enseigne || "")), notes: r.pourquoi || "", type: r.type, color: EVENT_TYPES[r.type].color, accountId: a.id, siteId: "" }); } catch (e) { alert("Suggestion IA indisponible ici (fonctionne dans l'app Claude)."); } }} /></div>
     <div className="grid" style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", alignItems: "start" }}>
       <div className="card"><div className="sec-h"><h3 className="pu-display">Contacts rattachés</h3><div style={{ display: "flex", gap: 6 }}>{conts.length > 0 && <button className="btn btn-ghost btn-s" onClick={exportContactsCSV} title="Exporter en CSV"><FileDown size={14} /></button>}<button className="btn btn-y btn-s" onClick={onAddContact}><Plus size={14} /> Ajouter</button></div></div>
-        {conts.length === 0 ? <div className="empty">Aucun contact.</div> : conts.map((c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; return (<div className="crow" key={c.id} onClick={() => go("repertoire", c.id)}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>{fullName(c)}{favStars(c, a, 12)}</div><div style={{ color: "var(--muted)", fontSize: 12 }}>{c.fonction || "—"}</div></div><Badge color={rm.color}>{rm.label}</Badge></div>); })}
+        {conts.length === 0 ? <div className="empty">Aucun contact.</div> : conts.map((c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; return (<div className="crow" key={c.id} onClick={() => go("repertoire", c.id)} {...dwell.bind(() => ({ title: fullName(c), subtitle: c.fonction || "—", badge: rm.label, badgeColor: rm.color, accent: rm.color, rows: [{ label: "Établissement", value: a.enseigne }, { label: "Courriel", value: c.email }, { label: "Mobile", value: c.mobile }, { label: "Fixe", value: c.fixe }, { label: "Ville", value: c.ville }, { label: "Rôle", value: rm.label }] }))}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>{fullName(c)}{favStars(c, a, 12)}</div><div style={{ color: "var(--muted)", fontSize: 12 }}>{c.fonction || "—"}</div></div><Badge color={rm.color}>{rm.label}</Badge></div>); })}
         {a.notes && <div style={{ marginTop: 12, fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, borderTop: "1px solid var(--line)", paddingTop: 12 }}>{a.notes}</div>}
       </div>
       <div className="card"><div className="sec-h"><h3 className="pu-display">Devis, commandes & factures</h3><button className="btn btn-g btn-s" onClick={() => go("deals", null)}><FileText size={14} /> Tous</button></div>
@@ -2177,6 +2278,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
     {preview && <DevisPreview deal={preview} account={a} settings={data.settings} products={data.products} onClose={() => setPreview(null)} />}
     {addInt && <Modal title="Nouvel échange" onClose={() => setAddInt(false)}><AccountInteractionForm contactId={conts[0]?.id || ""} accountId={a.id} contacts={conts} onCancel={() => setAddInt(false)} onSave={(it) => { addInteraction(it); setAddInt(false); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: a.id, contactId: f.contactId || "" })] }))} /></Modal>}
     {chatOpen && <EstablishmentChat account={a} contacts={conts} interactions={accInteractions} deals={deals} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onClose={() => setChatOpen(false)} />}
+    {dwell.node}
     {intEdit && <Modal title="Modifier l'échange" onClose={() => setIntEdit(null)}><AccountInteractionForm contactId={intEdit.contactId} accountId={a.id} contacts={conts} interaction={intEdit} onCancel={() => setIntEdit(null)} onSave={(it) => { saveInteraction(it); setIntEdit(null); }} onUsage={(u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }))} onPlanEvents={(evs, f) => persist((p) => ({ ...p, events: [...(p.events || []), ...plannedEvents(evs, { baseDate: f.date, accountId: a.id, contactId: f.contactId || "" })] }))} /></Modal>}
     {siteEdit && <Modal title={data.sites.some((x) => x.id === siteEdit.id) ? "Modifier le site" : (siteEdit.type === "decision" ? "Nouveau siège" : "Nouvel établissement")} onClose={() => setSiteEdit(null)} wide><SiteForm site={siteEdit} accounts={data.accounts} contacts={data.contacts} onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onOpenContact={(cid) => { setSiteEdit(null); go("repertoire", cid); }} onCreateContact={(c) => persist((p) => ({ ...p, contacts: [...p.contacts, c] }))} known={collectKnownAddresses(data)} onSave={(x) => { saveSite(x); setSiteEdit(null); }} /></Modal>}
     {eventEdit && <Modal title={(data.events || []).some((e) => e.id === eventEdit.id) ? "Modifier l'événement" : "Nouvel événement"} onClose={() => setEventEdit(null)}><EventForm event={eventEdit} accounts={data.accounts} onSave={(ev) => { saveEvent(ev); setEventEdit(null); }} onDelete={() => { delEvent(eventEdit.id); setEventEdit(null); }} isExisting={(data.events || []).some((e) => e.id === eventEdit.id)} /></Modal>}
@@ -2456,6 +2558,78 @@ function EstablishmentChat({ account, site, contacts = [], interactions = [], de
     <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>L'IA s'appuie sur le dossier de ce compte (contacts, échanges, devis). À vérifier avant d'agir.</p>
   </Modal>);
 }
+// Prévisualisation au survol prolongé (~0,65 s) : un petit volet flottant résume l'entité survolée
+// (établissement, contact, deal) sans gêner le clic de navigation. Bureau uniquement (survol souris).
+function useDwellPreview() {
+  const [preview, setPreview] = useState(null); // { x, y, data } ou null
+  const timer = useRef(null);
+  const clear = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null; } };
+  useEffect(() => () => clear(), []);
+  useEffect(() => {
+    if (!preview) return;
+    const hide = () => { clear(); setPreview(null); };
+    window.addEventListener("scroll", hide, true);
+    window.addEventListener("resize", hide);
+    return () => { window.removeEventListener("scroll", hide, true); window.removeEventListener("resize", hide); };
+  }, [preview]);
+  const bind = (build) => ({
+    onMouseEnter: (e) => {
+      clear();
+      const px = e.clientX, py = e.clientY;
+      timer.current = setTimeout(() => {
+        const d = typeof build === "function" ? build() : build;
+        if (d) setPreview({ x: px, y: py, data: d });
+      }, 650);
+    },
+    onMouseLeave: () => { clear(); setPreview(null); },
+  });
+  const hide = () => { clear(); setPreview(null); };
+  const node = preview ? <PreviewCard x={preview.x} y={preview.y} data={preview.data} /> : null;
+  return { bind, hide, node };
+}
+function PreviewCard({ x, y, data }) {
+  const ref = useRef(null);
+  const [pos, setPos] = useState({ left: x + 16, top: y + 16, ready: false });
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const m = 12, vw = window.innerWidth, vh = window.innerHeight;
+    let left = x + 16, top = y + 16;
+    if (left + r.width + m > vw) left = x - r.width - 16;
+    if (left < m) left = m;
+    if (top + r.height + m > vh) top = vh - r.height - m;
+    if (top < m) top = m;
+    setPos({ left, top, ready: true });
+  }, [x, y, data]);
+  const accent = data.accent || "var(--blue)";
+  const host = (typeof document !== "undefined" && document.querySelector(".pu-root")) || (typeof document !== "undefined" ? document.body : null);
+  if (!host) return null;
+  return createPortal(
+    <div ref={ref} className="dwell-card" role="tooltip"
+      style={{ left: pos.left, top: pos.top, visibility: pos.ready ? "visible" : "hidden", "--dw-accent": accent }}>
+      <div className="dwell-head">
+        {data.icon && <span className="dwell-ic" style={{ background: accent }}>{data.icon}</span>}
+        <div className="dwell-h-txt">
+          <div className="dwell-title">{data.title}</div>
+          {data.subtitle && <div className="dwell-sub">{data.subtitle}</div>}
+        </div>
+        {data.badge && <span className="dwell-badge" style={{ "--bdg": data.badgeColor || accent }}>{data.badge}</span>}
+      </div>
+      {data.rows && data.rows.length > 0 && (
+        <div className="dwell-rows">
+          {data.rows.filter((r) => r && r.value).map((r, i) => (
+            <div className="dwell-row" key={i}>
+              <span className="dwell-k">{r.label}</span>
+              <span className="dwell-v" title={String(r.value)}>{r.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {data.foot && <div className="dwell-foot">{data.foot}</div>}
+    </div>,
+    host
+  );
+}
 function AccountInteractionForm({ contactId, accountId, contacts, onCancel, onSave, interaction, onUsage, onPlanEvents }) {
   const initCt = (contacts || []).find((c) => c.id === (interaction ? interaction.contactId : contactId));
   const [f, setF] = useState(interaction ? { ...interaction } : { id: "i_" + Date.now(), accountId, contactId: contactId || "", siteId: (initCt && initCt.siteId) || "", type: "appel", direction: "sortant", date: new Date().toISOString().slice(0, 10), sujet: "", resume: "" });
@@ -2527,6 +2701,7 @@ function AccountForm({ acc, accounts, onSave, known = [], onUsage }) {
 function Repertoire({ data, persist, go, focus }) {
   const { contacts, accounts, deals, interactions, settings } = data;
   const [openId, setOpenId] = useState(null); const [q, setQ] = useState(""); const [filt, setFilt] = useState("tous"); const [editC, setEditC] = useState(null); const [grp, setGrp] = useState("enseigne"); const [dir, setDir] = useState("asc");
+  const dwell = useDwellPreview();
   useEffect(() => { if (focus && focus.id) setOpenId(focus.id); }, [focus && focus.n]);
   const accName = (id) => accounts.find((a) => a.id === id)?.enseigne || "—";
   const saveContact = (c) => persist((p) => { const ex = p.contacts.some((x) => x.id === c.id); let cs = ex ? p.contacts.map((x) => x.id === c.id ? c : x) : [...p.contacts, c]; if (c.principal) cs = cs.map((x) => x.accountId === c.accountId && x.id !== c.id ? { ...x, principal: false } : x); if (c.principalEtab && c.siteId) cs = cs.map((x) => x.siteId === c.siteId && x.id !== c.id ? { ...x, principalEtab: false } : x); return { ...p, contacts: cs }; });
@@ -2548,10 +2723,11 @@ function Repertoire({ data, persist, go, focus }) {
       if (list.length === 0) return <div className="card empty">Aucun contact.</div>;
       const GD = { alpha: { get: (c) => { const s = (c.nom || c.prenom || "?").trim(); return (s.charAt(0) || "#").toUpperCase(); } }, enseigne: { get: (c) => accName(c.accountId) }, role: { get: (c) => c.role || "autre", meta: (v) => ROLE_META[v] || ROLE_META.autre, order: Object.keys(ROLE_META) }, ville: { get: (c) => contactLocality(c, data).ville || "Sans ville" }, departement: { get: (c) => contactLocality(c, data).departement || "Sans département" } };
       const gd = GD[grp] || GD.enseigne;
-      const row = (c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; const nbEch = interactions.filter((i) => i.contactId === c.id).length; return (<div className="crow" key={c.id} onClick={() => go("repertoire", c.id)}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>{fullName(c)}{favStars(c, accounts.find((a) => a.id === c.accountId), 13)}</div><div style={{ color: "var(--muted)", fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.fonction || "—"} · {accName(c.accountId)}{contactLocality(c, data).ville ? " · " + contactLocality(c, data).ville : ""}</div></div><div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0, minWidth: 0 }}>{c.email && <span className="crow-email" style={{ color: "var(--muted)", fontSize: 12.5, display: "flex", alignItems: "center", gap: 5, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Mail size={13} style={{ flexShrink: 0 }} />{c.email}</span>}<span style={{ color: "var(--muted)", fontSize: 12, whiteSpace: "nowrap" }}>{nbEch} éch.</span><Badge color={rm.color}>{rm.label}</Badge></div></div>); };
+      const row = (c) => { const rm = ROLE_META[c.role] || ROLE_META.autre; const nbEch = interactions.filter((i) => i.contactId === c.id).length; return (<div className="crow" key={c.id} onClick={() => go("repertoire", c.id)} {...dwell.bind(() => { const loc = contactLocality(c, data); const acc = accounts.find((a) => a.id === c.accountId); const last = interactions.filter((i) => i.contactId === c.id).slice().sort((x, y) => (y.date || "").localeCompare(x.date || ""))[0]; return { title: fullName(c), subtitle: c.fonction || "—", badge: rm.label, badgeColor: rm.color, accent: rm.color, rows: [{ label: "Enseigne", value: acc ? acc.enseigne : "" }, { label: "Courriel", value: c.email }, { label: "Mobile", value: c.mobile }, { label: "Ville", value: loc.ville }, { label: "Échanges", value: nbEch ? nbEch + " éch." : null }], foot: last ? ("Dernier échange : " + last.date) : null }; })}><Avatar c={c} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>{fullName(c)}{favStars(c, accounts.find((a) => a.id === c.accountId), 13)}</div><div style={{ color: "var(--muted)", fontSize: 12.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.fonction || "—"} · {accName(c.accountId)}{contactLocality(c, data).ville ? " · " + contactLocality(c, data).ville : ""}</div></div><div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0, minWidth: 0 }}>{c.email && <span className="crow-email" style={{ color: "var(--muted)", fontSize: 12.5, display: "flex", alignItems: "center", gap: 5, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}><Mail size={13} style={{ flexShrink: 0 }} />{c.email}</span>}<span style={{ color: "var(--muted)", fontSize: 12, whiteSpace: "nowrap" }}>{nbEch} éch.</span><Badge color={rm.color}>{rm.label}</Badge></div></div>); };
       return groupList([...list].sort((a, b) => (a.nom || a.prenom || "").localeCompare(b.nom || b.prenom || "", "fr") || (a.prenom || "").localeCompare(b.prenom || "", "fr")), gd, dir).map((g) => { const m = gd.meta ? gd.meta(g.key) : null; return (<div key={g.key} style={{ marginBottom: 18 }}><GroupHeader label={m ? m.label : g.key} color={m ? m.color : "#9aa6bd"} count={g.items.length} />{g.items.map(row)}</div>); });
     })()}
     {editC && !openId && <Modal title={contacts.some((x) => x.id === editC.id) ? "Modifier le contact" : "Nouveau contact"} onClose={() => setEditC(null)} wide><ContactForm contact={editC} accounts={accounts} contacts={contacts} sites={data.sites} known={collectKnownAddresses(data)} onSave={(x) => { saveContact(x); setEditC(null); }} /></Modal>}
+    {dwell.node}
   </div>);
 }
 function ContactForm({ contact, accounts, contacts, onSave, known = [], sites = [] }) {
@@ -4325,6 +4501,7 @@ function PipelineKanban({ data, persist, go, embedded }) {
   const totalBy = (st) => data.deals.filter((d) => d.statut === st).reduce((s, d) => s + (d.montant || 0), 0);
   const cntBy = (st) => data.deals.filter((d) => d.statut === st).length;
   const [dragId, setDragId] = useState(null); const [dragCol, setDragCol] = useState(null);
+  const dwell = useDwellPreview();
   const onDragStart = (e, id) => { e.dataTransfer.setData("text/plain", id); e.dataTransfer.effectAllowed = "move"; setDragId(id); };
   const onDragEnd = () => { setDragId(null); setDragCol(null); };
   const onDragOver = (e, st) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (st && st !== dragCol) setDragCol(st); };
@@ -4335,7 +4512,7 @@ function PipelineKanban({ data, persist, go, embedded }) {
       {STAGES_K.map((s) => (<div key={s.id} className="col" onDragOver={(e) => onDragOver(e, s.id)} onDrop={(e) => onDrop(e, s.id)} style={dragCol === s.id && dragId ? { background: s.color + "1f", outline: `2px dashed ${s.color}`, outlineOffset: -2 } : undefined}>
         <div className="col-h"><i className="dot" style={{ background: s.color }} />{s.label}<span className="cnt">{cntBy(s.id)} · {eur(totalBy(s.id))}</span></div>
         {data.deals.filter((d) => d.statut === s.id).sort((a, b) => (b.date || "").localeCompare(a.date || "")).map((d) => { const a = accOf(d.accountId); return (
-          <div key={d.id} className="deal-card" draggable onDragStart={(e) => onDragStart(e, d.id)} onDragEnd={onDragEnd} onClick={() => go("deals", d.id)} style={{ borderLeft: `4px solid ${s.color}`, opacity: dragId === d.id ? 0.4 : 1, cursor: "grab" }}>
+          <div key={d.id} className="deal-card" draggable onDragStart={(e) => { dwell.hide(); onDragStart(e, d.id); }} onDragEnd={onDragEnd} onClick={() => go("deals", d.id)} {...dwell.bind(() => { const ds = DEAL_STATUS[d.statut] || DEAL_STATUS.brouillon; return { title: docRef(d, a) || d.ref || d.type, subtitle: a ? a.enseigne : "—", badge: ds.label, badgeColor: ds.color, accent: s.color, rows: [{ label: "Type", value: d.type }, { label: "Date", value: d.date }, { label: "Montant", value: eur(d.montant) }, { label: "Statut", value: ds.label }] }; })} style={{ borderLeft: `4px solid ${s.color}`, opacity: dragId === d.id ? 0.4 : 1, cursor: "grab" }}>
             <h5>{d.ref || d.type}</h5>
             <div className="deal-meta"><Building2 size={11} />{a ? a.enseigne : "—"}</div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
@@ -4347,6 +4524,7 @@ function PipelineKanban({ data, persist, go, embedded }) {
         {data.deals.filter((d) => d.statut === s.id).length === 0 && <div style={{ fontSize: 11.5, color: "var(--muted)", padding: "8px 4px", textAlign: "center" }}>Vide</div>}
       </div>))}
     </div>
+    {dwell.node}
   </div>);
 }
 
