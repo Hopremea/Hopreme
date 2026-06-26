@@ -5722,7 +5722,7 @@ function wmoMeta(code) {
 function SidebarStatus() {
   const [now, setNow] = useState(() => new Date());
   const [weather, setWeather] = useState(null); // { temp, code }
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
     let cancelled = false, coords = null, timer = null, fbTimer = null;
     const load = async () => {
@@ -5743,7 +5743,7 @@ function SidebarStatus() {
     } catch (e) { fallback(); }
     return () => { cancelled = true; if (timer) clearInterval(timer); if (fbTimer) clearTimeout(fbTimer); };
   }, []);
-  const time = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const time = now.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const date = now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
   const w = weather ? wmoMeta(weather.code) : null;
   return (<div className="sb-status">
