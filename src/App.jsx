@@ -1214,7 +1214,13 @@ ${ACCENT_CSS}
 .kpi .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;margin-bottom:12px;}
 .kpi .lab{color:var(--muted);font-size:12px;font-weight:600;}.kpi .val{font-size:24px;margin-top:2px;}.kpi .sub{font-size:11.5px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:5px;}
 @keyframes rise{to{opacity:1;transform:none;}}
-.fade{animation:fade .35s ease;}@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.fade{animation:viewIn .42s cubic-bezier(.2,.8,.2,1);}@keyframes viewIn{from{opacity:0;transform:translateY(11px) scale(.992);}to{opacity:1;transform:none;}}@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+/* Transitions douces lors d'un changement de thème (fonds des surfaces) */
+.card,.cmdk,.topbar,.sb,.col,.cal-cell,.kpi,.main{transition:background-color .32s ease,border-color .32s ease,color .28s ease;}
+/* Gerbe de filaments colorés au clic de menu */
+.filament{position:fixed;border-radius:3px;pointer-events:none;will-change:transform,opacity;}
+@keyframes filamentFly{0%{opacity:0;transform:translate(-50%,-50%) rotate(0) scaleX(.5);}12%{opacity:1;}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy) + 70px)) rotate(var(--rot)) scaleX(1);}}
+.pu-root.dark .mapwrap{background:linear-gradient(180deg,#10172a,#0c1322);}
 .prospect-flash{animation:prospectFlash 1.6s ease-in-out 0s 6;border-color:var(--orange) !important;}
 @keyframes prospectFlash{0%,100%{box-shadow:0 0 0 0 rgba(248,177,51,0);}50%{box-shadow:0 0 0 4px rgba(248,177,51,.6);}}
 .sec-h{display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;gap:10px;flex-wrap:wrap;}.sec-h h3{margin:0;font-size:15px;}.sec-h span{color:var(--muted);font-size:12px;}
@@ -3703,7 +3709,7 @@ function Carte({ data, persist, go, focus }) {
   // La couche « Boundaries & Places » ajoute les noms de villes/pays par-dessus (rendu hybride type Google).
   useEffect(() => {
     if (!LF || !mapEl.current || mapInst.current) return;
-    const map = LF.map(mapEl.current, { zoomControl: false, attributionControl: true, worldCopyJump: true, scrollWheelZoom: false }).setView([46.6, 2.4], 6);
+    const map = LF.map(mapEl.current, { zoomControl: false, attributionControl: true, worldCopyJump: true, scrollWheelZoom: false, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5, wheelDebounceTime: 40 }).setView([46.6, 2.4], 6);
     LF.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, maxNativeZoom: 19, attribution: "Imagerie © Esri, Maxar, Earthstar Geographics" }).addTo(map);
     LF.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, maxNativeZoom: 19 }).addTo(map);
     LF.control.zoom({ position: "topright" }).addTo(map);
@@ -3779,7 +3785,7 @@ function Carte({ data, persist, go, focus }) {
     <div className="grid" style={{ gridTemplateColumns: "1.5fr 1fr", alignItems: "start" }}>
       <div>
         <div className="mapwrap" style={{ aspectRatio: `${MAP_VBW} / ${MAP_VBH}` }}>
-          <div ref={mapEl} style={{ position: "absolute", inset: 0 }} />
+          <div ref={mapEl} style={{ position: "absolute", inset: 0, opacity: mapReady ? 1 : 0, transition: "opacity .55s ease" }} />
           {!mapReady && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--muted)", fontSize: 13, fontWeight: 600, gap: 8, zIndex: 5, pointerEvents: "none" }}><RefreshCw size={18} className="spin" /> Chargement de la carte…</div>}
           <div className="zoomctl" style={{ right: "auto", left: 12 }}>
             <button className="zbtn" title="Recadrer sur tous les sites" onClick={() => { const pts = sites.filter((p) => p.lat && p.lng).map((p) => [p.lat, p.lng]); if (!mapInst.current) return; if (pts.length === 1) mapInst.current.setView(pts[0], 12); else if (pts.length > 1) mapInst.current.fitBounds(pts, { padding: [40, 40], maxZoom: 13 }); }} style={{ fontSize: 15 }}>⤢</button>
@@ -5390,6 +5396,36 @@ function SidebarStatus() {
     {weather ? <div className="sb-status-weather" title={w.l}>{w.e} {weather.temp}°C{w.l ? " · " + w.l : ""}</div> : <div className="sb-status-weather" style={{ opacity: .6 }}>🌡️ météo…</div>}
   </div>);
 }
+// Petite gerbe de « filaments » colorés (clin d'œil aux bobines PEN'UP 3D) émise à chaque clic de menu.
+let _filamentHost = null;
+function burstFilaments(x, y) { if (_filamentHost) _filamentHost(x, y); }
+function FilamentConfetti() {
+  const [bursts, setBursts] = useState([]);
+  useEffect(() => {
+    _filamentHost = (x, y) => {
+      try { if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch (e) {}
+      const COLORS = ["#3F60AA", "#FFD212", "#FF5A45", "#2bb673", "#7c5cf0", "#0EA5A4", "#F8B133", "#E94D6B"];
+      const parts = Array.from({ length: 18 }, (_, i) => {
+        const ang = Math.random() * Math.PI * 2;
+        const dist = 45 + Math.random() * 95;
+        return { dx: Math.cos(ang) * dist, dy: Math.sin(ang) * dist - 25 - Math.random() * 35, rot: Math.random() * 720 - 360, len: 9 + Math.random() * 15, color: COLORS[i % COLORS.length], delay: Math.random() * 70 };
+      });
+      const id = "fb_" + Math.random().toString(36).slice(2, 8);
+      setBursts((b) => [...b, { id, x, y, parts }]);
+      setTimeout(() => setBursts((b) => b.filter((z) => z.id !== id)), 1200);
+    };
+    return () => { _filamentHost = null; };
+  }, []);
+  if (!bursts.length || typeof document === "undefined") return null;
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9998, overflow: "hidden" }} aria-hidden="true">
+      {bursts.map((bz) => bz.parts.map((p, i) => (
+        <span key={bz.id + "_" + i} className="filament" style={{ left: bz.x, top: bz.y, width: p.len, height: 3.5, background: p.color, animation: `filamentFly 1.05s cubic-bezier(.15,.7,.3,1) ${p.delay}ms forwards`, "--dx": p.dx + "px", "--dy": p.dy + "px", "--rot": p.rot + "deg" }} />
+      )))}
+    </div>,
+    document.body
+  );
+}
 export default function App() {
   const [data, setData] = useState(() => normalize(emptyData()));
   const undoRef = useRef(null); const [canUndo, setCanUndo] = useState(false);
@@ -5623,12 +5659,12 @@ export default function App() {
     return { accounts: data.accounts.length, repertoire: data.contacts.length, prospection: data.prospects.filter((p) => p.statut === "a_contacter").length, deals: data.deals.length, pipeline: data.deals.filter((d) => d.statut !== "livre" && d.statut !== "refuse").length, agenda: agendaAl, stock: stockAl, reassort: reAl, sav: savAl, presto: prestoAl };
   }, [data]);
   const meta = TABS.find((t) => t.id === tab);
-  return (<div className={cx("pu-root", navOpen && "nav-open", theme === "dark" && "dark", "color-" + bgColor, "pat-" + bgPattern, "acc-" + accent)}><style>{CSS}</style><ConfirmHost />
+  return (<div className={cx("pu-root", navOpen && "nav-open", theme === "dark" && "dark", "color-" + bgColor, "pat-" + bgPattern, "acc-" + accent)}><style>{CSS}</style><ConfirmHost /><FilamentConfetti />
     <div className="sb-scrim no-print" onClick={() => setNavOpen(false)} aria-hidden="true" />
     <aside className="sb">
       <div className="brand"><img src="/logo-mitmit.png" alt="MITMIT" style={{ width: 88, height: 88, maxWidth: 88, borderRadius: 20, alignSelf: "center" }} /><div className="brand-accent" /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><small style={{ letterSpacing: ".12em" }}>MITMIT · Poste de pilotage B2B</small><span style={{ fontSize: 9.5, color: "var(--muted)", fontWeight: 600, lineHeight: 1.3, textTransform: "none", letterSpacing: 0 }} title="Le petit nom du cockpit">Module Intégré de Traitement, Marges, Inventaire &amp; Tarification</span></div></div>
       <SidebarStatus />
-      <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={() => { navTo(t.id); setNavOpen(false); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
+      <nav className="nav">{NAV_GROUPS.map((gname) => { const items = TABS.filter((t) => t.group === gname); if (!items.length) return null; return (<React.Fragment key={gname}><div className="nav-group">{gname}</div>{items.map((t) => { const Ic = t.icon; const c = counts[t.id]; return (<button key={t.id} className={cx(tab === t.id && "on")} onClick={(e) => { burstFilaments(e.clientX, e.clientY); navTo(t.id); setNavOpen(false); }}><Ic size={18} />{t.label}{c > 0 && <span className="cnt">{c}</span>}</button>); })}</React.Fragment>); })}</nav>
       <a className="sb-brandfoot" href="https://penup3d.com" target="_blank" rel="noreferrer" title="Ouvrir le site penup3d.com"><img src="/logo-penup.png" alt="PEN'UP 3D — penup3d.com" /></a>
       <div className="sb-foot">PEN'UP 3D, SAS · Montauban<br />Données locales à cet appareil.<br /><span className="lnk" style={{ fontSize: 11 }} onClick={() => setHelpOpen(true)}>⌨ Raccourcis clavier</span></div>
     </aside>
