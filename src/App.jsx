@@ -850,10 +850,11 @@ function findDuplicateContact(contacts, prenom, nom, email, excludeId) {
 }
 // Composant générique pour grouper visuellement les filtres en boîtes colorées
 function FilterGroup({ label, color, children, style }) {
-  // Surface opaque (carte) + accent coloré : lisible sur tous les thèmes (clair, foncé, dégradés),
-  // contrairement à l'ancien fond teinté quasi transparent qui se confondait avec le fond de page.
-  return (<div style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid " + color, borderRadius: 12, padding: "7px 11px 9px", display: "flex", flexDirection: "column", gap: 6, boxShadow: "0 2px 10px rgba(20,32,58,.10)", ...(style || {}) }}>
-    <div style={{ fontSize: 9.5, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: ".07em" }}>{label}</div>
+  // Surface opaque (carte) lisible sur tous les thèmes + intitulé en pastille pleine de la couleur du
+  // groupe : chaque entête (Type / Région / Statut…) se distingue d'un coup d'œil, alors qu'un simple
+  // fond blanc les rendait tous identiques et l'intitulé peu visible.
+  return (<div style={{ background: "var(--card)", border: "1px solid var(--line)", borderTop: "3px solid " + color, borderRadius: 12, padding: "8px 11px 9px", display: "flex", flexDirection: "column", gap: 7, boxShadow: "0 2px 10px rgba(20,32,58,.10)", ...(style || {}) }}>
+    <div style={{ alignSelf: "flex-start", fontSize: 9.5, fontWeight: 800, color: onColor(color), background: color, textTransform: "uppercase", letterSpacing: ".07em", padding: "3px 9px", borderRadius: 20, boxShadow: "0 1px 3px " + color + "55" }}>{label}</div>
     <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>{children}</div>
   </div>);
 }
@@ -4168,12 +4169,6 @@ function Prospection({ data, persist, go }) {
       </div>
     </div>); };
   return (<div className="fade">
-    <div className="card" style={{ marginBottom: 14, borderLeft: "4px solid var(--blue)" }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
-        <Sparkles size={18} style={{ color: "var(--orange)", flexShrink: 0, marginTop: 2 }} />
-        <div style={{ fontSize: 12.5, lineHeight: 1.55, flex: 1, minWidth: 260 }}>Ce listing recense des prospects (points de vente de jouets et loisirs créatifs) partout en France, tous types, triés par type, région et statut. La <strong>Recherche IA</strong> interroge le web puis les <strong>sources officielles</strong> (RNE/INSEE via annuaire-entreprises, Pappers, societe.com, Infogreffe, INPI) pour enrichir chaque fiche avec l'identité légale (raison sociale, SIREN, forme juridique, dirigeant) et un contact pré-rempli. À la conversion, le compte <strong>et</strong> la fiche contact associée sont créés d'un coup. <strong>Point d'honnêteté :</strong> l'agent fonctionne dans l'aperçu Claude (API Anthropic + recherche web) ; l'application exportée nécessitera un serveur relais. Les résultats, surtout les courriels et noms, sont indicatifs et <strong>à vérifier</strong> avant tout démarchage.</div>
-      </div>
-    </div>
     <div className="card" style={{ marginBottom: 14 }}>
       <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Sparkles size={17} style={{ color: "var(--orange)" }} /> Recherche IA de prospects</h3></div>
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -4237,6 +4232,10 @@ function Prospection({ data, persist, go }) {
         <button className="btn btn-p" onClick={() => save(edit)}>Enregistrer</button>
       </div>
     </Modal>}
+    <div style={{ marginTop: 26, paddingTop: 12, borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "flex-start", fontSize: 11, lineHeight: 1.5, color: "var(--muted)" }}>
+      <Sparkles size={13} style={{ color: "var(--orange)", flexShrink: 0, marginTop: 2, opacity: .8 }} />
+      <div>Ce listing recense des prospects (points de vente de jouets et loisirs créatifs) partout en France, tous types, triés par type, région et statut. La <strong>Recherche IA</strong> interroge le web puis les <strong>sources officielles</strong> (RNE/INSEE via annuaire-entreprises, Pappers, societe.com, Infogreffe, INPI) pour enrichir chaque fiche avec l'identité légale (raison sociale, SIREN, forme juridique, dirigeant) et un contact pré-rempli. À la conversion, le compte <strong>et</strong> la fiche contact associée sont créés d'un coup. <strong>Point d'honnêteté :</strong> l'agent fonctionne dans l'aperçu Claude (API Anthropic + recherche web) ; l'application exportée nécessite un serveur relais. Les résultats, surtout les courriels et noms, sont indicatifs et <strong>à vérifier</strong> avant tout démarchage.</div>
+    </div>
   </div>);
 }
 function SaveCalcBar({ type, payload, detail, summary, persist }) {
