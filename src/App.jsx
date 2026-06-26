@@ -3642,7 +3642,7 @@ function Carte({ data, persist, go, focus }) {
   const accOf = (id) => accounts.find((x) => x.id === id);
   const placed = sites.filter((s) => s.lat && s.lng);
   const [sel, setSel] = useState(placed[0]?.id || null); const [edit, setEdit] = useState(null);
-  const [filtSurf, setFiltSurf] = useState([]); const [filtCat, setFiltCat] = useState([]);
+  const [filtSurf, setFiltSurf] = useState([]); const [filtCat, setFiltCat] = useState([]); const [filtStage, setFiltStage] = useState([]);
   const [useOSRM, setUseOSRM] = useState(false);
   const [osrmCache, setOsrmCache] = useState({});
   const [tourneeOrder, setTourneeOrder] = useState(null);
@@ -3665,7 +3665,8 @@ function Carte({ data, persist, go, focus }) {
   const tog = (arr, set, val) => set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
   // Catégorie de rattachement : « groupe » si le compte parent est un groupe (sièges + magasins rattachés), sinon « indépendant ».
   const siteCat = (st) => isGroupe(accOf(st.accountId)) ? "groupe" : "independant";
-  const visible = (st) => st.type === "penup" || st.type === "entrepot" || st.type === "usine" ? true : (filtSurf.length === 0 || filtSurf.includes(st.typeSurface || "")) && (filtCat.length === 0 || filtCat.includes(siteCat(st)));
+  const stageOf = (st) => { const a = accOf(st.accountId); return a && a.stage ? a.stage : "prospect"; };
+  const visible = (st) => st.type === "penup" || st.type === "entrepot" || st.type === "usine" ? true : (filtSurf.length === 0 || filtSurf.includes(st.typeSurface || "")) && (filtCat.length === 0 || filtCat.includes(siteCat(st))) && (filtStage.length === 0 || filtStage.includes(stageOf(st)));
   // Types de surface réellement présents parmi les sites placés (hors sites internes PEN'UP), dans l'ordre canonique.
   const usedSurfaces = TYPE_SURFACE.filter((t) => placed.some((st) => st.typeSurface === t && !(st.type === "penup" || st.type === "entrepot" || st.type === "usine")));
   const shown = placed.filter(visible); const visibleIds = new Set(shown.map((x) => x.id));
@@ -3780,6 +3781,7 @@ function Carte({ data, persist, go, focus }) {
     <div className="filtbar">
       <div className="grp"><span className="lbl">Type de surface</span><AllChip active={filtSurf.length === 0} onClick={() => setFiltSurf([])}>Toutes</AllChip>{usedSurfaces.map((t) => { const col = SURFACE_COLOR[t] || "#9aa6bd"; return <button key={t} className={cx("chip", filtSurf.includes(t) && "on")} onClick={() => tog(filtSurf, setFiltSurf, t)} style={filtSurf.includes(t) ? { background: col, borderColor: col, color: onColor(col) } : { borderLeft: `4px solid ${col}` }}>{t}</button>; })}</div>
       <div className="grp"><span className="lbl">Rattachement</span><AllChip active={filtCat.length === 0} onClick={() => setFiltCat([])}>Tous</AllChip><button className={cx("chip", filtCat.includes("groupe") && "on")} onClick={() => tog(filtCat, setFiltCat, "groupe")}>Groupe</button><button className={cx("chip", filtCat.includes("independant") && "on")} onClick={() => tog(filtCat, setFiltCat, "independant")}>Indépendant</button></div>
+      <div className="grp"><span className="lbl">Entonnoir</span><AllChip active={filtStage.length === 0} onClick={() => setFiltStage([])}>Tous</AllChip>{STAGES.map((s) => <button key={s.id} className={cx("chip", filtStage.includes(s.id) && "on")} onClick={() => tog(filtStage, setFiltStage, s.id)} style={filtStage.includes(s.id) ? { background: s.color, borderColor: s.color, color: onColor(s.color) } : { borderLeft: `4px solid ${s.color}` }} title={s.label}>{s.label}</button>)}</div>
       <span style={{ fontSize: 11, color: "var(--muted)" }}>Siège PEN'UP et entrepôt restent toujours affichés.</span>
     </div>
     <div className="grid" style={{ gridTemplateColumns: "1.5fr 1fr", alignItems: "start" }}>
