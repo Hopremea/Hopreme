@@ -892,18 +892,18 @@ function ThemeMenu({ color, pattern, accent, onColor, onPattern, onAccent }) {
     {open && (<><div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} /><div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, boxShadow: "0 12px 30px rgba(20,32,58,.18)", padding: 10, width: 260, maxHeight: "78vh", overflowY: "auto" }}>
       <div style={lab()}>COULEUR DE FOND</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>{THEME_COLORS.map((c) => (
-        <button key={c.id} onClick={() => onColor(c.id)} title={c.label} style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 8, cursor: "pointer", background: c.bg, border: color === c.id ? "2px solid var(--blue)" : "1px solid var(--line)", boxShadow: color === c.id ? "0 0 0 2px var(--blue-l)" : "none", display: "grid", placeItems: "center" }}>{color === c.id && <CheckCircle2 size={14} color={c.dark ? "#fff" : "#16203a"} />}</button>
+        <button key={c.id} onClick={(e) => { burstFilaments(e.clientX, e.clientY); onColor(c.id); }} title={c.label} style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 8, cursor: "pointer", background: c.bg, border: color === c.id ? "2px solid var(--blue)" : "1px solid var(--line)", boxShadow: color === c.id ? "0 0 0 2px var(--blue-l)" : "none", display: "grid", placeItems: "center" }}>{color === c.id && <CheckCircle2 size={14} color={c.dark ? "#fff" : "#16203a"} />}</button>
       ))}</div>
       <div style={lab()}>MOTIF</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>{THEME_PATTERNS.map((p) => (
-        <button key={p.id} onClick={() => onPattern(p.id)} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", border: 0, background: pattern === p.id ? "var(--blue-l)" : "none", borderRadius: 8, padding: "7px 8px", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--ink)", textAlign: "left" }}>
+        <button key={p.id} onClick={(e) => { burstFilaments(e.clientX, e.clientY); onPattern(p.id); }} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", border: 0, background: pattern === p.id ? "var(--blue-l)" : "none", borderRadius: 8, padding: "7px 8px", cursor: "pointer", fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--ink)", textAlign: "left" }}>
           <span style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, border: "1px solid var(--line)", background: p.fn ? `#fff ${p.fn("#5b6478")}` : "#fff", backgroundSize: p.fn ? "22px 22px" : undefined, backgroundRepeat: "repeat" }} />
           {p.label}{pattern === p.id && <CheckCircle2 size={14} style={{ marginLeft: "auto", color: "var(--blue)" }} />}
         </button>
       ))}</div>
       <div style={lab()}>ACCENT DES BOUTONS</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{THEME_ACCENTS.map((a) => (
-        <button key={a.id} onClick={() => onAccent(a.id)} title={a.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: accent === a.id ? "2px solid var(--blue)" : "1px solid var(--line)", borderRadius: 20, padding: "4px 9px 4px 5px", cursor: "pointer", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, color: "var(--ink)", background: accent === a.id ? "var(--blue-l)" : "var(--card)" }}>
+        <button key={a.id} onClick={(e) => { burstFilaments(e.clientX, e.clientY); onAccent(a.id); }} title={a.label} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: accent === a.id ? "2px solid var(--blue)" : "1px solid var(--line)", borderRadius: 20, padding: "4px 9px 4px 5px", cursor: "pointer", fontFamily: "inherit", fontSize: 11.5, fontWeight: 700, color: "var(--ink)", background: accent === a.id ? "var(--blue-l)" : "var(--card)" }}>
           <span style={{ width: 14, height: 14, borderRadius: "50%", flexShrink: 0, border: "1px solid var(--line)", background: a.c || "conic-gradient(#3F60AA,#FFD212,#FF5A45,#2bb673,#7c5cf0,#3F60AA)" }} />
           {a.label}
         </button>
@@ -5702,7 +5702,7 @@ export default function App() {
           <button className="btn btn-ghost btn-s" onClick={hardRefresh} title="Forcer la mise à jour : vide le cache et recharge la dernière version"><RefreshCw size={15} /> Mettre à jour</button>
           <button className="btn btn-ghost btn-s" onClick={() => window.print()} title="Imprimer / PDF de la vue courante"><Printer size={15} /></button>
           <ThemeMenu color={bgColor} pattern={bgPattern} accent={accent} onColor={setBgColor} onPattern={setBgPattern} onAccent={setAccent} />
-          <button className="btn btn-ghost btn-s" onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>{theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}</button>
+          <button className="btn btn-ghost btn-s" onClick={(e) => { burstFilaments(e.clientX, e.clientY); toggleTheme(); }} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>{theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}</button>
           {CLERK_PK && <span style={{ display: "inline-flex", alignItems: "center", marginLeft: 4, paddingLeft: 8, borderLeft: "1px solid var(--line)" }}><UserButton afterSignOutUrl="/" /></span>}
         </div>
       </div>
