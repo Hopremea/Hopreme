@@ -497,12 +497,20 @@ function detachSiteToIndependent(p, siteId) {
 }
 // Suivi de la dépense réelle des appels à l'API Claude faits PAR l'application (tarif Claude Sonnet 4).
 const CLAUDE_PRICE_USD = { in: 3, out: 15 }; // dollars par million de tokens (entrée / sortie)
+const CLAUDE_WEB_SEARCH_USD = 0.01; // dollars par recherche web (outil web_search : 10 $ / 1000 recherches)
 const CLAUDE_USD_EUR = 0.952; // taux sécurisé PEN'UP (spot +7%)
-function addUsage(u, usage) { const it = (usage && usage.input_tokens) || 0; const ot = (usage && usage.output_tokens) || 0; const base = u || { calls: 0, inputTokens: 0, outputTokens: 0 }; const today = TODAY(); const pd = (base.day && base.day.date === today) ? base.day : { date: today, calls: 0, inputTokens: 0, outputTokens: 0 }; return { calls: (base.calls || 0) + 1, inputTokens: (base.inputTokens || 0) + it, outputTokens: (base.outputTokens || 0) + ot, day: { date: today, calls: (pd.calls || 0) + 1, inputTokens: (pd.inputTokens || 0) + it, outputTokens: (pd.outputTokens || 0) + ot } }; }
+// Nombre de recherches web facturées renvoyé par l'API (présent quand l'outil web_search a été utilisé).
+const usageWebSearches = (usage) => (usage && usage.server_tool_use && usage.server_tool_use.web_search_requests) || 0;
+function addUsage(u, usage) { const it = (usage && usage.input_tokens) || 0; const ot = (usage && usage.output_tokens) || 0; const ws = usageWebSearches(usage); const base = u || { calls: 0, inputTokens: 0, outputTokens: 0 }; const today = TODAY(); const pd = (base.day && base.day.date === today) ? base.day : { date: today, calls: 0, inputTokens: 0, outputTokens: 0, webSearches: 0 }; return { ...base, calls: (base.calls || 0) + 1, inputTokens: (base.inputTokens || 0) + it, outputTokens: (base.outputTokens || 0) + ot, webSearches: (base.webSearches || 0) + ws, day: { date: today, calls: (pd.calls || 0) + 1, inputTokens: (pd.inputTokens || 0) + it, outputTokens: (pd.outputTokens || 0) + ot, webSearches: (pd.webSearches || 0) + ws } }; }
 // Usage du jour courant (sinon zéro si la journée enregistrée n'est pas aujourd'hui).
-function usageToday(u) { const d = u && u.day; return (d && d.date === TODAY()) ? d : { calls: 0, inputTokens: 0, outputTokens: 0 }; }
+function usageToday(u) { const d = u && u.day; return (d && d.date === TODAY()) ? d : { calls: 0, inputTokens: 0, outputTokens: 0, webSearches: 0 }; }
 function claudeUsd(u) { if (!u) return 0; return ((u.inputTokens || 0) / 1e6) * CLAUDE_PRICE_USD.in + ((u.outputTokens || 0) / 1e6) * CLAUDE_PRICE_USD.out; }
 function claudeEur(u) { return claudeUsd(u) * CLAUDE_USD_EUR; }
+// Nombre TOTAL de recherches web (estimation rétroactive figée + comptage exact depuis l'activation).
+const webSearchCount = (u) => ((u && u.webSearchesPast) || 0) + ((u && u.webSearches) || 0);
+const webSearchUsd = (n) => (n || 0) * CLAUDE_WEB_SEARCH_USD;
+// Coût total estimé (tokens + recherche web), en € — au plus près de la facture réelle.
+function claudeTotalEur(u) { return claudeEur(u) + webSearchUsd(webSearchCount(u)) * CLAUDE_USD_EUR; }
 
 const RAW = [
   ["PU3D-FIL-BEIGE","Bobines Fil'Up Beige X3",32,9.99],["PU3D-FIL-BLANC","Bobines Fil'Up Blanc X3",85,9.99],
@@ -5161,34 +5169,38 @@ function Connexions({ data, persist, autoBackup }) {
 
     <Section note="usage de l'API Claude">Intelligence artificielle</Section>
     <div>
-      {(() => { const u = data.claudeUsage || { calls: 0, inputTokens: 0, outputTokens: 0 }; const eur = claudeEur(u); const usd = claudeUsd(u); const reset = () => { appConfirm("Remettre le compteur de crédits Claude à zéro ?", { title: "Réinitialiser le compteur ?", confirmLabel: "Réinitialiser" }).then((ok) => { if (ok) persist((p) => ({ ...p, claudeUsage: { calls: 0, inputTokens: 0, outputTokens: 0 } })); }); }; return (<>
+      {(() => { const u = data.claudeUsage || { calls: 0, inputTokens: 0, outputTokens: 0 }; const tokEur = claudeEur(u), tokUsd = claudeUsd(u); const wsN = webSearchCount(u), wsPast = u.webSearchesPast || 0; const wsUsd = webSearchUsd(wsN), wsEur = wsUsd * CLAUDE_USD_EUR; const totEur = tokEur + wsEur, totUsd = tokUsd + wsUsd; const fmt = (x) => x.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 }); const reset = () => { appConfirm("Remettre le compteur de crédits Claude à zéro (tokens et recherches web) ?", { title: "Réinitialiser le compteur ?", confirmLabel: "Réinitialiser" }).then((ok) => { if (ok) persist((p) => ({ ...p, claudeUsage: { calls: 0, inputTokens: 0, outputTokens: 0, webSearches: 0, webSearchesPast: 0 } })); }); }; return (<>
         <div className="card">
-          <div className="sec-h"><h3 className="pu-display">Crédits Claude consommés</h3><span>cumul depuis le début</span></div>
+          <div className="sec-h"><h3 className="pu-display">Crédits Claude consommés</h3><span>cumul estimé · tokens + recherche web</span></div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 30, fontWeight: 800, color: "var(--blue)" }} className="tnum">{eur.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} €</div>
-            <div style={{ fontSize: 13, color: "var(--muted)" }} className="tnum">≈ {usd.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} $</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: "var(--blue)" }} className="tnum">{fmt(totEur)} €</div>
+            <div style={{ fontSize: 13, color: "var(--muted)" }} className="tnum">≈ {fmt(totUsd)} $</div>
           </div>
+          <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>dont <span className="tnum">{fmt(tokEur)} €</span> de tokens · <span className="tnum">{fmt(wsEur)} €</span> de recherche web{wsPast > 0 ? " (dont ~" + num(wsPast) + " recherches estimées avant le comptage exact)" : ""}</div>
           <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 10, fontSize: 12.5 }}>
             <div><div style={{ color: "var(--muted)" }}>Appels</div><div style={{ fontWeight: 700 }} className="tnum">{num(u.calls)}</div></div>
             <div><div style={{ color: "var(--muted)" }}>Tokens entrée</div><div style={{ fontWeight: 700 }} className="tnum">{num(u.inputTokens)}</div></div>
             <div><div style={{ color: "var(--muted)" }}>Tokens sortie</div><div style={{ fontWeight: 700 }} className="tnum">{num(u.outputTokens)}</div></div>
+            <div><div style={{ color: "var(--muted)" }}>Recherches web</div><div style={{ fontWeight: 700 }} className="tnum">{num(wsN)}</div></div>
           </div>
-          <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>Cumul réel des appels que <strong>cette application</strong> adresse à l'API Claude (recherche IA de prospects, reformulation, synchronisation Gmail), valorisés au tarif Claude Sonnet 4 (3 $ / million de tokens en entrée, 15 $ / million en sortie) et convertis à 1 $ = {CLAUDE_USD_EUR} €. Le compteur augmente à chaque appel. Il ne reflète pas vos autres usages d'Anthropic (conversations, autres outils) : aucune API publique de facturation ne permet de les lire depuis l'application. Pour votre facturation réelle et complète, référez-vous à la console Anthropic.</p>
+          <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>Cumul estimé des appels que <strong>cette application</strong> adresse à l'API Claude (recherche IA, reformulation, synchro Gmail…), au tarif Claude Sonnet 4 (3 $/M tokens entrée, 15 $/M sortie) + l'<strong>outil de recherche web</strong> (≈ 10 $ / 1000 recherches), convertis à 1 $ = {CLAUDE_USD_EUR} €. Les recherches web sont comptées <strong>exactement</strong> depuis l'activation de cette estimation ; celles effectuées <strong>avant</strong> sont estimées d'après les prospects trouvés par l'IA (~1 recherche pour 2 prospects) — estimation basse. Ne reflète pas vos autres usages d'Anthropic. Facturation réelle et complète : console Anthropic.</p>
           <div style={{ marginTop: 8 }}><button className="btn btn-g btn-s" onClick={reset}><RefreshCw size={13} /> Réinitialiser le compteur</button></div>
         </div>
-        {(() => { const du = usageToday(data.claudeUsage); const dEur = claudeEur(du); const dUsd = claudeUsd(du); return (
+        {(() => { const du = usageToday(data.claudeUsage); const dTokEur = claudeEur(du), dTokUsd = claudeUsd(du); const dWs = du.webSearches || 0; const dWsUsd = webSearchUsd(dWs), dWsEur = dWsUsd * CLAUDE_USD_EUR; const dTotEur = dTokEur + dWsEur, dTotUsd = dTokUsd + dWsUsd; const fmt = (x) => x.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 }); return (
         <div className="card" style={{ marginTop: 14, borderLeft: "4px solid var(--green)" }}>
           <div className="sec-h"><h3 className="pu-display">Crédits Claude — aujourd'hui</h3><span style={{ textTransform: "capitalize" }}>{new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</span></div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 30, fontWeight: 800, color: "var(--green)" }} className="tnum">{dEur.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} €</div>
-            <div style={{ fontSize: 13, color: "var(--muted)" }} className="tnum">≈ {dUsd.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} $</div>
+            <div style={{ fontSize: 30, fontWeight: 800, color: "var(--green)" }} className="tnum">{fmt(dTotEur)} €</div>
+            <div style={{ fontSize: 13, color: "var(--muted)" }} className="tnum">≈ {fmt(dTotUsd)} $</div>
           </div>
+          {dWs > 0 && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>dont <span className="tnum">{fmt(dTokEur)} €</span> de tokens · <span className="tnum">{fmt(dWsEur)} €</span> de recherche web</div>}
           <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 10, fontSize: 12.5 }}>
             <div><div style={{ color: "var(--muted)" }}>Appels</div><div style={{ fontWeight: 700 }} className="tnum">{num(du.calls)}</div></div>
             <div><div style={{ color: "var(--muted)" }}>Tokens entrée</div><div style={{ fontWeight: 700 }} className="tnum">{num(du.inputTokens)}</div></div>
             <div><div style={{ color: "var(--muted)" }}>Tokens sortie</div><div style={{ fontWeight: 700 }} className="tnum">{num(du.outputTokens)}</div></div>
+            <div><div style={{ color: "var(--muted)" }}>Recherches web</div><div style={{ fontWeight: 700 }} className="tnum">{num(dWs)}</div></div>
           </div>
-          <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>Consommation de l'API Claude par cette application <strong>depuis minuit</strong> (même tarif que le cumul). Le compteur du jour repart automatiquement à zéro au changement de date ; il n'est pas affecté par la réinitialisation du cumul.</p>
+          <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>Consommation (tokens + recherche web) de l'API Claude par cette application <strong>depuis minuit</strong>, au même tarif que le cumul. Repart à zéro au changement de date ; non affecté par la réinitialisation du cumul.</p>
         </div>); })()}
       </>
       ); })()}
@@ -6235,6 +6247,19 @@ export default function App() {
     if (loading || cleanedRef.current) return;
     cleanedRef.current = true;
     persist((p) => p, { snapshot: false });
+  }, [loading, persist]);
+  // Estimation rétroactive (figée une seule fois) des recherches web déjà effectuées AVANT le comptage
+  // exact : chaque prospect trouvé par la Recherche IA en a nécessité (~1 recherche web pour 2 prospects).
+  // Couvre l'historique le plus ancien possible ; ensuite, les recherches sont comptées précisément.
+  const wsPastRef = useRef(false);
+  useEffect(() => {
+    if (loading || wsPastRef.current) return;
+    wsPastRef.current = true;
+    persist((p) => {
+      if (p.claudeUsage && p.claudeUsage.webSearchesPast != null) return p; // déjà figé
+      const ai = (p.prospects || []).filter((x) => /recherche\s*ia/i.test(x.source || "")).length;
+      return { ...p, claudeUsage: { ...(p.claudeUsage || {}), webSearchesPast: Math.round(ai * 0.5) } };
+    }, { snapshot: false });
   }, [loading, persist]);
   // Synchronisation temps réel : applique les modifications enregistrées par d'autres sessions
   // (autre utilisateur, autre onglet), sauf si une écriture locale est en attente (on ne perd jamais une saisie en cours).
