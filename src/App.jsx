@@ -4736,8 +4736,8 @@ function EtatLogiciel({ data }) {
   </div>);
 }
 function Connexions({ data, persist, autoBackup }) {
-  const { settings, products } = data; const [email, setEmail] = useState(settings.myEmail); const [msg, setMsg] = useState(null);
-  const saveEmail = () => { persist((p) => ({ ...p, settings: { ...p.settings, myEmail: email.trim() } })); setMsg("Adresse enregistrée."); setTimeout(() => setMsg(null), 1800); };
+  const { settings, products } = data; const [email, setEmail] = useState(settings.myEmail); const [msg, setMsg] = useState(null); const [emailMsg, setEmailMsg] = useState("");
+  const saveEmail = () => { persist((p) => ({ ...p, settings: { ...p.settings, myEmail: email.trim() } })); setEmailMsg("Adresse enregistrée."); setTimeout(() => setEmailMsg(""), 1800); };
   // Diagnostic des connexions / variables (statuts uniquement, aucune valeur secrète).
   const [diag, setDiag] = useState(null); const [diagBusy, setDiagBusy] = useState(false);
   const loadDiag = async () => { setDiagBusy(true); try { const res = await fetch("/api/status", { method: "POST", headers: await claudeHeaders() }); const dt = await res.json().catch(() => ({})); setDiag(res.ok ? dt : { error: dt.error || ("Erreur " + res.status) }); } catch (e) { setDiag({ error: (e && e.message) || String(e) }); } finally { setDiagBusy(false); } };
@@ -4816,7 +4816,14 @@ function Connexions({ data, persist, autoBackup }) {
   return (<div className="fade">
     <EtatLogiciel data={data} />
 
-    <Section note="trace fidèle des envois et réceptions, associés automatiquement aux fiches">Courriels &amp; échanges</Section>
+    <Section note="boîte de suivi, synchronisation et envois — associés automatiquement aux fiches">Courriels &amp; échanges</Section>
+    <div className="card" style={{ marginBottom: 14, borderLeft: "4px solid #EA4335" }}>
+      <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Mail size={16} style={{ color: "#EA4335" }} /> Boîte courriel de suivi</h3><span>Gmail</span></div>
+      <p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4 }}>Adresse Gmail interrogée pour rapprocher les échanges avec vos contacts.</p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><input value={email} onChange={(e) => setEmail(e.target.value)} style={{ flex: "1 1 240px", border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontFamily: "inherit", fontSize: 13.5 }} /><button className="btn btn-p" onClick={saveEmail}>Enregistrer</button></div>
+      {emailMsg && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 8, color: "var(--green)" }}>{emailMsg}</div>}
+      <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10 }}>La synchronisation Gmail utilise votre connexion Google (via Clerk) : elle lit en lecture seule les échanges avec l'adresse de chaque contact. Si elle échoue, déconnectez-vous puis reconnectez-vous avec Google pour accorder l'autorisation Gmail.</p>
+    </div>
     <div className="card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 13, lineHeight: 1.55 }}><div style={{ fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 7 }}><Mail size={15} /> Synchronisation des courriels</div><div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3 }}>Les e-mails de la boîte connectée échangés avec une adresse renseignée ({knownEmails} adresse{knownEmails > 1 ? "s" : ""}) sont journalisés dans le fil des échanges, avec la mention <span className="srctag">sourcé</span>. Automatique (~1×/h) ; ce bouton force la synchro.{lastSync ? " Dernière synchro : " + lastSync.toLocaleString("fr-FR") + "." : ""}</div></div>
@@ -4869,12 +4876,8 @@ function Connexions({ data, persist, autoBackup }) {
       <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, lineHeight: 1.5 }}>🔒 Les valeurs secrètes ne sont <strong>jamais</strong> affichées — seul leur statut (définie / manquante) est indiqué. Les aperçus masqués ne concernent que des identifiants publics (Client ID, domaines, URL). 🟢 défini · 🟠 optionnel non défini · 🔴 requis manquant.</p>
     </div>
 
-    <Section note="courriel, boutique et partenaires">Connexions & synchronisations</Section>
-    <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", alignItems: "start" }}>
-      <div className="card"><div className="sec-h"><h3 className="pu-display">Boîte courriel de suivi</h3><span>Gmail</span></div><p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4 }}>Adresse Gmail interrogée pour rapprocher les échanges avec vos contacts.</p>
-        <div style={{ display: "flex", gap: 8 }}><input value={email} onChange={(e) => setEmail(e.target.value)} style={{ flex: 1, border: "1px solid var(--line)", borderRadius: 10, padding: "9px 11px", fontFamily: "inherit", fontSize: 13.5 }} /><button className="btn btn-p" onClick={saveEmail}>Enregistrer</button></div>
-        <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10 }}>La synchronisation Gmail utilise votre connexion Google (via Clerk) : elle lit en lecture seule les échanges avec l'adresse de chaque contact. Si elle échoue, déconnectez-vous puis reconnectez-vous avec Google pour accorder l'autorisation Gmail.</p>
-      </div>
+    <Section note="boutique et partenaires">Connexions & synchronisations</Section>
+    <div>
       <div className="card" style={{ borderLeft: "4px solid #95BF47" }}>
         <div className="sec-h"><h3 className="pu-display">Stock Shopify</h3><span>lecture seule</span></div>
         <p style={{ color: "var(--muted)", fontSize: 12.5, marginTop: -4, lineHeight: 1.5 }}>Lit l'inventaire disponible de votre boutique Shopify (quantité par SKU) et met à jour la colonne « Dispo » du catalogue. Ce stock alimente ensuite tous les onglets internes : Stock entrepôt, Réassort clients, alertes et KPIs du tableau de bord. Aucune donnée n'est écrite dans Shopify.</p>
