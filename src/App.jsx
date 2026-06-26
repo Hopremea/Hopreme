@@ -814,7 +814,9 @@ function findDuplicateContact(contacts, prenom, nom, email, excludeId) {
 }
 // Composant générique pour grouper visuellement les filtres en boîtes colorées
 function FilterGroup({ label, color, children, style }) {
-  return (<div style={{ background: color + "14", border: "1px solid " + color + "44", borderRadius: 12, padding: "7px 11px 9px", display: "flex", flexDirection: "column", gap: 6, ...(style || {}) }}>
+  // Surface opaque (carte) + accent coloré : lisible sur tous les thèmes (clair, foncé, dégradés),
+  // contrairement à l'ancien fond teinté quasi transparent qui se confondait avec le fond de page.
+  return (<div style={{ background: "var(--card)", border: "1px solid var(--line)", borderLeft: "3px solid " + color, borderRadius: 12, padding: "7px 11px 9px", display: "flex", flexDirection: "column", gap: 6, boxShadow: "0 2px 10px rgba(20,32,58,.10)", ...(style || {}) }}>
     <div style={{ fontSize: 9.5, fontWeight: 800, color, textTransform: "uppercase", letterSpacing: ".07em" }}>{label}</div>
     <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>{children}</div>
   </div>);
