@@ -498,7 +498,9 @@ function detachSiteToIndependent(p, siteId) {
 // Suivi de la dépense réelle des appels à l'API Claude faits PAR l'application (tarif Claude Sonnet 4).
 const CLAUDE_PRICE_USD = { in: 3, out: 15 }; // dollars par million de tokens (entrée / sortie)
 const CLAUDE_USD_EUR = 0.952; // taux sécurisé PEN'UP (spot +7%)
-function addUsage(u, usage) { const it = (usage && usage.input_tokens) || 0; const ot = (usage && usage.output_tokens) || 0; const base = u || { calls: 0, inputTokens: 0, outputTokens: 0 }; return { calls: (base.calls || 0) + 1, inputTokens: (base.inputTokens || 0) + it, outputTokens: (base.outputTokens || 0) + ot }; }
+function addUsage(u, usage) { const it = (usage && usage.input_tokens) || 0; const ot = (usage && usage.output_tokens) || 0; const base = u || { calls: 0, inputTokens: 0, outputTokens: 0 }; const today = TODAY(); const pd = (base.day && base.day.date === today) ? base.day : { date: today, calls: 0, inputTokens: 0, outputTokens: 0 }; return { calls: (base.calls || 0) + 1, inputTokens: (base.inputTokens || 0) + it, outputTokens: (base.outputTokens || 0) + ot, day: { date: today, calls: (pd.calls || 0) + 1, inputTokens: (pd.inputTokens || 0) + it, outputTokens: (pd.outputTokens || 0) + ot } }; }
+// Usage du jour courant (sinon zéro si la journée enregistrée n'est pas aujourd'hui).
+function usageToday(u) { const d = u && u.day; return (d && d.date === TODAY()) ? d : { calls: 0, inputTokens: 0, outputTokens: 0 }; }
 function claudeUsd(u) { if (!u) return 0; return ((u.inputTokens || 0) / 1e6) * CLAUDE_PRICE_USD.in + ((u.outputTokens || 0) / 1e6) * CLAUDE_PRICE_USD.out; }
 function claudeEur(u) { return claudeUsd(u) * CLAUDE_USD_EUR; }
 
@@ -5159,7 +5161,7 @@ function Connexions({ data, persist, autoBackup }) {
 
     <Section note="usage de l'API Claude">Intelligence artificielle</Section>
     <div>
-      {(() => { const u = data.claudeUsage || { calls: 0, inputTokens: 0, outputTokens: 0 }; const eur = claudeEur(u); const usd = claudeUsd(u); const reset = () => { appConfirm("Remettre le compteur de crédits Claude à zéro ?", { title: "Réinitialiser le compteur ?", confirmLabel: "Réinitialiser" }).then((ok) => { if (ok) persist((p) => ({ ...p, claudeUsage: { calls: 0, inputTokens: 0, outputTokens: 0 } })); }); }; return (
+      {(() => { const u = data.claudeUsage || { calls: 0, inputTokens: 0, outputTokens: 0 }; const eur = claudeEur(u); const usd = claudeUsd(u); const reset = () => { appConfirm("Remettre le compteur de crédits Claude à zéro ?", { title: "Réinitialiser le compteur ?", confirmLabel: "Réinitialiser" }).then((ok) => { if (ok) persist((p) => ({ ...p, claudeUsage: { calls: 0, inputTokens: 0, outputTokens: 0 } })); }); }; return (<>
         <div className="card">
           <div className="sec-h"><h3 className="pu-display">Crédits Claude consommés</h3><span>cumul depuis le début</span></div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
@@ -5174,6 +5176,21 @@ function Connexions({ data, persist, autoBackup }) {
           <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>Cumul réel des appels que <strong>cette application</strong> adresse à l'API Claude (recherche IA de prospects, reformulation, synchronisation Gmail), valorisés au tarif Claude Sonnet 4 (3 $ / million de tokens en entrée, 15 $ / million en sortie) et convertis à 1 $ = {CLAUDE_USD_EUR} €. Le compteur augmente à chaque appel. Il ne reflète pas vos autres usages d'Anthropic (conversations, autres outils) : aucune API publique de facturation ne permet de les lire depuis l'application. Pour votre facturation réelle et complète, référez-vous à la console Anthropic.</p>
           <div style={{ marginTop: 8 }}><button className="btn btn-g btn-s" onClick={reset}><RefreshCw size={13} /> Réinitialiser le compteur</button></div>
         </div>
+        {(() => { const du = usageToday(data.claudeUsage); const dEur = claudeEur(du); const dUsd = claudeUsd(du); return (
+        <div className="card" style={{ marginTop: 14, borderLeft: "4px solid var(--green)" }}>
+          <div className="sec-h"><h3 className="pu-display">Crédits Claude — aujourd'hui</h3><span style={{ textTransform: "capitalize" }}>{new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</span></div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 30, fontWeight: 800, color: "var(--green)" }} className="tnum">{dEur.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} €</div>
+            <div style={{ fontSize: 13, color: "var(--muted)" }} className="tnum">≈ {dUsd.toLocaleString("fr-FR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} $</div>
+          </div>
+          <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 10, fontSize: 12.5 }}>
+            <div><div style={{ color: "var(--muted)" }}>Appels</div><div style={{ fontWeight: 700 }} className="tnum">{num(du.calls)}</div></div>
+            <div><div style={{ color: "var(--muted)" }}>Tokens entrée</div><div style={{ fontWeight: 700 }} className="tnum">{num(du.inputTokens)}</div></div>
+            <div><div style={{ color: "var(--muted)" }}>Tokens sortie</div><div style={{ fontWeight: 700 }} className="tnum">{num(du.outputTokens)}</div></div>
+          </div>
+          <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 12, lineHeight: 1.5 }}>Consommation de l'API Claude par cette application <strong>depuis minuit</strong> (même tarif que le cumul). Le compteur du jour repart automatiquement à zéro au changement de date ; il n'est pas affecté par la réinitialisation du cumul.</p>
+        </div>); })()}
+      </>
       ); })()}
     </div>
 
