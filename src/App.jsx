@@ -650,7 +650,7 @@ function normalize(d) {
   d.contacts = (d.contacts || seedContacts()).map((c) => { const n = { departement: "", principalEtab: false, ...c }; if (n.fixe === undefined) { n.fixe = n.mobile || ""; n.mobile = n.telephone || ""; } delete n.telephone; return n; });
   d.interactions = d.interactions || seedInteractions();
   d.deals = (d.deals || seedDeals()).map((x) => ({ tva: 20, lines: [], qte: 0, prestoStatus: "", prestoRef: "", prestoDate: "", converti: false, livraisonSiteId: "", datePaiement: "", ...x, montant: x.lines && x.lines.length ? dealMontant(x.lines) : (x.montant || 0) }));
-  d.tickets = d.tickets || []; d.rotations = d.rotations || {}; d.savedCalcs = d.savedCalcs || []; d.prospects = (d.prospects || seedProspects()).map((p) => ({ enseigne: "", type: "autre", format: "", adresse: "", ville: "", cp: "", departement: "", region: "", telephone: "", site: "", email: "", statut: "a_qualifier", potentiel: "", notes: "", source: "", accountId: null, createdAt: TODAY(), siren: "", siret: "", raisonSociale: "", formeJuridique: "", contactPrenom: "", contactNom: "", contactFonction: "", contactEmail: "", contactTel: "", contactSource: "", ...p }));
+  d.tickets = d.tickets || []; d.rotations = d.rotations || {}; d.savedCalcs = d.savedCalcs || []; d.prospects = (d.prospects || seedProspects()).map((p) => ({ enseigne: "", type: "autre", format: "", adresse: "", ville: "", cp: "", departement: "", region: "", telephone: "", site: "", email: "", statut: "a_qualifier", potentiel: "", notes: "", source: "", accountId: null, createdAt: TODAY(), siren: "", siret: "", raisonSociale: "", formeJuridique: "", contactPrenom: "", contactNom: "", contactFonction: "", contactEmail: "", contactTel: "", contactSource: "", archived: false, archiveReason: "", archiveDate: "", archiveNote: "", ...p }));
   { const sm = {}; seedProspects().forEach((s) => { sm[s.id] = s; }); d.prospects = d.prospects.map((p) => { if (p.id === "p_jc_mtb" && p.siren === "918164757") { const s = sm["p_jc_mtb"] || {}; p = { ...p, siren: "", raisonSociale: "", formeJuridique: "", contactPrenom: "", contactNom: "", contactFonction: "", contactSource: "", notes: s.notes || p.notes }; } const s = sm[p.id]; if (s && !p.siren && (s.siren || s.contactNom)) p = { ...p, siren: p.siren || s.siren, raisonSociale: p.raisonSociale || s.raisonSociale, formeJuridique: p.formeJuridique || s.formeJuridique, contactPrenom: p.contactPrenom || s.contactPrenom, contactNom: p.contactNom || s.contactNom, contactFonction: p.contactFonction || s.contactFonction, contactTel: p.contactTel || s.contactTel, contactSource: p.contactSource || s.contactSource }; if (s && s.siret && !p.siret) p = { ...p, siret: s.siret }; return p; }); } d.sites = Array.isArray(d.sites) ? d.sites.map((s) => ({ accountId: null, type: "pdv", adresse: "", lat: null, lng: null, notes: "", contactPrenom: "", contactNom: "", contactTel: "", contactMail: "", contactId: "", typeSurface: "", siret: "", adresseLivraison: "", livraisonIdentique: true, ...s })) : seedSites();
   { const sim = {}; seedSites().forEach((s) => { sim[s.id] = s; }); d.sites = d.sites.map((s) => { const o = sim[s.id]; return (o && !s.siret && o.siret) ? { ...s, siret: o.siret } : s; }); }
   d.attachments = d.attachments || {};
@@ -2335,7 +2335,7 @@ const ARCHIVE_REASONS = [
 const archiveReasonLabel = (k) => (ARCHIVE_REASONS.find((r) => r.key === k) || {}).label || k || "—";
 // Fenêtre d'archivage : motif préselectionné, date d'arrêt et explication (pourquoi/comment), avec
 // reformulation IA. Utilisée pour archiver (ou modifier l'archivage d') un établissement / groupe.
-function ArchiveModal({ account, existing, onUsage, onArchive, onClose }) {
+function ArchiveModal({ account, existing, onUsage, onArchive, onClose, noun = "établissement" }) {
   const [reason, setReason] = useState((existing && existing.archiveReason) || "");
   const [date, setDate] = useState((existing && existing.archiveDate) || TODAY());
   const [note, setNote] = useState((existing && existing.archiveNote) || "");
@@ -2348,8 +2348,8 @@ function ArchiveModal({ account, existing, onUsage, onArchive, onClose }) {
     catch (e) { setMsg("Reformulation IA indisponible ici (fonctionne dans l'app Claude)."); }
     finally { setBusy(false); }
   };
-  return (<Modal title={(existing && existing.archived ? "Modifier l'archivage — " : "Archiver — ") + (account.enseigne || "établissement")} onClose={onClose} wide>
-    <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 0 }}>L'établissement sort des listes actives (« parcours commercial arrêté ») et reste consultable dans le sous-onglet <strong>Archive</strong>. Réactivable à tout moment.</p>
+  return (<Modal title={(existing && existing.archived ? "Modifier l'archivage — " : "Archiver — ") + (account.enseigne || account.nom || noun)} onClose={onClose} wide>
+    <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 0 }}>{noun === "prospect" ? "Le prospect" : "L'établissement"} sort des listes actives (« parcours commercial arrêté ») et reste consultable dans le sous-onglet <strong>Archive</strong>. Réactivable à tout moment.</p>
     <div className="fld"><label>Motif (préselection)</label><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{ARCHIVE_REASONS.map((r) => <button key={r.key} type="button" className={cx("btn", "btn-s", reason === r.key ? "btn-p" : "btn-g")} onClick={() => pick(r.key)}>{r.label}</button>)}</div></div>
     <div className="fld"><label>Date d'arrêt</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
     <div className="fld"><label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>Explication — pourquoi / comment<button type="button" className="btn btn-g btn-s" onClick={reformuler} disabled={busy} style={{ fontWeight: 700 }}><Sparkles size={13} className={busy ? "spin" : ""} /> {busy ? "…" : "Reformuler (IA)"}</button></label><textarea rows={4} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex : Après 3 relances et un RDV en mai, l'enseigne confirme rester sur son fournisseur actuel jusqu'en 2027. À recontacter au prochain renouvellement." /></div>
@@ -4261,7 +4261,7 @@ async function aiAutofill({ kind, enseigne, ville, adresse, typesEtab }) {
 }
 function Prospection({ data, persist, go }) {
   const { prospects } = data;
-  const [q, setQ] = useState(""); const [fType, setFType] = useState("tous"); const [fRegion, setFRegion] = useState("tous"); const [fStatut, setFStatut] = useState("tous"); const [sort, setSort] = useState("type"); const [dir, setDir] = useState("asc");
+  const [q, setQ] = useState(""); const [fType, setFType] = useState("tous"); const [fRegion, setFRegion] = useState("tous"); const [sort, setSort] = useState("type"); const [dir, setDir] = useState("asc"); const [view, setView] = useState("actifs"); const [archiveEdit, setArchiveEdit] = useState(null);
   const [edit, setEdit] = useState(null);
   const [zone, setZone] = useState("Occitanie"); const [kind, setKind] = useState("toutes"); const [busy, setBusy] = useState(false); const [aiMsg, setAiMsg] = useState(null); const [aiErr, setAiErr] = useState(null);
   const aiElapsed = useElapsed(busy);
@@ -4276,7 +4276,10 @@ function Prospection({ data, persist, go }) {
   const upE = (k, v) => setEdit((e) => ({ ...e, [k]: v }));
   const regions = Array.from(new Set(prospects.map((p) => p.region).filter(Boolean))).sort();
   const rank = { fort: 0, moyen: 1, faible: 2, "": 3 };
-  const list = prospects.filter((p) => (fType === "tous" || p.type === fType) && (fRegion === "tous" || p.region === fRegion) && (fStatut === "tous" || p.statut === fStatut) && (q === "" || [p.nom, p.enseigne, p.ville, p.adresse, p.notes].join(" ").toLowerCase().includes(q.toLowerCase())));
+  // Listing actif : on exclut les prospects archivés et ceux déjà convertis en compte (statut « converti »
+  // ou accountId présent) — une fois converti, le commerce vit dans l'onglet Groupes & établissements.
+  const list = prospects.filter((p) => !p.archived && !p.accountId && p.statut !== "converti" && (fType === "tous" || p.type === fType) && (fRegion === "tous" || p.region === fRegion) && (q === "" || [p.nom, p.enseigne, p.ville, p.adresse, p.notes].join(" ").toLowerCase().includes(q.toLowerCase())));
+  const archivedProspects = prospects.filter((p) => p.archived && !p.accountId);
   const GROUP_DEFS = {
     type: { label: "Type", get: (p) => p.type || "autre", meta: (v) => PROSPECT_TYPES[v] || PROSPECT_TYPES.autre, order: Object.keys(PROSPECT_TYPES) },
     statut: { label: "Statut", get: (p) => p.statut || "a_qualifier", meta: (v) => PROSPECT_STATUT[v] || PROSPECT_STATUT.a_qualifier, order: Object.keys(PROSPECT_STATUT) },
@@ -4291,6 +4294,8 @@ function Prospection({ data, persist, go }) {
   if (dir === "desc") groups = groups.slice().reverse().map((g) => ({ ...g, items: g.items.slice().reverse() }));
   const save = (p) => { persist((d) => ({ ...d, prospects: d.prospects.some((x) => x.id === p.id) ? d.prospects.map((x) => x.id === p.id ? p : x) : [p, ...d.prospects] })); setEdit(null); };
   const del = (id) => { persist((d) => ({ ...d, prospects: d.prospects.filter((x) => x.id !== id) })); setEdit(null); };
+  const saveArchiveProspect = (p, info) => persist((d) => ({ ...d, prospects: d.prospects.map((x) => x.id === p.id ? { ...x, archived: true, archiveReason: info.reason, archiveDate: info.date || TODAY(), archiveNote: info.note || "" } : x) }));
+  const unarchiveProspect = (id) => persist((d) => ({ ...d, prospects: d.prospects.map((x) => x.id === id ? { ...x, archived: false } : x) }));
   // Déduplication : regroupe les prospects par SIRET (si renseigné) ou par nom + ville normalisés,
   // garde la fiche la plus complète de chaque groupe (et déjà convertie en compte si applicable),
   // supprime les autres. Demande confirmation et indique le nombre supprimé.
@@ -4387,7 +4392,7 @@ function Prospection({ data, persist, go }) {
     } catch (e) { const m = String((e && e.message) || e); const slow = /50[24]|delai|timeout|aborted|abort/i.test(m); setAiErr(slow ? "La recherche IA a mis trop de temps à répondre (elle interroge le web et les registres officiels en direct). Réessaie, ou précise une zone plus petite / un établissement précis pour accélérer." : ("Recherche IA momentanément indisponible (" + m + "). Réessaie dans un instant.")); }
     finally { setBusy(false); }
   };
-  const hasFilter = q || fType !== "tous" || fRegion !== "tous" || fStatut !== "tous";
+  const hasFilter = q || fType !== "tous" || fRegion !== "tous";
   const card = (p) => { const tm = PROSPECT_TYPES[p.type] || PROSPECT_TYPES.autre; const sm = PROSPECT_STATUT[p.statut] || PROSPECT_STATUT.a_qualifier; const pm = POTENTIEL_META[p.potentiel]; return (
     <div key={p.id} ref={(el) => { if (el) cardRefs.current[p.id] = el; }} className={cx("card", flashIds && flashIds.has(p.id) && "prospect-flash")} style={{ display: "flex", flexDirection: "column", gap: 8, cursor: "pointer" }} onClick={() => setEdit(p)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
@@ -4406,6 +4411,19 @@ function Prospection({ data, persist, go }) {
       </div>
     </div>); };
   return (<div className="fade">
+    <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}><button className={cx("btn", "btn-s", view === "actifs" ? "btn-p" : "btn-g")} onClick={() => setView("actifs")}>Prospects actifs ({prospects.filter((p) => !p.archived && !p.accountId && p.statut !== "converti").length})</button><button className={cx("btn", "btn-s", view === "archive" ? "btn-p" : "btn-g")} onClick={() => setView("archive")}><Archive size={14} /> Archivés ({archivedProspects.length})</button></div>
+    {view === "archive" ? (<div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>Prospects archivés (suivi arrêté avant conversion). Ouvrez la fiche, modifiez le motif, ou réactivez pour les remettre dans le listing.</div>
+      {archivedProspects.length === 0 ? <div className="empty">Aucun prospect archivé. Depuis une fiche prospect (« Modifier »), utilisez « Archiver » pour y placer un prospect que vous ne suivez plus.</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>{archivedProspects.slice().sort((a, b) => (b.archiveDate || "").localeCompare(a.archiveDate || "")).map((a) => (
+        <div key={a.id} className="card" style={{ display: "flex", flexDirection: "column", gap: 7, borderLeft: "3px solid #9aa6bd" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><Store size={16} color="var(--muted)" /><span style={{ fontWeight: 800, fontSize: 14 }}>{a.nom || a.enseigne || "Sans nom"}</span><Badge color="#9aa6bd">Archivé</Badge></div>
+          {(a.adresse || a.ville) && <div style={{ fontSize: 12, color: "var(--muted)" }}>{[a.adresse, ((a.cp || "") + " " + (a.ville || "")).trim()].filter(Boolean).join(", ")}</div>}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 12.5 }}><span style={{ fontWeight: 700 }}>{archiveReasonLabel(a.archiveReason)}</span>{a.archiveDate && <span style={{ color: "var(--muted)" }} className="tnum">· {a.archiveDate}</span>}</div>
+          {a.archiveNote && <div style={{ fontSize: 12.5, color: "var(--muted)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{a.archiveNote}</div>}
+          <div style={{ display: "flex", gap: 6, marginTop: 2, flexWrap: "wrap" }}><button className="btn btn-g btn-s" onClick={() => setEdit(a)}><Eye size={14} /> Ouvrir</button><button className="btn btn-g btn-s" onClick={() => setArchiveEdit(a)}><Pencil size={13} /> Motif</button><button className="btn btn-p btn-s" onClick={() => unarchiveProspect(a.id)}><ArchiveRestore size={14} /> Réactiver</button></div>
+        </div>
+      ))}</div>}
+    </div>) : (<>
     <div className="card" style={{ marginBottom: 14 }}>
       <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Sparkles size={17} style={{ color: "var(--orange)" }} /> Recherche IA de prospects</h3></div>
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -4419,7 +4437,6 @@ function Prospection({ data, persist, go }) {
     <div className="filtbar">
       <FilterGroup label="Type" color="#3F60AA"><AllChip active={fType === "tous"} onClick={() => setFType("tous")}>Tous</AllChip>{Object.entries(PROSPECT_TYPES).map(([k, v]) => <button key={k} className={cx("chip", fType === k && "on")} onClick={() => setFType(k)} style={fType === k ? { background: v.color, borderColor: v.color, color: onColor(v.color) } : {}}>{v.label}</button>)}</FilterGroup>
       <FilterGroup label="Région" color="#2bb673"><AllChip active={fRegion === "tous"} onClick={() => setFRegion("tous")}>Toutes</AllChip>{regions.map((r) => <button key={r} className={cx("chip", fRegion === r && "on")} onClick={() => setFRegion(r)} style={fRegion === r ? { background: "#2bb673", borderColor: "#2bb673", color: onColor("#2bb673") } : {}}>{r}</button>)}</FilterGroup>
-      <FilterGroup label="Statut" color="#F8B133"><AllChip active={fStatut === "tous"} onClick={() => setFStatut("tous")}>Tous</AllChip>{Object.entries(PROSPECT_STATUT).map(([k, v]) => <button key={k} className={cx("chip", fStatut === k && "on")} onClick={() => setFStatut(k)} style={fStatut === k ? { background: v.color, borderColor: v.color, color: onColor(v.color) } : {}}>{v.label}</button>)}</FilterGroup>
     </div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -4428,7 +4445,7 @@ function Prospection({ data, persist, go }) {
           <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ padding: "9px 12px", borderRadius: "10px 0 0 10px", border: "1px solid var(--line)", borderRight: "none", fontFamily: "inherit", fontSize: 13 }}><option value="type">Grouper par type</option><option value="statut">Grouper par statut</option><option value="region">Grouper par région</option><option value="enseigne">Grouper par groupe / établissement</option><option value="potentiel">Grouper par potentiel</option><option value="ville">Grouper par ville</option></select>
           <button onClick={() => setDir((d) => d === "asc" ? "desc" : "asc")} title={dir === "asc" ? "Ordre croissant (cliquer pour inverser)" : "Ordre décroissant (cliquer pour inverser)"} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 11px", border: "1px solid var(--line)", borderRadius: "0 10px 10px 0", background: "#fff", cursor: "pointer", color: "var(--blue)" }}>{dir === "asc" ? <ArrowDown size={15} /> : <ArrowUp size={15} />}</button>
         </div>
-        {hasFilter && <button className="btn btn-ghost btn-s" onClick={() => { setQ(""); setFType("tous"); setFRegion("tous"); setFStatut("tous"); }}><X size={13} /> Effacer</button>}
+        {hasFilter && <button className="btn btn-ghost btn-s" onClick={() => { setQ(""); setFType("tous"); setFRegion("tous"); }}><X size={13} /> Effacer</button>}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button className="btn btn-ghost" onClick={mergeDuplicateProspects} title="Détecter et fusionner les prospects en double (même SIRET, même adresse, ou même SIREN + ville) en réunissant leurs informations dans une seule fiche"><Copy size={16} /> Fusionner les doublons</button>
@@ -4445,6 +4462,7 @@ function Prospection({ data, persist, go }) {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(330px, 1fr))", gap: 12 }}>{g.items.map(card)}</div>
       </div>); })}
+    </>)}
     {edit && <Modal title={edit.nom ? edit.nom : "Nouveau prospect"} onClose={() => setEdit(null)} wide>
       <div className="row2"><div className="fld"><label>Nom du prospect</label><input value={edit.nom} onChange={(e) => upE("nom", e.target.value)} /></div><div className="fld"><label>Groupe / réseau</label><input value={edit.enseigne} onChange={(e) => upE("enseigne", e.target.value)} placeholder="JouéClub, King Jouet, indépendant…" /></div></div>
       <div className="row2"><div className="fld"><label>Type</label><select value={edit.type} onChange={(e) => upE("type", e.target.value)}>{Object.entries(PROSPECT_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="fld"><label>Format</label><input list="prospect-format-list" value={edit.format} onChange={(e) => upE("format", e.target.value)} placeholder="Centre-ville, périphérie…" /><datalist id="prospect-format-list">{FORMAT_OPTIONS.map((o) => <option key={o} value={o} />)}</datalist></div></div>
@@ -4466,16 +4484,18 @@ function Prospection({ data, persist, go }) {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {prospects.some((x) => x.id === edit.id) && <button className="btn btn-ghost btn-s" style={{ color: "var(--red)" }} onClick={() => appConfirm("Supprimer « " + (edit.nom || "ce prospect") + " » du listing de prospection ?", { title: "Supprimer ce prospect ?" }).then((ok) => { if (ok) del(edit.id); })}><Trash2 size={14} /> Supprimer</button>}
+          {prospects.some((x) => x.id === edit.id) && (edit.archived ? <button className="btn btn-g btn-s" onClick={() => { unarchiveProspect(edit.id); setEdit(null); }} title="Réactiver : remettre dans le listing de prospection"><ArchiveRestore size={14} /> Désarchiver</button> : <button className="btn btn-g btn-s" onClick={() => { const p = edit; setEdit(null); setArchiveEdit(p); }} title="Archiver : suivi arrêté avant conversion"><Archive size={14} /> Archiver</button>)}
           {edit.statut !== "converti" && <button className="btn btn-g btn-s" onClick={() => convert(edit)}><Building2 size={14} /> {(edit.contactNom || "").trim() ? "Convertir (compte + contact)" : "Convertir en compte"}</button>}
           {edit.accountId && <button className="btn btn-g btn-s" onClick={() => go("accounts", edit.accountId)}>Ouvrir la fiche du compte</button>}
         </div>
         <button className="btn btn-p" onClick={() => save(edit)}>Enregistrer</button>
       </div>
     </Modal>}
-    <div style={{ marginTop: 26, paddingTop: 12, borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "flex-start", fontSize: 11, lineHeight: 1.5, color: "var(--muted)" }}>
+    {view === "actifs" && <div style={{ marginTop: 26, paddingTop: 12, borderTop: "1px solid var(--line)", display: "flex", gap: 8, alignItems: "flex-start", fontSize: 11, lineHeight: 1.5, color: "var(--muted)" }}>
       <Sparkles size={13} style={{ color: "var(--orange)", flexShrink: 0, marginTop: 2, opacity: .8 }} />
       <div>Ce listing recense des prospects (points de vente de jouets et loisirs créatifs) partout en France, tous types, triés par type, région et statut. La <strong>Recherche IA</strong> interroge le web puis les <strong>sources officielles</strong> (RNE/INSEE via annuaire-entreprises, Pappers, societe.com, Infogreffe, INPI) pour enrichir chaque fiche avec l'identité légale (raison sociale, SIREN, forme juridique, dirigeant) et un contact pré-rempli. À la conversion, le compte <strong>et</strong> la fiche contact associée sont créés d'un coup. <strong>Point d'honnêteté :</strong> l'agent fonctionne dans l'aperçu Claude (API Anthropic + recherche web) ; l'application exportée nécessite un serveur relais. Les résultats, surtout les courriels et noms, sont indicatifs et <strong>à vérifier</strong> avant tout démarchage.</div>
-    </div>
+    </div>}
+    {archiveEdit && <ArchiveModal account={archiveEdit} existing={archiveEdit} noun="prospect" onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onArchive={(info) => { saveArchiveProspect(archiveEdit, info); setArchiveEdit(null); }} onClose={() => setArchiveEdit(null)} />}
   </div>);
 }
 function SaveCalcBar({ type, payload, detail, summary, persist }) {
