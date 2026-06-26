@@ -1109,15 +1109,17 @@ const LEGACY_BGTHEME = {
   lavender: ["lavender", "dash"], mint: ["mint", "dash"], forest: ["forest", "memphis"], plum: ["plum", "memphis"], midnight: ["midnight", "memphis"],
 };
 // CSS généré : un fond par couleur, un motif par couple couleur×motif (teinte adaptée au fond).
-const THEME_BG_CSS = THEME_COLORS.map((c) => `.pu-root.color-${c.id}{background:${c.bg};}`
-  + THEME_PATTERNS.filter((p) => p.fn).map((p) => `.pu-root.color-${c.id}.pat-${p.id}::before{background-image:${p.fn(c.stroke)};background-size:${p.size};opacity:${p.op};}`).join("")).join("\n");
+// Le thème de couleur (fond + motif) ne s'applique QU'EN clair : en mode sombre, la palette sombre
+// dédiée prend le dessus (évite « le noir des couleurs de fond » et les conflits texte sombre/carte sombre).
+const THEME_BG_CSS = THEME_COLORS.map((c) => `.pu-root.color-${c.id}:not(.dark){background:${c.bg};}`
+  + THEME_PATTERNS.filter((p) => p.fn).map((p) => `.pu-root.color-${c.id}:not(.dark).pat-${p.id}::before{background-image:${p.fn(c.stroke)};background-size:${p.size};opacity:${p.op};}`).join("")).join("\n");
 // Texte clair hors carte sur les fonds foncés (revient sombre dans les surfaces claires).
 const DARK_BG_TEXT = THEME_COLORS.filter((c) => c.dark).map((c) => c.id).map((t) => `
-.pu-root.color-${t} .main{color:#fff;--ink:#fff;--muted:rgba(255,255,255,.82);--line:rgba(255,255,255,.30);}
-.pu-root.color-${t} .main .card,.pu-root.color-${t} .main .crow,.pu-root.color-${t} .main .conn,.pu-root.color-${t} .modal,.pu-root.color-${t} .main input,.pu-root.color-${t} .main select,.pu-root.color-${t} .main textarea,.pu-root.color-${t} .main .chip,.pu-root.color-${t} .main .chip-all,.pu-root.color-${t} .main .btn-g,.pu-root.color-${t} .main .iconbtn,.pu-root.color-${t} .main .col,.pu-root.color-${t} .main .deal-card,.pu-root.color-${t} .main .acc-card,.pu-root.color-${t} .main .cal-cell,.pu-root.color-${t} .main .cal-ev,.pu-root.color-${t} .main [style*="#fff"],.pu-root.color-${t} .main [style*="--card"],.pu-root.color-${t} .main [style*="--bg"]{color:var(--ink);--ink:#16203a;--muted:#5b6478;--line:#ece3d2;}
-.pu-root.color-${t} .main .chip.on{color:#fff;}
-.pu-root.color-${t} .topbar h2{color:#fff;}
-.pu-root.color-${t} .topbar p{color:rgba(255,255,255,.85);}
+.pu-root.color-${t}:not(.dark) .main{color:#fff;--ink:#fff;--muted:rgba(255,255,255,.82);--line:rgba(255,255,255,.30);text-shadow:0 1px 2px rgba(0,0,0,.22);}
+.pu-root.color-${t}:not(.dark) .main .card,.pu-root.color-${t}:not(.dark) .main .crow,.pu-root.color-${t}:not(.dark) .main .conn,.pu-root.color-${t}:not(.dark) .modal,.pu-root.color-${t}:not(.dark) .main input,.pu-root.color-${t}:not(.dark) .main select,.pu-root.color-${t}:not(.dark) .main textarea,.pu-root.color-${t}:not(.dark) .main .chip,.pu-root.color-${t}:not(.dark) .main .chip-all,.pu-root.color-${t}:not(.dark) .main .btn-g,.pu-root.color-${t}:not(.dark) .main .iconbtn,.pu-root.color-${t}:not(.dark) .main .col,.pu-root.color-${t}:not(.dark) .main .deal-card,.pu-root.color-${t}:not(.dark) .main .acc-card,.pu-root.color-${t}:not(.dark) .main .cal-cell,.pu-root.color-${t}:not(.dark) .main .cal-ev,.pu-root.color-${t}:not(.dark) .main [style*="#fff"],.pu-root.color-${t}:not(.dark) .main [style*="--card"],.pu-root.color-${t}:not(.dark) .main [style*="--bg"]{color:var(--ink);--ink:#16203a;--muted:#5b6478;--line:#ece3d2;text-shadow:none;}
+.pu-root.color-${t}:not(.dark) .main .chip.on{color:#fff;}
+.pu-root.color-${t}:not(.dark) .topbar h2{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.3);}
+.pu-root.color-${t}:not(.dark) .topbar p{color:rgba(255,255,255,.85);text-shadow:0 1px 2px rgba(0,0,0,.25);}
 `).join("");
 // Accentuation auto : selon le fond (foncé → jaune, jaune → bleu, clair → rouge).
 // Accent « automatique » accordé à CHAQUE fond (y compris les dégradés) : couleur des boutons de la
