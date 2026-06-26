@@ -1,5 +1,10 @@
 import { verifyToken } from "@clerk/backend";
 
+// Laisse au relais jusqu'a 60 s d'execution cote Vercel. La recherche IA de prospects utilise la
+// recherche web (plusieurs requetes vers des registres officiels) et depasse facilement les ~10 s
+// par defaut : sans cette config, Vercel coupe la fonction avant la reponse d'Anthropic -> 502/504.
+export const config = { maxDuration: 60 };
+
 // Relais serveur pour l'API Anthropic.
 // La cle ANTHROPIC_API_KEY reste cote serveur : elle n'est jamais envoyee au navigateur.
 // Si CLERK_SECRET_KEY est definie, l'appel exige un jeton Clerk valide (acces protege).
@@ -35,9 +40,9 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Garde-fou anti-blocage : on abandonne l'appel amont au-dela de 50 s (renvoie un 502 controle).
+  // Garde-fou anti-blocage : on abandonne l'appel amont juste avant la limite Vercel (renvoie un 502 controle).
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 50000);
+  const timer = setTimeout(() => controller.abort(), 58000);
   try {
     const payload =
       typeof req.body === "string" ? req.body : JSON.stringify(req.body || {});
