@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Building2, FileText, Boxes, Plug, Plus, X, Search,
   TrendingUp, BarChart3, AlertTriangle, CheckCircle2, Upload, Pencil, Calendar,
   Store, PackageCheck, Users, Mail, Phone, MapPin, Star, Trash2,
-  ChevronLeft, ArrowUpRight, ArrowDownLeft, Linkedin, User,
+  ChevronLeft, ArrowUpRight, ArrowDownLeft, PhoneOff, Linkedin, User,
   Calculator, Percent, Truck, ArrowRightLeft, RefreshCw, Eye, Printer,
   LifeBuoy, Repeat, Zap, Map as MapIcon, Send, ExternalLink, Link2,
   Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon, Palette, Mic, MessageSquare, Video, Archive, ArchiveRestore,
@@ -215,6 +215,14 @@ function assignClientCodes(accounts) {
   });
 }
 const INT_META = { email: { label: "Courriel", color: "#6366F1", icon: Mail }, appel: { label: "Appel", color: "#0EA5A4", icon: Phone }, visio: { label: "Visio", color: "#2563EB", icon: Video }, rdv: { label: "RDV", color: "#A855F7", icon: Calendar }, linkedin: { label: "LinkedIn", color: "#0A66C2", icon: Linkedin }, note: { label: "Note", color: "#94A3B8", icon: Pencil } };
+// Sens d'un échange. « sortant_rejete » = tentative de notre part non aboutie (appel rejeté / sans
+// réponse) : compte comme une trace mais PAS comme un démarchage réussi pour l'entonnoir.
+const DIRECTIONS = {
+  entrant: { label: "Reçu", opt: "Entrant", icon: ArrowDownLeft, color: "var(--green)", ctx: "reçu du client" },
+  sortant: { label: "Envoyé", opt: "Sortant", icon: ArrowUpRight, color: "var(--blue)", ctx: "envoyé par nous" },
+  sortant_rejete: { label: "Sortant (rejeté)", opt: "Sortant (rejeté)", icon: PhoneOff, color: "var(--red)", ctx: "tentative sortante rejetée / sans réponse du prospect" },
+};
+const dirMeta = (d) => DIRECTIONS[d] || DIRECTIONS.sortant;
 // Sujets d'échange proposés (liste déroulante) — la saisie libre reste possible.
 const SUJET_PRESETS = ["Prise de contact", "Appel découverte", "Présentation de la gamme", "Présentation des nouveautés", "Demande de devis", "Envoi de devis", "Relance devis", "Négociation tarifaire", "Conditions commerciales", "Référencement", "Prise de commande", "Suivi de commande", "Livraison", "Réassort", "Mise en avant produit", "Offre promotionnelle", "Formation produit", "Envoi d'échantillon", "Invitation salon", "Rendez-vous visio", "Point de suivi", "Prise de nouvelles", "Prise de rendez-vous", "Compte rendu de rendez-vous", "Demande d'avis", "Réclamation / SAV", "Remerciements"].sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
 const SAV_CANAL = { livraison: "Livraison", produit: "Produit", client: "Client final", autre: "Autre" };
@@ -607,8 +615,9 @@ function deriveStage(account, d) {
   const ints = (d.interactions || []).filter(rel);
   const hasRdv = (d.events || []).some((e) => rel(e) && (e.type === "rdv" || e.type === "visio")) || ints.some((i) => i.type === "rdv" || i.type === "visio");
   if (hasRdv) return "rdv";
-  // Démarché = NOUS avons engagé le contact : un échange réel (hors note) qui n'est pas purement entrant.
-  if (ints.some((i) => i.type !== "note" && i.direction !== "entrant")) return "contact";
+  // Démarché = NOUS avons engagé le contact avec succès : un échange réel (hors note) qui n'est ni
+  // purement entrant ni une tentative rejetée (appel sortant rejeté / sans réponse ne compte pas).
+  if (ints.some((i) => i.type !== "note" && i.direction !== "entrant" && i.direction !== "sortant_rejete")) return "contact";
   return "prospect";
 }
 // Reclasse les comptes (sauf ceux figés à la main) : avance l'étape vers la valeur déduite si elle est
@@ -2897,7 +2906,7 @@ function MessageComposer({ account, site, contacts, contact, defaultContactId, i
     const recent = (interactions || []).slice(0, 6);
     if (recent.length) {
       L.push(""); L.push("HISTORIQUE DES ÉCHANGES (du plus récent au plus ancien ; « reçu » = le client nous a écrit, « envoyé » = nous lui avons écrit ; les personnes nommées dans les résumés sont des employés du client) :");
-      recent.forEach((i) => { const tm = INT_META[i.type] || {}; L.push("- " + (i.date || "?") + " · " + (tm.label || i.type) + " " + (i.direction === "entrant" ? "(reçu du client)" : i.direction === "sortant" ? "(envoyé par nous)" : "") + (i.sujet ? " — " + i.sujet : "") + (i.resume ? " : " + i.resume : "")); });
+      recent.forEach((i) => { const tm = INT_META[i.type] || {}; L.push("- " + (i.date || "?") + " · " + (tm.label || i.type) + " " + (DIRECTIONS[i.direction] ? "(" + DIRECTIONS[i.direction].ctx + ")" : "") + (i.sujet ? " — " + i.sujet : "") + (i.resume ? " : " + i.resume : "")); });
     } else {
       L.push(""); L.push("HISTORIQUE DES ÉCHANGES : aucun échange enregistré — n'écris donc PAS « faisant suite à notre dernier échange/appel ».");
     }
@@ -3004,7 +3013,7 @@ function buildEstablishmentContext({ account, site, contacts = [], interactions 
   const recent = (interactions || []).slice(0, 8);
   if (recent.length) {
     L.push(""); L.push("DERNIERS ÉCHANGES (du plus récent au plus ancien) :");
-    recent.forEach((i) => { const tm = INT_META[i.type] || {}; L.push("- " + (i.date || "") + " · " + (tm.label || i.type) + " " + (i.direction === "entrant" ? "(reçu)" : i.direction === "sortant" ? "(envoyé)" : "") + (i.sujet ? " — " + i.sujet : "") + (i.resume ? " : " + i.resume : "")); });
+    recent.forEach((i) => { const tm = INT_META[i.type] || {}; L.push("- " + (i.date || "") + " · " + (tm.label || i.type) + " " + (DIRECTIONS[i.direction] ? "(" + DIRECTIONS[i.direction].ctx + ")" : "") + (i.sujet ? " — " + i.sujet : "") + (i.resume ? " : " + i.resume : "")); });
   }
   const rd = (deals || []).slice(0, 6);
   if (rd.length) {
@@ -3132,7 +3141,7 @@ function AccountInteractionForm({ contactId, accountId, contacts, onCancel, onSa
   const onContact = (cid) => setF((p) => { const ct = (contacts || []).find((c) => c.id === cid); return { ...p, contactId: cid, siteId: ct && ct.siteId ? ct.siteId : (p.siteId || "") }; });
   return (<>
     <div className="row2"><div className="fld"><label>Type</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{Object.entries(INT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div></div>
-    <div className="row2"><div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option></select></div><div className="fld"><label>Contact</label><select value={f.contactId} onChange={(e) => onContact(e.target.value)}><option value="">Aucun précis</option>{contacts.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></div></div>
+    <div className="row2"><div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option><option value="sortant_rejete">Sortant (rejeté)</option></select></div><div className="fld"><label>Contact</label><select value={f.contactId} onChange={(e) => onContact(e.target.value)}><option value="">Aucun précis</option>{contacts.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}</select></div></div>
     <div className="fld"><label>Sujet</label><Combo value={f.sujet} onChange={(v) => up("sujet", v)} options={SUJET_PRESETS} placeholder="Choisir ou saisir l'objet de l'échange" /></div>
     <ResumeField value={f.resume} onChange={(v) => up("resume", v)} onUsage={onUsage} rows={3} baseDate={f.date} onPlan={onPlanEvents ? (evs) => onPlanEvents(evs, f) : undefined} />
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><button className="btn btn-ghost" onClick={onCancel}>Annuler</button><button className="btn btn-p" onClick={() => onSave(f)} disabled={!f.sujet}>Enregistrer</button></div>
@@ -3340,7 +3349,7 @@ function InteractionForm({ accountId, contactId, siteId, onSave, interaction, on
   const [f, setF] = useState(interaction ? { siteId: siteId || "", ...interaction } : { id: "i_" + Date.now(), accountId, contactId, siteId: siteId || "", type: "email", direction: "sortant", date: TODAY(), sujet: "", resume: "" });
   const up = (k, v) => setF((p) => ({ ...p, [k]: v })); const showDir = f.type === "email" || f.type === "appel";
   return (<>
-    <div className="row2"><div className="fld"><label>Type</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{Object.entries(INT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>{showDir ? <div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option></select></div> : <div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div>}</div>
+    <div className="row2"><div className="fld"><label>Type</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{Object.entries(INT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>{showDir ? <div className="fld"><label>Sens</label><select value={f.direction} onChange={(e) => up("direction", e.target.value)}><option value="sortant">Sortant</option><option value="entrant">Entrant</option><option value="sortant_rejete">Sortant (rejeté)</option></select></div> : <div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div>}</div>
     {showDir && <div className="fld"><label>Date</label><input type="date" value={f.date} onChange={(e) => up("date", e.target.value)} /></div>}
     <div className="fld"><label>Sujet</label><Combo value={f.sujet} onChange={(v) => up("sujet", v)} options={SUJET_PRESETS} placeholder="Choisir ou saisir l'objet de l'échange" /></div>
     <ResumeField value={f.resume} onChange={(v) => up("resume", v)} onUsage={onUsage} rows={4} baseDate={f.date} onPlan={onPlanEvents ? (evs) => onPlanEvents(evs, f) : undefined} />
@@ -5367,12 +5376,12 @@ function InteractionView({ interaction: it, data, go, onClose, onEdit }) {
   const account = it.accountId ? (data.accounts || []).find((a) => a.id === it.accountId) : null;
   const nav = (fn) => { if (!fn) return; onClose && onClose(); fn(); };
   let dt; try { dt = new Date(it.date).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }); } catch { dt = it.date; }
-  const dirLabel = it.direction === "entrant" ? "Reçu" : it.direction === "sortant" ? "Envoyé" : "";
+  const dm = DIRECTIONS[it.direction]; const DIc = dm ? dm.icon : null;
   const lnkStyle = { background: "none", border: 0, padding: 0, font: "inherit", cursor: "pointer" };
   return (<div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <span className="badge" style={{ background: m.color + "18", color: darkenHex(m.color) }}><Ic size={12} />{m.label}</span>
-      {dirLabel && <span style={{ fontSize: 12, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>{it.direction === "entrant" ? <ArrowDownLeft size={13} color="var(--green)" /> : <ArrowUpRight size={13} color="var(--blue)" />}{dirLabel}</span>}
+      {dm && <span style={{ fontSize: 12, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}><DIc size={13} color={dm.color} />{dm.label}</span>}
       {it.source === "gmail" && <span className="gtag">Gmail</span>}{it.sourced && <span className="srctag" title="Importé automatiquement depuis la boîte Gmail connectée (trace fidèle)">sourcé</span>}
       <span className="tnum" style={{ fontSize: 12, color: "var(--muted)", marginLeft: "auto", textTransform: "capitalize" }}>{dt}</span>
     </div>
@@ -5398,11 +5407,12 @@ function InteractionThread({ interactions, data, onView, onEdit, onDelete, showC
     const m = INT_META[it.type] || INT_META.note; const Ic = m.icon;
     const ct = showContact && it.contactId ? (data.contacts || []).find((c) => c.id === it.contactId) : null;
     const inbound = it.direction === "entrant";
+    const dm = dirMeta(it.direction); const DIc = dm.icon;
     return (<div key={it.id} className={cx("msg", inbound ? "msg-in" : "msg-out")}>
       <div className="msg-bubble">
         <div className="msg-head">
           <span style={{ fontWeight: 700, color: m.color, display: "inline-flex", alignItems: "center", gap: 4 }}><Ic size={12} />{m.label}</span>
-          {inbound ? <ArrowDownLeft size={12} color="var(--green)" /> : <ArrowUpRight size={12} color="var(--blue)" />}
+          <span title={dm.label} style={{ display: "inline-flex", alignItems: "center", gap: 3, color: dm.color, fontWeight: 700 }}><DIc size={12} />{it.direction === "sortant_rejete" ? <span style={{ fontSize: 10.5 }}>rejeté</span> : null}</span>
           {it.source === "gmail" && <span className="gtag">Gmail</span>}{it.sourced && <span className="srctag" title="Importé automatiquement depuis la boîte Gmail connectée (trace fidèle)">sourcé</span>}
           <span className="tnum" style={{ color: "var(--muted)" }}>{it.date}</span>
           {ct && <span style={{ color: "var(--muted)" }}>· {fullName(ct)}</span>}
