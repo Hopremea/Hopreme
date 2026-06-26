@@ -5989,8 +5989,6 @@ export default function App() {
   }, []);
   const exportAll = () => { const today = new Date().toISOString().slice(0, 10); downloadJSON({ exportedAt: new Date().toISOString(), version: 1, data }, `penup3d-cockpit-${today}.json`); try { localStorage.setItem("penup_lastBackup", today); } catch {} setBackupDone(today); };
   const [backupDone, setBackupDone] = useState(() => { try { return localStorage.getItem("penup_lastBackup") || ""; } catch { return ""; } });
-  const [backupDismiss, setBackupDismiss] = useState(false);
-  const needBackup = !backupDismiss && backupDone !== new Date().toISOString().slice(0, 10) && (data.accounts || []).length > 0;
   const importAll = async (file) => {
     try {
       const txt = await file.text(); const obj = JSON.parse(txt);
@@ -6084,7 +6082,6 @@ export default function App() {
         </div>
       </div>
       {importMsg && <div className="card" style={{ borderLeft: "4px solid var(--blue)", marginBottom: 14, fontSize: 13 }}>{importMsg}</div>}
-      {needBackup && <div className="card no-print" style={{ borderLeft: "4px solid var(--amber)", marginBottom: 14, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", fontSize: 13 }}><Download size={16} style={{ color: "var(--amber)" }} /><span style={{ flex: 1, minWidth: 200 }}>{backupDone ? "Dernière sauvegarde le " + backupDone + ". " : "Aucune sauvegarde récente. "}Pensez à exporter une sauvegarde quotidienne de vos données.</span><button className="btn btn-p btn-s" onClick={exportAll}><Download size={14} /> Sauvegarder maintenant</button><button className="btn btn-ghost btn-s" onClick={() => setBackupDismiss(true)}>Plus tard</button></div>}
       {coldStart && (
         <div className="fade no-print" aria-busy="true" aria-label="Chargement…">
           <div className="skel" style={{ height: 28, width: 220, marginBottom: 18 }} />
