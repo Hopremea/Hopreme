@@ -104,6 +104,13 @@ const isDevisEnAttente = (d) => d && d.type === "Devis" && (d.statut === "brouil
 const isCaSigne = (d) => d && (d.statut === "accepte" || d.statut === "expediee" || d.statut === "livre");
 const sumMontant = (arr) => (arr || []).reduce((s, d) => s + (d.montant || 0), 0);
 const escapeHtml = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// Décode les entités HTML (ex. &#39; → '), pour afficher proprement les courriels importés de Gmail
+// (le snippet et les corps HTML arrivent échappés). Idempotent côté affichage.
+const decodeEntities = (s) => String(s == null ? "" : s)
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch { return _; } })
+  .replace(/&#(\d+);/g, (_, n) => { try { return String.fromCodePoint(parseInt(n, 10)); } catch { return _; } })
+  .replace(/&nbsp;/gi, " ").replace(/&apos;/gi, "'").replace(/&quot;/gi, '"')
+  .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&amp;/gi, "&");
 // Ouvre une fenêtre d'impression (PDF) avec un document HTML mis en forme.
 function openPrint(title, bodyHtml) {
   const w = window.open("", "_blank");
@@ -371,22 +378,28 @@ async function gmailSyncAll(data, persist) {
   const dt = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(dt.error || ("Erreur " + res.status));
   const msgs = dt.messages || [];
-  const existing = new Set((data.interactions || []).filter((i) => i.gmailId).map((i) => i.gmailId));
-  const toAdd = [];
+  const byId = new Map((data.interactions || []).filter((i) => i.gmailId).map((i) => [i.gmailId, i]));
+  const toAdd = []; const updates = new Map(); // gmailId -> nouveau corps (réparation des anciens imports tronqués)
   msgs.forEach((m) => {
-    if (!m || !m.id || existing.has(m.id)) return;
+    if (!m || !m.id) return;
     const ent = addrMap[(m.address || "").toLowerCase()]; if (!ent) return;
-    existing.add(m.id);
-    toAdd.push({ id: "gm_" + m.id, gmailId: m.id, accountId: ent.accountId || "", contactId: ent.contactId || "", siteId: ent.siteId || "", type: "email", direction: m.direction === "entrant" ? "entrant" : "sortant", date: m.date || TODAY(), sujet: m.subject || "(sans objet)", resume: m.snippet || "", source: "gmail", sourced: true });
+    const resume = m.body || m.snippet || "";
+    const ex = byId.get(m.id);
+    if (ex) { if (resume && resume.length > (ex.resume || "").length + 5) updates.set(m.id, resume); return; }
+    byId.set(m.id, true);
+    toAdd.push({ id: "gm_" + m.id, gmailId: m.id, accountId: ent.accountId || "", contactId: ent.contactId || "", siteId: ent.siteId || "", type: "email", direction: m.direction === "entrant" ? "entrant" : "sortant", date: m.date || TODAY(), sujet: m.subject || "(sans objet)", resume, source: "gmail", sourced: true });
   });
-  let added = 0;
+  let added = 0, updated = 0;
   persist((p) => {
     const have = new Set((p.interactions || []).filter((i) => i.gmailId).map((i) => i.gmailId));
     const fresh = toAdd.filter((t) => !have.has(t.gmailId));
     added = fresh.length;
-    return { ...p, interactions: fresh.length ? [...(p.interactions || []), ...fresh] : (p.interactions || []), settings: { ...p.settings, lastGmailSync: new Date().toISOString() } };
+    let interactions = p.interactions || [];
+    if (updates.size) { interactions = interactions.map((i) => (i.gmailId && updates.has(i.gmailId)) ? (updated++, { ...i, resume: updates.get(i.gmailId) }) : i); }
+    if (fresh.length) interactions = [...interactions, ...fresh];
+    return { ...p, interactions, settings: { ...p.settings, lastGmailSync: new Date().toISOString() } };
   }, { snapshot: false });
-  return { added, total: msgs.length };
+  return { added, updated, total: msgs.length };
 }
 // Une enseigne est "centrale/chaîne" (donc pas d'auto-établissement) si nature CA ou plus d'un établissement déclaré.
 function isCentraleOuChaine(a) { return (a && a.nature === "CA") || ((Number(a && a.magasins) || 0) > 1); }
@@ -4736,8 +4749,24 @@ function Connexions({ data, persist, autoBackup }) {
   const lastSync = settings.lastGmailSync ? new Date(settings.lastGmailSync) : null;
   const doGmailSync = async () => {
     setGmSync({ busy: true, msg: "" });
-    try { const r = await gmailSyncAll(data, persist); setGmSync({ busy: false, msg: r.skipped ? "Aucune adresse e-mail renseignée à associer." : ("✅ " + r.added + " courriel(s) ajouté(s) aux échanges (sur " + r.total + " trouvé(s)).") }); }
+    try { const r = await gmailSyncAll(data, persist); setGmSync({ busy: false, msg: r.skipped ? "Aucune adresse e-mail renseignée à associer." : ("✅ " + r.added + " courriel(s) ajouté(s)" + (r.updated ? ", " + r.updated + " complété(s)" : "") + " (sur " + r.total + " trouvé(s)).") }); }
     catch (e) { setGmSync({ busy: false, msg: "❌ " + ((e && e.message) || String(e)) }); }
+  };
+  // Envoi d'un e-mail de test vers sa propre adresse, pour vérifier le rendu à la réception (mise en
+  // forme, sauts de ligne, signature) tel qu'un client le recevrait.
+  const [gmTest, setGmTest] = useState({ busy: false, msg: "" });
+  const doGmailTest = async () => {
+    const to = (email || settings.myEmail || "").trim();
+    if (!to || !to.includes("@")) { setGmTest({ busy: false, msg: "❌ Renseignez d'abord votre adresse e-mail (champ « Mon adresse e-mail » ci-dessus) pour recevoir le test." }); return; }
+    setGmTest({ busy: true, msg: "" });
+    try {
+      const now = new Date().toLocaleString("fr-FR");
+      const corps = "Bonjour,\n\nCeci est un e-mail de TEST envoyé depuis MITMIT (PEN'UP 3D) pour vérifier le rendu à la réception : mise en forme, sauts de ligne et signature automatique.\n\nExemple de liste :\n— Premier point\n— Deuxième point\n\nEnvoyé le " + now + ". Vous pouvez ignorer ce message.";
+      const res = await fetch("/api/gmail-send", { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ to, subject: "Test d'envoi — MITMIT (PEN'UP 3D)", body: corps }) });
+      const dt = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(dt.error || ("Erreur " + res.status));
+      setGmTest({ busy: false, msg: "✅ E-mail de test envoyé à " + to + ". Vérifiez votre boîte de réception (et au besoin les spams)." });
+    } catch (e) { setGmTest({ busy: false, msg: "❌ Échec de l'envoi : " + ((e && e.message) || String(e)) }); }
   };
   const applyRows = (rows) => {
     if (!rows || !rows.length) { setMsg("Fichier vide ou illisible."); return; }
@@ -4794,6 +4823,11 @@ function Connexions({ data, persist, autoBackup }) {
         <button className="btn btn-p" onClick={doGmailSync} disabled={gmSync.busy}><RefreshCw size={15} className={gmSync.busy ? "spin" : ""} /> {gmSync.busy ? "Synchro…" : "Synchroniser les courriels"}</button>
       </div>
       {gmSync.msg && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 10, color: gmSync.msg.startsWith("❌") ? "var(--red)" : "var(--green)" }}>{gmSync.msg}</div>}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
+        <div style={{ fontSize: 13, lineHeight: 1.55 }}><div style={{ fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 7 }}><Send size={15} /> Test d'envoi</div><div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3 }}>Envoie un e-mail de test depuis la boîte connectée vers <strong>{(email || settings.myEmail) ? (email || settings.myEmail) : "votre adresse e-mail"}</strong> pour vérifier le rendu à la réception (mise en forme, sauts de ligne, signature).</div></div>
+        <button className="btn btn-g" onClick={doGmailTest} disabled={gmTest.busy}><Send size={15} className={gmTest.busy ? "spin" : ""} /> {gmTest.busy ? "Envoi…" : "Envoyer un e-mail de test"}</button>
+      </div>
+      {gmTest.msg && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 10, color: gmTest.msg.startsWith("❌") ? "var(--red)" : "var(--green)" }}>{gmTest.msg}</div>}
     </div>
 
     <Section note="ce qui est connecté côté serveur (Vercel) — valeurs jamais affichées">État des connexions & variables</Section>
@@ -5271,8 +5305,8 @@ function InteractionView({ interaction: it, data, go, onClose, onEdit }) {
       <span className="tnum" style={{ fontSize: 12, color: "var(--muted)", marginLeft: "auto", textTransform: "capitalize" }}>{dt}</span>
     </div>
     <div style={{ background: "#f5f7fb", border: "1px solid var(--line)", borderRadius: 16, borderTopLeftRadius: 5, padding: "14px 16px" }}>
-      <div style={{ fontWeight: 800, fontSize: 15 }}>{it.sujet || "Échange"}</div>
-      {it.resume ? <div style={{ fontSize: 13.5, lineHeight: 1.6, marginTop: 8, whiteSpace: "pre-wrap" }}>{it.resume}</div> : <div className="empty" style={{ padding: 14 }}>Aucun compte rendu saisi.</div>}
+      <div style={{ fontWeight: 800, fontSize: 15 }}>{(it.source === "gmail" ? decodeEntities(it.sujet) : it.sujet) || "Échange"}</div>
+      {it.resume ? <div style={{ fontSize: 13.5, lineHeight: 1.6, marginTop: 8, whiteSpace: "pre-wrap", maxHeight: 360, overflowY: "auto" }}>{it.source === "gmail" ? decodeEntities(it.resume) : it.resume}</div> : <div className="empty" style={{ padding: 14 }}>Aucun compte rendu saisi.</div>}
     </div>
     {(ct || site || account) && <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" }}>
       {ct && <button className="lnk" style={lnkStyle} onClick={() => nav(() => go("repertoire", ct.id))}><User size={14} /> {fullName(ct)}</button>}
@@ -5306,8 +5340,8 @@ function InteractionThread({ interactions, data, onView, onEdit, onDelete, showC
             <button className="iconbtn" onClick={() => onDelete(it.id)} title="Supprimer"><X size={13} /></button>
           </span>
         </div>
-        <div className="msg-subj">{it.sujet}</div>
-        {it.resume && <div className="msg-body">{it.resume}</div>}
+        <div className="msg-subj">{it.source === "gmail" ? decodeEntities(it.sujet) : it.sujet}</div>
+        {it.resume && <div className="msg-body" style={{ maxHeight: 220, overflowY: "auto" }}>{it.source === "gmail" ? decodeEntities(it.resume) : it.resume}</div>}
       </div>
     </div>);
   })}</div>);
