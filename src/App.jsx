@@ -4294,20 +4294,48 @@ function Prospection({ data, persist, go }) {
   // Déduplication : regroupe les prospects par SIRET (si renseigné) ou par nom + ville normalisés,
   // garde la fiche la plus complète de chaque groupe (et déjà convertie en compte si applicable),
   // supprime les autres. Demande confirmation et indique le nombre supprimé.
-  const dedupeProspects = () => {
+  // Fusion des doublons : regroupe les fiches d'un même commerce via plusieurs signaux d'identité
+  // (même SIRET, OU même adresse, OU même SIREN + même ville + nom proche), réunit chaque groupe en
+  // une seule fiche en complétant les champs manquants (aucune information perdue).
+  const mergeDuplicateProspects = () => {
     const norm = (s) => normStr(s || "");
-    const keyOf = (p) => { const sr = String(p.siret || "").replace(/\s/g, ""); return sr.length >= 9 ? ("siret:" + sr) : ("nv:" + norm(p.nom) + "|" + norm(p.ville)); };
-    const groups = {};
-    prospects.forEach((p) => { const k = keyOf(p); if (!norm(p.nom) && !String(p.siret || "").trim()) return; (groups[k] = groups[k] || []).push(p); });
-    const removable = Object.values(groups).reduce((n, g) => n + Math.max(0, g.length - 1), 0);
-    if (removable === 0) { setAiMsg(null); setAiErr("Aucun doublon détecté dans le listing."); setTimeout(() => setAiErr(null), 3500); return; }
-    appConfirm("Supprimer " + removable + " doublon(s) de prospects ? Pour chaque groupe (même SIRET, ou même nom + ville), on conserve la fiche la plus complète.", { title: "Supprimer les doublons ?", confirmLabel: "Supprimer les doublons" }).then((ok) => {
+    const digits = (s) => String(s || "").replace(/\D/g, "");
+    const GENERIC = new Set(["boutique", "concept", "store", "magasin", "shop", "sas", "sarl", "eurl", "sasu", "sa", "ets", "etablissement", "etablissements", "the", "la", "le", "les"]);
+    const nameCore = (p) => { const toks = norm(p.nom || p.enseigne).split(/\s+/).filter((t) => t.length > 1 && !GENERIC.has(t)); return toks.length ? toks.join(" ") : norm(p.nom || p.enseigne); };
+    const localityOf = (p) => { let ville = norm(p.ville); let cp = digits(p.cp); if ((!ville || !cp) && p.adresse) { const loc = parseLocality(p.adresse); if (!ville) ville = norm(loc.ville); if (!cp) cp = digits(loc.cp); } return { ville, cp }; };
+    const sigOf = (p) => { const keys = []; const siret = digits(p.siret); const siren = digits(p.siren); const { ville } = localityOf(p); const a = norm(p.adresse); if (siret.length === 14) keys.push("T:" + siret); if (a.length >= 6) keys.push("A:" + a); if (siren.length === 9 && ville && nameCore(p)) keys.push("S:" + siren + "|" + ville + "|" + nameCore(p)); return keys; };
+    // Union-find : relie tous les prospects partageant au moins un signal.
+    const parent = {}; prospects.forEach((p) => { parent[p.id] = p.id; });
+    const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+    const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+    const byKey = {};
+    prospects.forEach((p) => { sigOf(p).forEach((k) => { if (byKey[k] != null) union(byKey[k], p.id); else byKey[k] = p.id; }); });
+    const clusters = {};
+    prospects.forEach((p) => { const r = find(p.id); (clusters[r] = clusters[r] || []).push(p); });
+    const dupClusters = Object.values(clusters).filter((g) => g.length > 1);
+    const extra = dupClusters.reduce((n, g) => n + g.length - 1, 0);
+    if (extra === 0) { setAiMsg(null); setAiErr("Aucun doublon détecté (même SIRET, même adresse, ou même SIREN + ville)."); setTimeout(() => setAiErr(null), 4500); return; }
+    appConfirm("Fusionner " + dupClusters.length + " groupe(s) de doublons (" + extra + " fiche(s) en trop) ? Les fiches d'un même commerce sont réunies en une seule, en complétant les champs manquants. Aucune information n'est perdue.", { title: "Fusionner les doublons ?", confirmLabel: "Fusionner les doublons" }).then((ok) => {
       if (!ok) return;
-      const score = (p) => (p.accountId ? 1000 : 0) + ["siren", "siret", "raisonSociale", "formeJuridique", "contactNom", "contactEmail", "contactTel", "telephone", "site", "adresse", "email", "potentiel", "notes"].reduce((n, k) => n + (p[k] ? 1 : 0), 0);
-      const keep = new Set();
-      Object.values(groups).forEach((g) => { keep.add(g.slice().sort((a, b) => score(b) - score(a))[0].id); });
-      persist((d) => ({ ...d, prospects: d.prospects.filter((p) => { const sr = String(p.siret || "").replace(/\s/g, ""); const k = sr.length >= 9 ? ("siret:" + sr) : ("nv:" + norm(p.nom) + "|" + norm(p.ville)); return !groups[k] || groups[k].length <= 1 || keep.has(p.id); }) }));
-      setAiErr(null); setAiMsg(removable + " doublon(s) supprimé(s) du listing."); setTimeout(() => setAiMsg(null), 4000);
+      const FIELDS = ["nom", "enseigne", "type", "format", "adresse", "ville", "cp", "departement", "region", "telephone", "site", "email", "potentiel", "siren", "siret", "raisonSociale", "formeJuridique", "contactPrenom", "contactNom", "contactFonction", "contactEmail", "contactTel", "contactSource", "source", "lat", "lng"];
+      const score = (p) => (p.accountId ? 1000 : 0) + FIELDS.reduce((n, k) => n + (p[k] ? 1 : 0), 0);
+      const STATUT_ORDER = ["a_qualifier", "a_contacter", "contacte", "rdv", "converti"];
+      const removeIds = new Set(); const mergedById = {};
+      Object.values(clusters).forEach((g) => {
+        if (g.length < 2) return;
+        const sorted = g.slice().sort((a, b) => score(b) - score(a));
+        const base = { ...sorted[0] };
+        sorted.slice(1).forEach((o) => {
+          FIELDS.forEach((k) => { if ((base[k] == null || base[k] === "") && (o[k] != null && o[k] !== "")) base[k] = o[k]; });
+          if (o.accountId && !base.accountId) base.accountId = o.accountId;
+          if (STATUT_ORDER.indexOf(o.statut) > STATUT_ORDER.indexOf(base.statut)) base.statut = o.statut;
+          if (o.notes && o.notes.trim() && norm(base.notes || "").indexOf(norm(o.notes)) === -1) base.notes = (base.notes ? base.notes + "\n— " : "") + o.notes.trim();
+          removeIds.add(o.id);
+        });
+        mergedById[base.id] = base;
+      });
+      persist((d) => ({ ...d, prospects: d.prospects.filter((p) => !removeIds.has(p.id)).map((p) => mergedById[p.id] || p) }));
+      setAiErr(null); setAiMsg(extra + " doublon(s) fusionné(s) — " + dupClusters.length + " commerce(s) regroupé(s)."); setTimeout(() => setAiMsg(null), 5000);
     });
   };
   const NATURE_FROM_TYPE = { cooperative: "CA", chaine: "CA", franchise: "FC", independant: "MI", specialiste: "MI", gss: "CA", autre: "DV" };
@@ -4403,7 +4431,7 @@ function Prospection({ data, persist, go }) {
         {hasFilter && <button className="btn btn-ghost btn-s" onClick={() => { setQ(""); setFType("tous"); setFRegion("tous"); setFStatut("tous"); }}><X size={13} /> Effacer</button>}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="btn btn-ghost" onClick={dedupeProspects} title="Détecter et supprimer les prospects en double (même SIRET, ou même nom + ville) en gardant la fiche la plus complète"><Copy size={16} /> Supprimer les doublons</button>
+        <button className="btn btn-ghost" onClick={mergeDuplicateProspects} title="Détecter et fusionner les prospects en double (même SIRET, même adresse, ou même SIREN + ville) en réunissant leurs informations dans une seule fiche"><Copy size={16} /> Fusionner les doublons</button>
         <button className="btn btn-p" onClick={() => setEdit({ id: "p_" + Date.now(), nom: "", enseigne: "", type: "autre", format: "", adresse: "", ville: "", cp: "", departement: "", region: "", telephone: "", site: "", email: "", statut: "a_qualifier", potentiel: "", notes: "", source: "Saisie manuelle", accountId: null, createdAt: TODAY() })}><Plus size={16} /> Ajouter un prospect</button>
       </div>
     </div>
@@ -5376,12 +5404,15 @@ function InteractionView({ interaction: it, data, go, onClose, onEdit }) {
   const account = it.accountId ? (data.accounts || []).find((a) => a.id === it.accountId) : null;
   const nav = (fn) => { if (!fn) return; onClose && onClose(); fn(); };
   let dt; try { dt = new Date(it.date).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }); } catch { dt = it.date; }
+  const rejected = it.direction === "sortant_rejete";
   const dm = DIRECTIONS[it.direction]; const DIc = dm ? dm.icon : null;
+  // Appel rejeté : badge rouge avec combiné barré (PhoneOff) ; le sens séparé devient redondant.
+  const badgeColor = rejected ? "var(--red)" : m.color; const BIc = rejected ? PhoneOff : Ic;
   const lnkStyle = { background: "none", border: 0, padding: 0, font: "inherit", cursor: "pointer" };
   return (<div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <span className="badge" style={{ background: m.color + "18", color: darkenHex(m.color) }}><Ic size={12} />{m.label}</span>
-      {dm && <span style={{ fontSize: 12, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}><DIc size={13} color={dm.color} />{dm.label}</span>}
+      <span className="badge" style={{ background: badgeColor + "18", color: darkenHex(badgeColor) }}><BIc size={12} />{m.label}</span>
+      {dm && !rejected && <span style={{ fontSize: 12, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}><DIc size={13} color={dm.color} />{dm.label}</span>}
       {it.source === "gmail" && <span className="gtag">Gmail</span>}{it.sourced && <span className="srctag" title="Importé automatiquement depuis la boîte Gmail connectée (trace fidèle)">sourcé</span>}
       <span className="tnum" style={{ fontSize: 12, color: "var(--muted)", marginLeft: "auto", textTransform: "capitalize" }}>{dt}</span>
     </div>
@@ -5404,15 +5435,18 @@ function InteractionThread({ interactions, data, onView, onEdit, onDelete, showC
   // le fil se lit du plus ancien (en haut) au plus récent (en bas), comme une discussion.
   const ordered = interactions.slice().reverse();
   return (<div className="thread">{ordered.map((it) => {
-    const m = INT_META[it.type] || INT_META.note; const Ic = m.icon;
+    const m = INT_META[it.type] || INT_META.note;
     const ct = showContact && it.contactId ? (data.contacts || []).find((c) => c.id === it.contactId) : null;
     const inbound = it.direction === "entrant";
-    const dm = dirMeta(it.direction); const DIc = dm.icon;
+    const rejected = it.direction === "sortant_rejete";
+    // Appel rejeté : un seul symbole rouge barré (combiné) + libellé en rouge ; pas d'indicateur « rejeté »
+    // séparé (redondant). Sinon : icône du type + flèche de sens (entrant vert / sortant bleu).
+    const Ic = rejected ? PhoneOff : m.icon; const typeColor = rejected ? "var(--red)" : m.color;
     return (<div key={it.id} className={cx("msg", inbound ? "msg-in" : "msg-out")}>
       <div className="msg-bubble">
         <div className="msg-head">
-          <span style={{ fontWeight: 700, color: m.color, display: "inline-flex", alignItems: "center", gap: 4 }}><Ic size={12} />{m.label}</span>
-          <span title={dm.label} style={{ display: "inline-flex", alignItems: "center", gap: 3, color: dm.color, fontWeight: 700 }}><DIc size={12} />{it.direction === "sortant_rejete" ? <span style={{ fontSize: 10.5 }}>rejeté</span> : null}</span>
+          <span title={rejected ? "Appel sortant rejeté / sans réponse" : undefined} style={{ fontWeight: 700, color: typeColor, display: "inline-flex", alignItems: "center", gap: 4 }}><Ic size={12} />{m.label}</span>
+          {!rejected && (inbound ? <ArrowDownLeft size={12} color="var(--green)" /> : <ArrowUpRight size={12} color="var(--blue)" />)}
           {it.source === "gmail" && <span className="gtag">Gmail</span>}{it.sourced && <span className="srctag" title="Importé automatiquement depuis la boîte Gmail connectée (trace fidèle)">sourcé</span>}
           <span className="tnum" style={{ color: "var(--muted)" }}>{it.date}</span>
           {ct && <span style={{ color: "var(--muted)" }}>· {fullName(ct)}</span>}
