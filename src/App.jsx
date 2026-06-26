@@ -2774,35 +2774,36 @@ function plannedEvents(evs, base) {
 function ResumeField({ value, onChange, onUsage, rows = 3, baseDate, onPlan }) {
   const [busy, setBusy] = useState(false); const [msg, setMsg] = useState(null); const [listening, setListening] = useState(false);
   const recRef = useRef(null);
+  const note = (t) => setMsg({ kind: "muted", t });
   const reformuler = async () => {
-    if (!value || !value.trim()) { setMsg("Écrivez ou dictez d'abord quelques mots à reformuler."); return; }
+    if (!value || !value.trim()) { note("Écrivez ou dictez d'abord quelques mots à reformuler."); return; }
     setBusy(true); setMsg(null);
-    try { const out = await aiRephrase(value, onUsage); if (out) onChange(out); else setMsg("Reformulation vide, texte conservé."); }
-    catch (e) { setMsg("Reformulation IA indisponible ici (fonctionne dans l'app Claude)."); }
+    try { const out = await aiRephrase(value, onUsage); if (out) onChange(out); else note("Reformulation vide, texte conservé."); }
+    catch (e) { setMsg({ kind: "err", t: "Reformulation IA indisponible ici (fonctionne dans l'app Claude)." }); }
     finally { setBusy(false); }
   };
   const dicter = () => {
     const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
-    if (!SR) { setMsg("La dictée vocale n'est pas supportée par ce navigateur (essayez Chrome ou Edge)."); return; }
+    if (!SR) { note("La dictée vocale n'est pas supportée par ce navigateur (essayez Chrome ou Edge)."); return; }
     if (listening && recRef.current) { recRef.current.stop(); return; }
     const rec = new SR(); rec.lang = "fr-FR"; rec.interimResults = false; rec.continuous = true;
     let base = value ? value + " " : "";
     rec.onresult = (e) => { let add = ""; for (let i = e.resultIndex; i < e.results.length; i++) { if (e.results[i].isFinal) add += e.results[i][0].transcript; } if (add) { base += add + " "; onChange(base.replace(/\s+/g, " ").trim()); } };
     rec.onend = () => { setListening(false); recRef.current = null; };
-    rec.onerror = () => { setListening(false); recRef.current = null; setMsg("Dictée interrompue."); };
-    recRef.current = rec; setListening(true); setMsg("Dictée en cours… parlez, puis cliquez sur le micro pour arrêter, et « Reformuler » pour mettre au propre."); rec.start();
+    rec.onerror = () => { setListening(false); recRef.current = null; note("Dictée interrompue."); };
+    recRef.current = rec; setListening(true); note("Dictée en cours… parlez, puis cliquez sur le micro pour arrêter, et « Reformuler » pour mettre au propre."); rec.start();
   };
   const planifier = async () => {
-    if (!value || !value.trim()) { setMsg("Écrivez ou dictez d'abord le compte rendu."); return; }
+    if (!value || !value.trim()) { note("Écrivez ou dictez d'abord le compte rendu."); return; }
     setBusy(true); setMsg(null);
-    try { const evs = await aiExtractEvents(value, baseDate || TODAY(), onUsage); if (evs.length && onPlan) { onPlan(evs); setMsg(evs.length + " événement(s) ajouté(s) au calendrier : " + evs.map((e) => (e.titre + " (" + e.date + ")")).join(", ") + "."); } else setMsg("Aucune suite à planifier détectée dans le compte rendu."); }
-    catch (e) { setMsg("Analyse IA indisponible ici (fonctionne dans l'app Claude)."); }
+    try { const evs = await aiExtractEvents(value, baseDate || TODAY(), onUsage); if (evs.length && onPlan) { onPlan(evs); setMsg({ kind: "ok", t: (evs.length > 1 ? evs.length + " événements planifiés" : "Événement planifié") + " et ajouté(s) au calendrier : " + evs.map((e) => (e.titre + " — " + relDate(e.date))).join(", ") + "." }); } else note("Aucune suite à planifier détectée dans le compte rendu."); }
+    catch (e) { setMsg({ kind: "err", t: "Analyse IA indisponible ici (fonctionne dans l'app Claude)." }); }
     finally { setBusy(false); }
   };
   return (<div className="fld">
     <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>Résumé<span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}><button type="button" className="btn btn-g btn-s" onClick={dicter} style={{ fontWeight: 700, color: listening ? "var(--red)" : undefined, borderColor: listening ? "var(--red)" : undefined }}><Mic size={13} className={listening ? "spin" : ""} /> {listening ? "Stop" : "Dicter"}</button><button type="button" className="btn btn-g btn-s" onClick={reformuler} disabled={busy} style={{ fontWeight: 700 }}><Sparkles size={13} className={busy ? "spin" : ""} /> {busy ? "…" : "Reformuler (IA)"}</button>{onPlan && <button type="button" className="btn btn-g btn-s" onClick={planifier} disabled={busy} title="Détecter les suites (visio, relance…) et les ajouter au calendrier"><CalendarDays size={13} className={busy ? "spin" : ""} /> Planifier (IA)</button>}</span></label>
     <textarea rows={rows} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Points clés, décisions, prochaines étapes — ou dictez à la voix" />
-    {msg && <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 4 }}>{msg}</div>}
+    {msg && <div style={{ fontSize: 11.5, marginTop: 5, display: "inline-flex", alignItems: "flex-start", gap: 5, lineHeight: 1.45, fontWeight: msg.kind === "ok" ? 700 : 400, color: msg.kind === "ok" ? "var(--green)" : msg.kind === "err" ? "var(--red)" : "var(--muted)" }}>{msg.kind === "ok" ? <CheckCircle2 size={13} style={{ flexShrink: 0, marginTop: 1 }} /> : null}<span>{msg.t}</span></div>}
   </div>);
 }
 // Types de message proposés : chaque bouton pré-remplit l'objectif, toujours interprété par l'IA
@@ -4282,6 +4283,7 @@ function Prospection({ data, persist, go }) {
   // ou accountId présent) — une fois converti, le commerce vit dans l'onglet Groupes & établissements.
   const list = prospects.filter((p) => !p.archived && !p.accountId && p.statut !== "converti" && (fType === "tous" || p.type === fType) && (fRegion === "tous" || p.region === fRegion) && (q === "" || [p.nom, p.enseigne, p.ville, p.adresse, p.notes].join(" ").toLowerCase().includes(q.toLowerCase())));
   const archivedProspects = prospects.filter((p) => p.archived && !p.accountId);
+  const activeCount = prospects.filter((p) => !p.archived && !p.accountId && p.statut !== "converti").length;
   const GROUP_DEFS = {
     type: { label: "Type", get: (p) => p.type || "autre", meta: (v) => PROSPECT_TYPES[v] || PROSPECT_TYPES.autre, order: Object.keys(PROSPECT_TYPES) },
     statut: { label: "Statut", get: (p) => p.statut || "a_qualifier", meta: (v) => PROSPECT_STATUT[v] || PROSPECT_STATUT.a_qualifier, order: Object.keys(PROSPECT_STATUT) },
@@ -4464,7 +4466,7 @@ function Prospection({ data, persist, go }) {
         <button className="btn btn-p" onClick={() => setEdit({ id: "p_" + Date.now(), nom: "", enseigne: "", type: "autre", format: "", adresse: "", ville: "", cp: "", departement: "", region: "", telephone: "", site: "", email: "", statut: "a_qualifier", potentiel: "", notes: "", source: "Saisie manuelle", accountId: null, createdAt: TODAY() })}><Plus size={16} /> Ajouter un prospect</button>
       </div>
     </div>
-    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{list.length} prospect(s) sur {prospects.length} · groupés par {gd.label.toLowerCase()}</div>
+    <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{list.length} prospect(s){list.length !== activeCount ? " sur " + activeCount : ""} · groupés par {gd.label.toLowerCase()}</div>
     {list.length === 0 ? <div className="card empty">Aucun prospect ne correspond.</div> : groups.map((g) => { const m = gd.meta ? gd.meta(g.key) : null; const lbl = m ? m.label : g.key; const col = m ? m.color : "#9aa6bd"; return (
       <div key={g.key} style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "2px 0 12px", paddingBottom: 8, borderBottom: "2px solid " + col + "33" }}>
