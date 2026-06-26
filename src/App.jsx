@@ -2416,7 +2416,7 @@ function Accounts({ data, persist, go, focus }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10, flexWrap: "wrap" }}><h3 className="pu-display" style={{ margin: 0, fontSize: 16 }}>Groupes <span style={{ color: "var(--muted)", fontWeight: 600 }}>({nbMulti})</span></h3><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="btn btn-g" onClick={() => setDupOpen(true)} title="Détecter et fusionner les doublons"><GitBranch size={16} /> Doublons</button><button className="btn btn-g" onClick={() => setLogosOpen(true)} title="Trouver et valider les logos manquants"><ImageIcon size={16} /> Compléter les logos</button><button className="btn btn-p" onClick={() => setEdit({ id: "acc_" + Date.now(), enseigne: "", kind: "groupe", stage: "prospect", magasins: 0, nature: "", code: "", siren: "", formeJuridique: "", typeSurface: "", ville: "", lat: null, lng: null, pipeline: 0, prochaineAction: "", dateAction: "", notes: "", adressePostale: "", adresseLivraison: "", livraisonIdentique: true })}><Plus size={16} /> Nouveau groupe</button></div></div>
     {logosOpen && <LogosBulk data={data} persist={persist} onClose={() => setLogosOpen(false)} />}
     {dupOpen && <DoublonsModal data={data} persist={persist} onClose={() => setDupOpen(false)} />}
-    {(() => { const groupList = accounts.filter((a) => isMulti(a) && !a.archived).slice().sort((a, b) => (a.enseigne || "").localeCompare(b.enseigne || "")); return groupList.length === 0 ? <div className="empty">Aucun groupe. Créez un groupe (Cultura, King Jouet…) pour y rattacher des établissements.</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(238px, 1fr))", gap: 10 }}>{groupList.map((a) => { const pc = principal(a.id); const sm = stageMeta(a.stage); const seg = networkSeg(a.magasins); return (<button key={a.id} className="tile" onClick={() => go("accounts", a.id)} style={{ textAlign: "left", border: "1px solid var(--line)", borderLeft: "3px solid #3F60AA", borderRadius: 12, padding: "11px 13px", background: "#fff", display: "flex", flexDirection: "column", gap: 5, fontFamily: "inherit" }}><div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>{a.logo ? <img src={a.logo} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "contain", background: "#fff", border: "1px solid var(--line)", flexShrink: 0 }} /> : <Building2 size={16} color="#3F60AA" style={{ flexShrink: 0 }} />}<span style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }}>{a.enseigne || "Sans nom"}</span>{a.code && <span style={{ fontWeight: 800, fontSize: 10.5, letterSpacing: ".03em", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", color: "var(--muted)" }} className="tnum">{a.code}</span>}</div>{pc && <div className="meta"><User size={12} />{pc}</div>}<div className="meta"><Store size={12} />{magasinLabel(a.magasins)}</div><div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 2 }}><Badge color={seg.color}>{seg.label}</Badge><StageTag stage={sm} /></div>{(() => { const att = sumMontant((data.deals || []).filter((d) => d.accountId === a.id && isDevisEnAttente(d))); return att > 0 ? <div style={{ marginTop: 4, fontWeight: 700, color: "var(--blue)", fontSize: 13 }} className="tnum" title="CA HT en attente (devis non validés)">{eur(att)}</div> : null; })()}</button>); })}</div>; })()}
+    {(() => { const groupList = accounts.filter((a) => isMulti(a) && !a.archived).slice().sort((a, b) => (a.enseigne || "").localeCompare(b.enseigne || "")); return groupList.length === 0 ? <div className="empty">Aucun groupe. Créez un groupe (Cultura, King Jouet…) pour y rattacher des établissements.</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(238px, 1fr))", gap: 10 }}>{groupList.map((a) => { const pc = principal(a.id); const sm = stageMeta(a.stage); const seg = networkSeg(a.magasins); return (<button key={a.id} className="tile" onClick={() => go("accounts", a.id)} style={{ textAlign: "left", border: "1px solid var(--line)", borderLeft: "3px solid #3F60AA", borderRadius: 12, padding: "11px 13px", background: "#fff", display: "flex", flexDirection: "column", gap: 5, fontFamily: "inherit" }}><div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>{a.logo ? <img src={a.logo} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: "contain", background: "#fff", border: "1px solid var(--line)", flexShrink: 0 }} /> : <Building2 size={16} color="#3F60AA" style={{ flexShrink: 0 }} />}<span style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }}>{a.enseigne || "Sans nom"}</span>{a.code && <span style={{ fontWeight: 800, fontSize: 10.5, letterSpacing: ".03em", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 6, padding: "1px 6px", color: "var(--muted)" }} className="tnum">{a.code}</span>}</div>{pc && <div className="meta"><User size={12} />{pc}</div>}<div className="meta"><Store size={12} />{magasinLabel(a.magasins)}</div><div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5, marginTop: 2 }}><Badge color={seg.color}>{seg.label}</Badge><StageTag stage={sm} /></div>{(() => { const att = sumMontant((data.deals || []).filter((d) => d.accountId === a.id && isDevisEnAttente(d))); return att > 0 ? <div style={{ marginTop: 4, fontWeight: 700, color: "var(--blue)", fontSize: 13 }} className="tnum" title="CA HT en attente (devis non validés)">{eur(att)}</div> : null; })()}</button>); })}</div>; })()}
     <div style={{ marginTop: 22 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
         <h3 className="pu-display" style={{ margin: 0, fontSize: 16 }}>Tous les établissements <span style={{ color: "var(--muted)", fontWeight: 600 }}>({visibleRows.length}{nq && visibleRows.length !== pdvRows.length ? " / " + pdvRows.length : ""})</span></h3>
@@ -2432,7 +2432,7 @@ function Accounts({ data, persist, go, focus }) {
           {(() => { const img = r.kind === "site" ? (r.site.photo || (acc && acc.logo)) : (acc && acc.logo); return (<div style={{ display: "flex", alignItems: "center", gap: 7 }}>{img ? <img src={img} alt="" style={{ width: 22, height: 22, borderRadius: 6, objectFit: "contain", background: "#fff", border: "1px solid var(--line)", flexShrink: 0 }} /> : <Store size={15} color="var(--blue)" style={{ flexShrink: 0 }} />}<span style={{ fontWeight: 800, fontSize: 13.5, lineHeight: 1.2 }}>{storeName(r)}</span></div>); })()}
           {ens && <div style={{ fontSize: 11.5, color: "var(--muted)" }}>{ens}</div>}
           {adr && <div style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{adr}</div>}
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 2 }}>{surf && <Badge color="#3F60AA">{surf}</Badge>}{r.kind === "acc" && <Badge color="#9aa6bd">point de vente unique</Badge>}{st && <StageTag stage={st} />}</div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 5, marginTop: 2 }}>{surf && <Badge color="#3F60AA">{surf}</Badge>}{r.kind === "acc" && <Badge color="#9aa6bd">point de vente unique</Badge>}{st && <StageTag stage={st} />}</div>
         </button>); })}</div>}
     </div>
     </>)}
@@ -4267,12 +4267,83 @@ async function aiAutofill({ kind, enseigne, ville, adresse, typesEtab }) {
   const onlyNum = (v) => (typeof v === "string" ? v.replace(/\s/g, "") : "");
   return { siren: onlyNum(o.siren), siret: onlyNum(o.siret), raisonSociale: (o.raisonSociale || "").trim(), formeJuridique: (o.formeJuridique || "").trim(), ville: (o.ville || "").trim(), adresse: (o.adresse || "").trim(), telephone: (o.telephone || "").trim(), site: (o.site || "").trim(), typeEtablissement: (o.typeEtablissement || "").trim(), note: (o.note || "").trim(), confiance: o.confiance || "?", source: (o.source || "").trim(), usage: data.usage || null };
 }
+// Extraction robuste d'un objet JSON dans une réponse IA (tolère le Markdown et le texte autour),
+// par équilibrage des accolades — plus fiable qu'une regex gloutonne, pour un meilleur taux de réussite.
+function parseJsonObject(text) {
+  const t = String(text || "").replace(/```json/gi, "```").split("```").join("");
+  const a = t.indexOf("{"); if (a === -1) throw new Error("réponse illisible");
+  let depth = 0, end = -1, inStr = false, esc = false;
+  for (let i = a; i < t.length; i++) { const c = t[i]; if (esc) { esc = false; continue; } if (c === "\\") { esc = true; continue; } if (c === '"') inStr = !inStr; else if (!inStr) { if (c === "{") depth++; else if (c === "}") { depth--; if (depth === 0) { end = i; break; } } } }
+  return JSON.parse(end !== -1 ? t.slice(a, end + 1) : t.slice(a));
+}
+// Enrichissement IA d'UNE fiche prospect : une seule requête web (site, réseaux, identité légale,
+// adresse, téléphone, contact), analyse JSON robuste et une 2ᵉ tentative en cas d'échec — meilleures
+// performance et fiabilité. N'invente rien (champ laissé vide en cas de doute).
+async function aiEnrichProspect(p, persistUsage) {
+  const cible = [p.nom, p.enseigne && p.enseigne !== p.nom ? p.enseigne : "", p.adresse, [p.cp, p.ville].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+  const sys = "Tu enrichis la fiche d'un point de vente français (jouets / loisirs créatifs) à partir du web et des registres officiels (annuaire-entreprises.data.gouv.fr / RNE / INSEE, pappers.fr, societe.com, infogreffe.fr, data.inpi.fr), du site officiel et de la fiche Google. Tu n'inventes JAMAIS une donnée (identifiant, adresse, courriel, nom) : en cas de doute, tu laisses le champ vide. Tu réponds UNIQUEMENT par du JSON valide.";
+  const known = [p.siret ? "SIRET connu : " + p.siret : "", p.siren ? "SIREN connu : " + p.siren : "", p.site ? "Site connu : " + p.site : ""].filter(Boolean).join(" ; ");
+  const user = `Établissement à enrichir : ${cible}.${known ? "\n" + known + "." : ""}
+Recherche ses informations vérifiables. Attention aux homonymes : ne retiens que l'établissement de la ville / adresse indiquée.
+Renvoie UNIQUEMENT un objet JSON valide (aucun texte ni balise autour) avec EXACTEMENT ces clés :
+{"site":"","facebook":"","instagram":"","siren":"","siret":"","raisonSociale":"","formeJuridique":"","adresse":"","cp":"","ville":"","departement":"","region":"","telephone":"","contact":{"prenom":"","nom":"","fonction":"","email":"","telephone":"","source":""},"notes":"","confiance":"haute/moyenne/faible","source":""}
+- site / facebook / instagram : URLs officielles (sinon vide).
+- siren : 9 chiffres de la société (ou RNA « W… » pour une association) ; siret : 14 chiffres de CET établissement à cette adresse (sinon vide).
+- adresse : complète ; telephone : du magasin, format français.
+- contact : dirigeant ou responsable identifié, coordonnées issues de la meilleure source publique ; "source" = d'où vient l'info.
+- notes : une phrase factuelle (univers produits, implantation) ; "source" = registre / source principale.`;
+  const body = { model: "claude-sonnet-4-6", max_tokens: 1500, system: sys, messages: [{ role: "user", content: user }], tools: [{ type: "web_search_20250305", name: "web_search" }] };
+  const onlyNum = (v) => (typeof v === "string" ? v.replace(/[^0-9A-Za-z]/g, "") : "");
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(CLAUDE_URL, { method: "POST", headers: await claudeHeaders(), body: JSON.stringify(body) });
+      if (!res.ok) throw new Error("API " + res.status);
+      const data = await res.json();
+      const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+      const o = parseJsonObject(text); const c = o.contact || {};
+      if (data.usage && persistUsage) persistUsage(data.usage);
+      return {
+        site: (o.site || "").trim(), facebook: (o.facebook || "").trim(), instagram: (o.instagram || "").trim(),
+        siren: onlyNum(o.siren), siret: onlyNum(o.siret), raisonSociale: (o.raisonSociale || "").trim(), formeJuridique: (o.formeJuridique || "").trim(),
+        adresse: (o.adresse || "").trim(), cp: onlyNum(o.cp), ville: (o.ville || "").trim(), departement: (o.departement || "").trim(), region: (o.region || "").trim(),
+        telephone: (o.telephone || "").trim(),
+        contactPrenom: (c.prenom || "").trim(), contactNom: (c.nom || "").trim(), contactFonction: (c.fonction || "").trim(), contactEmail: (c.email || "").trim(), contactTel: (c.telephone || "").trim(), contactSource: (c.source || "").trim(),
+        notes: (o.notes || "").trim(), confiance: o.confiance || "?", source: (o.source || "").trim(), usage: data.usage || null,
+      };
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
+}
 function Prospection({ data, persist, go }) {
   const { prospects } = data;
   const [q, setQ] = useState(""); const [fType, setFType] = useState("tous"); const [fRegion, setFRegion] = useState("tous"); const [sort, setSort] = useState("type"); const [dir, setDir] = useState("asc"); const [view, setView] = useState("actifs"); const [archiveEdit, setArchiveEdit] = useState(null); const [dupOpen, setDupOpen] = useState(null);
   const [edit, setEdit] = useState(null);
   const [zone, setZone] = useState("Occitanie"); const [kind, setKind] = useState("toutes"); const [busy, setBusy] = useState(false); const [aiMsg, setAiMsg] = useState(null); const [aiErr, setAiErr] = useState(null);
   const aiElapsed = useElapsed(busy);
+  // Approfondir la recherche IA sur la fiche prospect ouverte : complète les champs encore vides.
+  const [pfBusy, setPfBusy] = useState(false); const [pfMsg, setPfMsg] = useState(null);
+  const pfElapsed = useElapsed(pfBusy);
+  const enrichProspect = async () => {
+    if (!edit || !((edit.nom || edit.enseigne || "").trim())) { setPfMsg({ ok: false, t: "Renseignez d'abord le nom du prospect." }); return; }
+    setPfBusy(true); setPfMsg(null);
+    try {
+      const r = await aiEnrichProspect(edit, (u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) })));
+      const patch = {}; const filled = [];
+      const fillIf = (key, val, label) => { if (val && !String(edit[key] || "").trim()) { patch[key] = val; filled.push(label); } };
+      fillIf("site", r.site, "site"); fillIf("facebook", r.facebook, "Facebook"); fillIf("instagram", r.instagram, "Instagram");
+      fillIf("siren", r.siren, r.siren && r.siren[0] === "W" ? "RNA" : "SIREN"); fillIf("siret", r.siret, "SIRET");
+      fillIf("raisonSociale", r.raisonSociale, "raison sociale"); fillIf("formeJuridique", r.formeJuridique, "forme juridique");
+      fillIf("adresse", r.adresse, "adresse"); fillIf("cp", r.cp, "code postal"); fillIf("ville", r.ville, "ville"); fillIf("departement", r.departement, "département"); fillIf("region", r.region, "région");
+      fillIf("telephone", r.telephone, "téléphone");
+      fillIf("contactPrenom", r.contactPrenom, "prénom contact"); fillIf("contactNom", r.contactNom, "nom contact"); fillIf("contactFonction", r.contactFonction, "fonction"); fillIf("contactEmail", r.contactEmail, "courriel"); fillIf("contactTel", r.contactTel, "tél. contact");
+      if (r.contactSource && !String(edit.contactSource || "").trim()) patch.contactSource = r.contactSource;
+      fillIf("notes", r.notes, "note");
+      if (Object.keys(patch).length) setEdit((e) => ({ ...e, ...patch }));
+      setPfMsg({ ok: true, t: filled.length ? ("Complété : " + filled.join(", ") + (r.source ? " · source : " + r.source : "") + ". À vérifier (rien d'inventé) — pensez à enregistrer.") : "Rien à compléter : champs déjà remplis, ou aucune donnée fiable trouvée." });
+    } catch (e) { const m = String((e && e.message) || e); const slow = /50[24]|delai|timeout|abort/i.test(m); setPfMsg({ ok: false, t: slow ? "La recherche IA a mis trop de temps à répondre (interrogation web en direct). Réessaie." : ("Recherche IA momentanément indisponible (" + m + "). Réessaie.") }); }
+    finally { setPfBusy(false); }
+  };
   const [flashIds, setFlashIds] = useState(null); const cardRefs = useRef({});
   // Met en avant les prospects fraîchement trouvés : clignotement lent + défilement vers la 1re tuile.
   useEffect(() => {
@@ -4482,7 +4553,11 @@ function Prospection({ data, persist, go }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(330px, 1fr))", gap: 12 }}>{g.items.map(card)}</div>
       </div>); })}
     </>)}
-    {edit && <Modal title={edit.nom ? edit.nom : "Nouveau prospect"} onClose={() => setEdit(null)} wide>
+    {edit && <Modal title={edit.nom ? edit.nom : "Nouveau prospect"} onClose={() => { setEdit(null); setPfMsg(null); }} wide>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <button type="button" className="btn btn-ai btn-s" onClick={enrichProspect} disabled={pfBusy || !((edit.nom || edit.enseigne || "").trim())} title="Rechercher en ligne le site, les réseaux, l'identité légale (SIREN/SIRET, raison sociale…) et un contact, puis compléter les champs encore vides"><Sparkles size={14} className={pfBusy ? "spin" : ""} /> {pfBusy ? ("Recherche… " + fmtElapsed(pfElapsed)) : "Approfondir la recherche IA"}</button>
+        {pfMsg && <span style={{ fontSize: 11.5, color: pfMsg.ok ? "var(--green)" : "var(--red)", fontWeight: 600, display: "inline-flex", alignItems: "flex-start", gap: 5, flex: 1, minWidth: 200, lineHeight: 1.4 }}>{pfMsg.ok ? <CheckCircle2 size={13} style={{ flexShrink: 0, marginTop: 1 }} /> : null}<span>{pfMsg.t}</span></span>}
+      </div>
       <div className="row2"><div className="fld"><label>Nom du prospect</label><input value={edit.nom} onChange={(e) => upE("nom", e.target.value)} /></div><div className="fld"><label>Groupe / réseau</label><input value={edit.enseigne} onChange={(e) => upE("enseigne", e.target.value)} placeholder="JouéClub, King Jouet, indépendant…" /></div></div>
       <div className="row2"><div className="fld"><label>Type</label><select value={edit.type} onChange={(e) => upE("type", e.target.value)}>{Object.entries(PROSPECT_TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="fld"><label>Format</label><input list="prospect-format-list" value={edit.format} onChange={(e) => upE("format", e.target.value)} placeholder="Centre-ville, périphérie…" /><datalist id="prospect-format-list">{FORMAT_OPTIONS.map((o) => <option key={o} value={o} />)}</datalist></div></div>
       <div className="fld"><label>Adresse postale</label><AddrInput value={edit.adresse} onChange={(v) => upE("adresse", v)} known={collectKnownAddresses(data)} rows={2} placeholder="Tapez une adresse et choisissez une suggestion" /></div>
