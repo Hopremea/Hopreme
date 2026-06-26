@@ -1019,7 +1019,7 @@ function useCountUp(value, duration = 850) {
 
 // Motifs SVG de fond (data URIs) pour les thèmes de page.
 const _encSvg = (svg) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-const dashSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='340' height='340'><g fill='none' stroke='${stroke}' stroke-width='3' stroke-linecap='round'><path d='M-20 78 Q170 18 360 104' stroke-dasharray='2 15'/><path d='M-20 242 Q170 320 360 232' stroke-dasharray='17 14'/><path d='M58 -20 Q128 168 66 360' stroke-dasharray='2 15'/><path d='M250 -20 Q300 150 240 360' stroke-dasharray='15 14'/></g></svg>`);
+const dashSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='24' height='16'><g fill='none' stroke='${stroke}' stroke-width='2.4' stroke-linecap='round'><path d='M4 4 L13 4'/><path d='M11 12 L20 12'/></g></svg>`);
 const memphisSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><g fill='none' stroke='${stroke}' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'><path d='M16 34 l12 -13 l12 13 l12 -13'/><path d='M120 26 q9 -12 18 0 q9 12 18 0'/><circle cx='186' cy='38' r='8'/><path d='M30 92 l16 16'/><path d='M70 80 l0 20 M80 80 l0 20 M90 80 l0 20'/><path d='M150 78 a14 14 0 0 1 26 6'/><path d='M16 150 q12 -14 24 0 q12 14 24 0'/><path d='M96 140 l10 -12 l10 12 l10 -12'/><circle cx='150' cy='150' r='8'/><path d='M196 140 l0 22'/><path d='M30 196 l16 0 M30 196 l0 -16'/><path d='M110 196 l14 -14'/><path d='M170 196 q9 -12 18 0'/></g></svg>`);
 // Pois (polka dots) — répartis en quinconce pour un rendu régulier.
 const dotsSVG = (fill) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='54' height='54'><g fill='${fill}'><circle cx='13' cy='13' r='4.5'/><circle cx='40' cy='40' r='4.5'/></g></svg>`);
@@ -1032,8 +1032,11 @@ const starsSVG = (fill) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' widt
 // Vagues / écailles — lignes ondulées douces.
 const wavesSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='80' height='44'><g fill='none' stroke='${stroke}' stroke-width='3' stroke-linecap='round'><path d='M-5 14 q20 -16 40 0 q20 16 40 0 q20 -16 40 0'/><path d='M-5 36 q20 -16 40 0 q20 16 40 0 q20 -16 40 0'/></g></svg>`);
 // Motifs supplémentaires : nid d'abeille, chevrons, croix, écailles, bulles, lignes obliques.
-const honeycombSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='56' height='96'><g fill='none' stroke='${stroke}' stroke-width='2' stroke-linejoin='round'><path d='M14 0 L0 8 L0 24 L14 32 L28 24 L28 8 Z'/><path d='M42 0 L28 8 L28 24 L42 32 L56 24 L56 8 Z'/><path d='M14 48 L0 56 L0 72 L14 80 L28 72 L28 56 Z'/><path d='M42 48 L28 56 L28 72 L42 80 L56 72 L56 56 Z'/><path d='M28 24 L28 56 M0 24 L0 56 M56 24 L56 56'/></g></svg>`);
-const chevronSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='60' height='34'><g fill='none' stroke='${stroke}' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M-2 10 L15 24 L32 10 L49 24 L66 10'/><path d='M-2 26 L15 40 L32 26 L49 40 L66 26'/></g></svg>`);
+// Nid d'abeille : 4 hexagones pointe-en-haut placés sur la maille (côté 16) ; les parties qui
+// débordent de la tuile (27,71 × 48) sont complétées par les tuiles voisines → rendu parfaitement continu.
+const honeycombSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='27.71' height='48' viewBox='0 0 27.71 48'><g fill='none' stroke='${stroke}' stroke-width='1.4' stroke-linejoin='round'><path d='M13.86 -16 L27.71 -8 L27.71 8 L13.86 16 L0 8 L0 -8 Z'/><path d='M0 8 L13.86 16 L13.86 32 L0 40 L-13.86 32 L-13.86 16 Z'/><path d='M27.71 8 L41.57 16 L41.57 32 L27.71 40 L13.86 32 L13.86 16 Z'/><path d='M13.86 32 L27.71 40 L27.71 56 L13.86 64 L0 56 L0 40 Z'/></g></svg>`);
+// Chevrons : « V » identiques empilés tous les 12 px (le bas d'une tuile prolonge le haut de la suivante).
+const chevronSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='40' height='24'><g fill='none' stroke='${stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M0 0 L20 12 L40 0'/><path d='M0 12 L20 24 L40 12'/></g></svg>`);
 const crossSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><g fill='none' stroke='${stroke}' stroke-width='2.4' stroke-linecap='round'><path d='M12 4 L12 20 M4 12 L20 12'/><path d='M36 28 L36 44 M28 36 L44 36'/></g></svg>`);
 const scalesSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><g fill='none' stroke='${stroke}' stroke-width='2'><path d='M0 24 A24 24 0 0 1 24 0 A24 24 0 0 1 48 24'/><path d='M-24 48 A24 24 0 0 1 0 24 A24 24 0 0 1 24 48'/><path d='M24 48 A24 24 0 0 1 48 24 A24 24 0 0 1 72 48'/></g></svg>`);
 const bubblesSVG = (stroke) => _encSvg(`<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><g fill='none' stroke='${stroke}' stroke-width='2'><circle cx='20' cy='24' r='11'/><circle cx='62' cy='16' r='6'/><circle cx='74' cy='54' r='13'/><circle cx='34' cy='66' r='8'/><circle cx='8' cy='72' r='4'/><circle cx='52' cy='44' r='3.5'/></g></svg>`);
@@ -1069,15 +1072,15 @@ const THEME_COLOR_BG = {}; THEME_COLORS.forEach((c) => { THEME_COLOR_BG[c.id] = 
 // MOTIF : fn = générateur SVG (null = aucun), size = taille de tuile, op = opacité.
 const THEME_PATTERNS = [
   { id: "none", label: "Aucun", fn: null },
-  { id: "dash", label: "Tirets", fn: dashSVG, size: "340px 340px", op: 0.42 },
+  { id: "dash", label: "Tirets", fn: dashSVG, size: "24px 16px", op: 0.42 },
   { id: "memphis", label: "Memphis", fn: memphisSVG, size: "220px 220px", op: 0.6 },
   { id: "dots", label: "Pois", fn: dotsSVG, size: "54px 54px", op: 0.4 },
   { id: "stars", label: "Étoiles", fn: starsSVG, size: "120px 120px", op: 0.32 },
   { id: "grid", label: "Quadrillage", fn: gridSVG, size: "44px 44px", op: 0.6 },
   { id: "tri", label: "Confettis", fn: triSVG, size: "110px 110px", op: 0.45 },
   { id: "waves", label: "Vagues", fn: wavesSVG, size: "80px 44px", op: 0.5 },
-  { id: "honeycomb", label: "Nid d'abeille", fn: honeycombSVG, size: "56px 96px", op: 0.4 },
-  { id: "chevron", label: "Chevrons", fn: chevronSVG, size: "60px 34px", op: 0.42 },
+  { id: "honeycomb", label: "Nid d'abeille", fn: honeycombSVG, size: "27.71px 48px", op: 0.4 },
+  { id: "chevron", label: "Chevrons", fn: chevronSVG, size: "40px 24px", op: 0.42 },
   { id: "cross", label: "Croix", fn: crossSVG, size: "48px 48px", op: 0.45 },
   { id: "scales", label: "Écailles", fn: scalesSVG, size: "48px 48px", op: 0.4 },
   { id: "bubbles", label: "Bulles", fn: bubblesSVG, size: "90px 90px", op: 0.4 },
