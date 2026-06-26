@@ -4261,7 +4261,7 @@ async function aiAutofill({ kind, enseigne, ville, adresse, typesEtab }) {
 }
 function Prospection({ data, persist, go }) {
   const { prospects } = data;
-  const [q, setQ] = useState(""); const [fType, setFType] = useState("tous"); const [fRegion, setFRegion] = useState("tous"); const [sort, setSort] = useState("type"); const [dir, setDir] = useState("asc"); const [view, setView] = useState("actifs"); const [archiveEdit, setArchiveEdit] = useState(null);
+  const [q, setQ] = useState(""); const [fType, setFType] = useState("tous"); const [fRegion, setFRegion] = useState("tous"); const [sort, setSort] = useState("type"); const [dir, setDir] = useState("asc"); const [view, setView] = useState("actifs"); const [archiveEdit, setArchiveEdit] = useState(null); const [dupOpen, setDupOpen] = useState(null);
   const [edit, setEdit] = useState(null);
   const [zone, setZone] = useState("Occitanie"); const [kind, setKind] = useState("toutes"); const [busy, setBusy] = useState(false); const [aiMsg, setAiMsg] = useState(null); const [aiErr, setAiErr] = useState(null);
   const aiElapsed = useElapsed(busy);
@@ -4302,46 +4302,56 @@ function Prospection({ data, persist, go }) {
   // Fusion des doublons : regroupe les fiches d'un même commerce via plusieurs signaux d'identité
   // (même SIRET, OU même adresse, OU même SIREN + même ville + nom proche), réunit chaque groupe en
   // une seule fiche en complétant les champs manquants (aucune information perdue).
-  const mergeDuplicateProspects = () => {
+  // Détecte les groupes de doublons (≥2 fiches) via plusieurs signaux d'identité : même SIRET, OU même
+  // adresse, OU même SIREN + ville + nom proche (mots génériques « boutique/concept/store… » ignorés).
+  const computeDupClusters = () => {
     const norm = (s) => normStr(s || "");
     const digits = (s) => String(s || "").replace(/\D/g, "");
     const GENERIC = new Set(["boutique", "concept", "store", "magasin", "shop", "sas", "sarl", "eurl", "sasu", "sa", "ets", "etablissement", "etablissements", "the", "la", "le", "les"]);
     const nameCore = (p) => { const toks = norm(p.nom || p.enseigne).split(/\s+/).filter((t) => t.length > 1 && !GENERIC.has(t)); return toks.length ? toks.join(" ") : norm(p.nom || p.enseigne); };
     const localityOf = (p) => { let ville = norm(p.ville); let cp = digits(p.cp); if ((!ville || !cp) && p.adresse) { const loc = parseLocality(p.adresse); if (!ville) ville = norm(loc.ville); if (!cp) cp = digits(loc.cp); } return { ville, cp }; };
     const sigOf = (p) => { const keys = []; const siret = digits(p.siret); const siren = digits(p.siren); const { ville } = localityOf(p); const a = norm(p.adresse); if (siret.length === 14) keys.push("T:" + siret); if (a.length >= 6) keys.push("A:" + a); if (siren.length === 9 && ville && nameCore(p)) keys.push("S:" + siren + "|" + ville + "|" + nameCore(p)); return keys; };
-    // Union-find : relie tous les prospects partageant au moins un signal.
-    const parent = {}; prospects.forEach((p) => { parent[p.id] = p.id; });
+    const active = prospects.filter((p) => !p.accountId); // on ne propose pas de fusionner des fiches déjà converties
+    const parent = {}; active.forEach((p) => { parent[p.id] = p.id; });
     const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
     const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
     const byKey = {};
-    prospects.forEach((p) => { sigOf(p).forEach((k) => { if (byKey[k] != null) union(byKey[k], p.id); else byKey[k] = p.id; }); });
+    active.forEach((p) => { sigOf(p).forEach((k) => { if (byKey[k] != null) union(byKey[k], p.id); else byKey[k] = p.id; }); });
     const clusters = {};
-    prospects.forEach((p) => { const r = find(p.id); (clusters[r] = clusters[r] || []).push(p); });
-    const dupClusters = Object.values(clusters).filter((g) => g.length > 1);
-    const extra = dupClusters.reduce((n, g) => n + g.length - 1, 0);
-    if (extra === 0) { setAiMsg(null); setAiErr("Aucun doublon détecté (même SIRET, même adresse, ou même SIREN + ville)."); setTimeout(() => setAiErr(null), 4500); return; }
-    appConfirm("Fusionner " + dupClusters.length + " groupe(s) de doublons (" + extra + " fiche(s) en trop) ? Les fiches d'un même commerce sont réunies en une seule, en complétant les champs manquants. Aucune information n'est perdue.", { title: "Fusionner les doublons ?", confirmLabel: "Fusionner les doublons" }).then((ok) => {
-      if (!ok) return;
-      const FIELDS = ["nom", "enseigne", "type", "format", "adresse", "ville", "cp", "departement", "region", "telephone", "site", "email", "potentiel", "siren", "siret", "raisonSociale", "formeJuridique", "contactPrenom", "contactNom", "contactFonction", "contactEmail", "contactTel", "contactSource", "source", "lat", "lng"];
-      const score = (p) => (p.accountId ? 1000 : 0) + FIELDS.reduce((n, k) => n + (p[k] ? 1 : 0), 0);
-      const STATUT_ORDER = ["a_qualifier", "a_contacter", "contacte", "rdv", "converti"];
-      const removeIds = new Set(); const mergedById = {};
-      Object.values(clusters).forEach((g) => {
-        if (g.length < 2) return;
-        const sorted = g.slice().sort((a, b) => score(b) - score(a));
-        const base = { ...sorted[0] };
-        sorted.slice(1).forEach((o) => {
-          FIELDS.forEach((k) => { if ((base[k] == null || base[k] === "") && (o[k] != null && o[k] !== "")) base[k] = o[k]; });
-          if (o.accountId && !base.accountId) base.accountId = o.accountId;
-          if (STATUT_ORDER.indexOf(o.statut) > STATUT_ORDER.indexOf(base.statut)) base.statut = o.statut;
-          if (o.notes && o.notes.trim() && norm(base.notes || "").indexOf(norm(o.notes)) === -1) base.notes = (base.notes ? base.notes + "\n— " : "") + o.notes.trim();
-          removeIds.add(o.id);
-        });
-        mergedById[base.id] = base;
+    active.forEach((p) => { const r = find(p.id); (clusters[r] = clusters[r] || []).push(p); });
+    return Object.values(clusters).filter((g) => g.length > 1);
+  };
+  const PROS_FIELDS = ["nom", "enseigne", "type", "format", "adresse", "ville", "cp", "departement", "region", "telephone", "site", "email", "potentiel", "siren", "siret", "raisonSociale", "formeJuridique", "contactPrenom", "contactNom", "contactFonction", "contactEmail", "contactTel", "contactSource", "source", "lat", "lng"];
+  const prosScore = (p) => (p.accountId ? 1000 : 0) + PROS_FIELDS.reduce((n, k) => n + (p[k] ? 1 : 0), 0);
+  const bestOfCluster = (g) => g.slice().sort((a, b) => prosScore(b) - prosScore(a))[0];
+  const openMergeDoublons = () => {
+    const dc = computeDupClusters();
+    if (!dc.length) { setAiMsg(null); setAiErr("Aucun doublon détecté (même SIRET, même adresse, ou même SIREN + ville)."); setTimeout(() => setAiErr(null), 4500); return; }
+    setDupOpen(dc);
+  };
+  // Fusionne uniquement les groupes sélectionnés : on garde la fiche la plus complète, on complète ses
+  // champs manquants depuis les autres, on retient le statut le plus avancé et on cumule les notes.
+  const applyMergeClusters = (selected) => {
+    const norm = (s) => normStr(s || "");
+    const STATUT_ORDER = ["a_qualifier", "a_contacter", "contacte", "rdv", "converti"];
+    const removeIds = new Set(); const mergedById = {}; let groups = 0, extra = 0;
+    (selected || []).forEach((g) => {
+      if (!g || g.length < 2) return;
+      const sorted = g.slice().sort((a, b) => prosScore(b) - prosScore(a));
+      const base = { ...sorted[0] };
+      sorted.slice(1).forEach((o) => {
+        PROS_FIELDS.forEach((k) => { if ((base[k] == null || base[k] === "") && (o[k] != null && o[k] !== "")) base[k] = o[k]; });
+        if (o.accountId && !base.accountId) base.accountId = o.accountId;
+        if (STATUT_ORDER.indexOf(o.statut) > STATUT_ORDER.indexOf(base.statut)) base.statut = o.statut;
+        if (o.notes && o.notes.trim() && norm(base.notes || "").indexOf(norm(o.notes)) === -1) base.notes = (base.notes ? base.notes + "\n— " : "") + o.notes.trim();
+        removeIds.add(o.id); extra++;
       });
-      persist((d) => ({ ...d, prospects: d.prospects.filter((p) => !removeIds.has(p.id)).map((p) => mergedById[p.id] || p) }));
-      setAiErr(null); setAiMsg(extra + " doublon(s) fusionné(s) — " + dupClusters.length + " commerce(s) regroupé(s)."); setTimeout(() => setAiMsg(null), 5000);
+      mergedById[base.id] = base; groups++;
     });
+    setDupOpen(null);
+    if (!removeIds.size) return;
+    persist((d) => ({ ...d, prospects: d.prospects.filter((p) => !removeIds.has(p.id)).map((p) => mergedById[p.id] || p) }));
+    setAiErr(null); setAiMsg(extra + " doublon(s) fusionné(s) — " + groups + " commerce(s) regroupé(s)."); setTimeout(() => setAiMsg(null), 5000);
   };
   const NATURE_FROM_TYPE = { cooperative: "CA", chaine: "CA", franchise: "FC", independant: "MI", specialiste: "MI", gss: "CA", autre: "DV" };
   const convert = (p) => {
@@ -4448,7 +4458,7 @@ function Prospection({ data, persist, go }) {
         {hasFilter && <button className="btn btn-ghost btn-s" onClick={() => { setQ(""); setFType("tous"); setFRegion("tous"); }}><X size={13} /> Effacer</button>}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="btn btn-ghost" onClick={mergeDuplicateProspects} title="Détecter et fusionner les prospects en double (même SIRET, même adresse, ou même SIREN + ville) en réunissant leurs informations dans une seule fiche"><Copy size={16} /> Fusionner les doublons</button>
+        <button className="btn btn-ghost" onClick={openMergeDoublons} title="Détecter les prospects en double (même SIRET, même adresse, ou même SIREN + ville), les passer en revue et choisir ceux à fusionner"><Copy size={16} /> Fusionner les doublons</button>
         <button className="btn btn-p" onClick={() => setEdit({ id: "p_" + Date.now(), nom: "", enseigne: "", type: "autre", format: "", adresse: "", ville: "", cp: "", departement: "", region: "", telephone: "", site: "", email: "", statut: "a_qualifier", potentiel: "", notes: "", source: "Saisie manuelle", accountId: null, createdAt: TODAY() })}><Plus size={16} /> Ajouter un prospect</button>
       </div>
     </div>
@@ -4496,7 +4506,39 @@ function Prospection({ data, persist, go }) {
       <div>Ce listing recense des prospects (points de vente de jouets et loisirs créatifs) partout en France, tous types, triés par type, région et statut. La <strong>Recherche IA</strong> interroge le web puis les <strong>sources officielles</strong> (RNE/INSEE via annuaire-entreprises, Pappers, societe.com, Infogreffe, INPI) pour enrichir chaque fiche avec l'identité légale (raison sociale, SIREN, forme juridique, dirigeant) et un contact pré-rempli. À la conversion, le compte <strong>et</strong> la fiche contact associée sont créés d'un coup. <strong>Point d'honnêteté :</strong> l'agent fonctionne dans l'aperçu Claude (API Anthropic + recherche web) ; l'application exportée nécessite un serveur relais. Les résultats, surtout les courriels et noms, sont indicatifs et <strong>à vérifier</strong> avant tout démarchage.</div>
     </div>}
     {archiveEdit && <ArchiveModal account={archiveEdit} existing={archiveEdit} noun="prospect" onUsage={(u) => persist((d) => ({ ...d, claudeUsage: addUsage(d.claudeUsage, u) }))} onArchive={(info) => { saveArchiveProspect(archiveEdit, info); setArchiveEdit(null); }} onClose={() => setArchiveEdit(null)} />}
+    {dupOpen && <ProspectDupModal clusters={dupOpen} bestOf={bestOfCluster} onMerge={applyMergeClusters} onClose={() => setDupOpen(null)} />}
   </div>);
+}
+// Revue des doublons de prospects avant fusion : liste chaque groupe avec cases à cocher (fusionner ou
+// non) ; pour chaque groupe coché, la fiche « conservée » (la plus complète) absorbe les champs des autres.
+function ProspectDupModal({ clusters, bestOf, onMerge, onClose }) {
+  const [sel, setSel] = useState(() => clusters.map(() => true));
+  const toggle = (i) => setSel((s) => s.map((v, j) => j === i ? !v : v));
+  const allOn = sel.every(Boolean);
+  const selectedClusters = clusters.filter((g, i) => sel[i]);
+  const fichesToRemove = clusters.reduce((n, g, i) => n + (sel[i] ? g.length - 1 : 0), 0);
+  return (<Modal title="Doublons détectés" onClose={onClose} xl guard={false}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+      <p style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 0, flex: 1, minWidth: 240 }}>{clusters.length} groupe(s) de doublons détecté(s). Cochez les groupes à fusionner. Pour chaque groupe, les fiches sont réunies dans celle marquée <strong style={{ color: "var(--green)" }}>conservée</strong> (la plus complète), en complétant ses champs manquants — aucune information n'est perdue.</p>
+      <button className="btn btn-ghost btn-s" onClick={() => setSel(clusters.map(() => !allOn))}>{allOn ? "Tout décocher" : "Tout cocher"}</button>
+    </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "55vh", overflowY: "auto", paddingRight: 4 }}>
+      {clusters.map((g, i) => { const keep = bestOf(g); return (
+        <div key={i} className="card" style={{ borderLeft: "3px solid " + (sel[i] ? "var(--blue)" : "var(--line)"), background: sel[i] ? "var(--blue-l)" : "var(--bg)" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 13.5, cursor: "pointer", marginBottom: 8 }}><input type="checkbox" checked={sel[i]} onChange={() => toggle(i)} style={{ width: "auto" }} /> Fusionner ce groupe <span style={{ fontWeight: 600, color: "var(--muted)" }}>({g.length} fiches)</span></label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{g.map((p) => { const isKeep = p.id === keep.id; return (
+            <div key={p.id} style={{ fontSize: 12.5, padding: "6px 9px", borderRadius: 8, background: isKeep ? "rgba(43,182,115,.10)" : "var(--card)", border: "1px solid " + (isKeep ? "rgba(43,182,115,.35)" : "var(--line)") }}>
+              <div style={{ fontWeight: 700 }}>{p.nom || p.enseigne || "Sans nom"}{isKeep && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: "var(--green)" }}>● conservée</span>}</div>
+              <div style={{ color: "var(--muted)" }}>{[p.adresse, ((p.cp || "") + " " + (p.ville || "")).trim()].filter(Boolean).join(", ") || "—"}</div>
+              {(p.siren || p.siret) && <div style={{ color: "var(--muted)", fontSize: 11.5 }} className="tnum">{[p.siren && ("SIREN " + p.siren), p.siret && ("SIRET " + p.siret)].filter(Boolean).join(" · ")}</div>}
+            </div>); })}</div>
+        </div>); })}
+    </div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 12, flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+      <span style={{ fontSize: 12, color: "var(--muted)" }}>{selectedClusters.length} groupe(s) sélectionné(s) · {fichesToRemove} fiche(s) supprimée(s) après fusion</span>
+      <div style={{ display: "flex", gap: 8 }}><button className="btn btn-ghost" onClick={onClose}>Annuler</button><button className="btn btn-p" disabled={!fichesToRemove} onClick={() => onMerge(selectedClusters)}><Copy size={15} /> Fusionner la sélection</button></div>
+    </div>
+  </Modal>);
 }
 function SaveCalcBar({ type, payload, detail, summary, persist }) {
   const [name, setName] = useState(""); const [done, setDone] = useState(false);
