@@ -9,7 +9,7 @@ import {
   LifeBuoy, Repeat, Zap, Map as MapIcon, Send, ExternalLink, Link2,
   Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon, Palette, Mic, MessageSquare, Video, Archive, ArchiveRestore,
   Download, Paperclip, Moon, Sun, ChevronRight, CalendarDays,
-  GitBranch, Save, FileDown, ArrowDown, ArrowUp,
+  GitBranch, Save, FileDown, ArrowDown, ArrowUp, Undo2,
   Globe, Facebook, Instagram, Menu, Home,
   Filter as FunnelIcon, PieChart as PieIcon
 } from "lucide-react";
@@ -6407,7 +6407,7 @@ export default function App() {
             return <span title="État de la synchronisation des données" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: "#fff", background: m.c, border: "1px solid " + m.c, borderRadius: 20, padding: "5px 11px", whiteSpace: "nowrap" }}><Ic size={13} className={syncState === "saving" ? "spin" : undefined} />{m.l}</span>;
           })()}
           <button className="btn btn-ghost btn-s" onClick={() => setCmdkOpen(true)} title="Recherche (Ctrl/Cmd+K)"><Search size={15} /> Rechercher <span style={{ fontSize: 10, opacity: .6, marginLeft: 4 }}>⌘K</span></button>
-          {canUndo && <button className="btn btn-ghost btn-s" onClick={undo} title="Annuler la dernière modification (suppression, édition…)"><RefreshCw size={15} style={{ transform: "scaleX(-1)" }} /> Annuler</button>}
+          {canUndo && <button className="btn btn-ghost btn-s" onClick={undo} title="Annuler la dernière modification (suppression, édition, ajout…) et revenir à l'état précédent"><Undo2 size={15} /> Annuler</button>}
           <button className="btn btn-ghost btn-s" onClick={exportAll} title="Exporter toutes les données"><Download size={15} /> Sauvegarde</button>
           <input ref={fileImportRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) importAll(f); e.target.value = ""; }} />
           <button className="btn btn-ghost btn-s" onClick={() => fileImportRef.current && fileImportRef.current.click()} title="Restaurer depuis une sauvegarde"><Upload size={15} /> Restaurer</button>
