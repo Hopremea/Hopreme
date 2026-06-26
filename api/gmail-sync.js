@@ -1,6 +1,10 @@
 import { verifyToken } from "@clerk/backend";
 import { gmailIsConfigured, searchMessagesForAddresses } from "../lib/gmail.js";
 
+// La récupération du corps complet de chaque message (format=full) est plus lourde : on laisse au
+// relais jusqu'à 60 s, sinon Vercel coupe la fonction avant la fin de la synchronisation.
+export const config = { maxDuration: 60 };
+
 // Synchronisation des courriels : recherche dans la boîte Gmail connectée (GOOGLE_USER_EMAIL) tous
 // les messages échangés (envoyés OU reçus) avec une liste d'adresses connues du site, et renvoie
 // leurs métadonnées pour les journaliser dans le fil des échanges. Lecture seule. Protégé par Clerk.
