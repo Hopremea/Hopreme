@@ -351,6 +351,42 @@ function collectKnownAddresses(data) {
   (data.prospects || []).forEach((p) => { if (p.adresse) push([p.adresse, p.cp, p.ville].filter(Boolean).join(", "), p.nom || "prospect", null, null); });
   return out;
 }
+// Adresses e-mail connues (contacts, sites, comptes) → entité associée, pour la synchro des courriels.
+function gmailAddressMap(data) {
+  const map = {};
+  (data.contacts || []).forEach((c) => { const e = (c.email || "").trim().toLowerCase(); if (e.includes("@") && !map[e]) map[e] = { contactId: c.id, accountId: c.accountId || "", siteId: c.siteId || "" }; });
+  (data.sites || []).forEach((s) => { const e = (s.contactMail || s.email || "").trim().toLowerCase(); if (e.includes("@") && !map[e]) map[e] = { contactId: "", accountId: s.accountId || "", siteId: s.id }; });
+  (data.accounts || []).forEach((a) => { const e = (a.email || "").trim().toLowerCase(); if (e.includes("@") && !map[e]) map[e] = { contactId: "", accountId: a.id, siteId: "" }; });
+  return map;
+}
+// Synchronisation globale des courriels : journalise dans le fil des échanges tous les e-mails de la
+// boîte connectée échangés avec une adresse renseignée (contact, établissement, groupe). Chaque échange
+// importé porte source:"gmail" + sourced:true (mention « sourcé »). Idempotent via gmailId.
+async function gmailSyncAll(data, persist) {
+  const addrMap = gmailAddressMap(data);
+  const addresses = Object.keys(addrMap);
+  if (!addresses.length) return { added: 0, total: 0, skipped: true };
+  const res = await fetch("/api/gmail-sync", { method: "POST", headers: await claudeHeaders(), body: JSON.stringify({ addresses, max: 200 }) });
+  const dt = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(dt.error || ("Erreur " + res.status));
+  const msgs = dt.messages || [];
+  const existing = new Set((data.interactions || []).filter((i) => i.gmailId).map((i) => i.gmailId));
+  const toAdd = [];
+  msgs.forEach((m) => {
+    if (!m || !m.id || existing.has(m.id)) return;
+    const ent = addrMap[(m.address || "").toLowerCase()]; if (!ent) return;
+    existing.add(m.id);
+    toAdd.push({ id: "gm_" + m.id, gmailId: m.id, accountId: ent.accountId || "", contactId: ent.contactId || "", siteId: ent.siteId || "", type: "email", direction: m.direction === "entrant" ? "entrant" : "sortant", date: m.date || TODAY(), sujet: m.subject || "(sans objet)", resume: m.snippet || "", source: "gmail", sourced: true });
+  });
+  let added = 0;
+  persist((p) => {
+    const have = new Set((p.interactions || []).filter((i) => i.gmailId).map((i) => i.gmailId));
+    const fresh = toAdd.filter((t) => !have.has(t.gmailId));
+    added = fresh.length;
+    return { ...p, interactions: fresh.length ? [...(p.interactions || []), ...fresh] : (p.interactions || []), settings: { ...p.settings, lastGmailSync: new Date().toISOString() } };
+  }, { snapshot: false });
+  return { added, total: msgs.length };
+}
 // Une enseigne est "centrale/chaîne" (donc pas d'auto-établissement) si nature CA ou plus d'un établissement déclaré.
 function isCentraleOuChaine(a) { return (a && a.nature === "CA") || ((Number(a && a.magasins) || 0) > 1); }
 function isGroupe(a) { return a && a.kind ? a.kind === "groupe" : isCentraleOuChaine(a); }
@@ -1403,6 +1439,7 @@ ${ACCENT_CSS}
 .pu-root.dark .dup-warn{background:#3a2f12;color:#f8d68b;}
 .pu-root.dark .modal-h{background:var(--card);}
 .pu-root.dark .gtag{background:#3a1f1d;color:#ff8a7a;}
+.srctag{font-size:9.5px;font-weight:800;letter-spacing:.03em;color:var(--green);background:rgba(43,182,115,.14);border:1px solid rgba(43,182,115,.35);padding:1px 6px;border-radius:6px;text-transform:uppercase;}
 .pu-root.dark .msg-in .msg-bubble{background:#1a2336;}
 .pu-root.dark .msg-out .msg-bubble{background:#1d2945;}
 .pu-root.dark .btn-g,.pu-root.dark .conn,.pu-root.dark .crow,.pu-root.dark .zbtn,.pu-root.dark .pin-pop,.pu-root.dark .iconbtn{background:var(--card);color:var(--ink);}
@@ -4572,6 +4609,16 @@ function Connexions({ data, persist }) {
   const [diag, setDiag] = useState(null); const [diagBusy, setDiagBusy] = useState(false);
   const loadDiag = async () => { setDiagBusy(true); try { const res = await fetch("/api/status", { method: "POST", headers: await claudeHeaders() }); const dt = await res.json().catch(() => ({})); setDiag(res.ok ? dt : { error: dt.error || ("Erreur " + res.status) }); } catch (e) { setDiag({ error: (e && e.message) || String(e) }); } finally { setDiagBusy(false); } };
   useEffect(() => { loadDiag(); }, []);
+  // Synchronisation des courriels (manuelle) : journalise dans les échanges les e-mails échangés
+  // avec les adresses renseignées. La synchro automatique tourne aussi en arrière-plan (~1×/h).
+  const [gmSync, setGmSync] = useState({ busy: false, msg: "" });
+  const knownEmails = Object.keys(gmailAddressMap(data)).length;
+  const lastSync = settings.lastGmailSync ? new Date(settings.lastGmailSync) : null;
+  const doGmailSync = async () => {
+    setGmSync({ busy: true, msg: "" });
+    try { const r = await gmailSyncAll(data, persist); setGmSync({ busy: false, msg: r.skipped ? "Aucune adresse e-mail renseignée à associer." : ("✅ " + r.added + " courriel(s) ajouté(s) aux échanges (sur " + r.total + " trouvé(s)).") }); }
+    catch (e) { setGmSync({ busy: false, msg: "❌ " + ((e && e.message) || String(e)) }); }
+  };
   const applyRows = (rows) => {
     if (!rows || !rows.length) { setMsg("Fichier vide ou illisible."); return; }
     const headers = Object.keys(rows[0]); const norm = (s) => (s || "").toString().toLowerCase();
@@ -4619,6 +4666,15 @@ function Connexions({ data, persist }) {
   const Section = ({ children, note }) => (<div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "26px 0 10px", borderBottom: "1px solid var(--line)", paddingBottom: 6 }}><h2 className="pu-display" style={{ fontSize: 16, margin: 0 }}>{children}</h2>{note && <span style={{ fontSize: 12, color: "var(--muted)" }}>{note}</span>}</div>);
   return (<div className="fade">
     <EtatLogiciel data={data} />
+
+    <Section note="trace fidèle des envois et réceptions, associés automatiquement aux fiches">Courriels &amp; échanges</Section>
+    <div className="card">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 13, lineHeight: 1.55 }}><div style={{ fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 7 }}><Mail size={15} /> Synchronisation des courriels</div><div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 3 }}>Les e-mails de la boîte connectée échangés avec une adresse renseignée ({knownEmails} adresse{knownEmails > 1 ? "s" : ""}) sont journalisés dans le fil des échanges, avec la mention <span className="srctag">sourcé</span>. Automatique (~1×/h) ; ce bouton force la synchro.{lastSync ? " Dernière synchro : " + lastSync.toLocaleString("fr-FR") + "." : ""}</div></div>
+        <button className="btn btn-p" onClick={doGmailSync} disabled={gmSync.busy}><RefreshCw size={15} className={gmSync.busy ? "spin" : ""} /> {gmSync.busy ? "Synchro…" : "Synchroniser les courriels"}</button>
+      </div>
+      {gmSync.msg && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 10, color: gmSync.msg.startsWith("❌") ? "var(--red)" : "var(--green)" }}>{gmSync.msg}</div>}
+    </div>
 
     <Section note="ce qui est connecté côté serveur (Vercel) — valeurs jamais affichées">État des connexions & variables</Section>
     <div className="card">
@@ -5070,7 +5126,7 @@ function InteractionView({ interaction: it, data, go, onClose, onEdit }) {
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <span className="badge" style={{ background: m.color + "18", color: darkenHex(m.color) }}><Ic size={12} />{m.label}</span>
       {dirLabel && <span style={{ fontSize: 12, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 4 }}>{it.direction === "entrant" ? <ArrowDownLeft size={13} color="var(--green)" /> : <ArrowUpRight size={13} color="var(--blue)" />}{dirLabel}</span>}
-      {it.source === "gmail" && <span className="gtag">Gmail</span>}
+      {it.source === "gmail" && <span className="gtag">Gmail</span>}{it.sourced && <span className="srctag" title="Importé automatiquement depuis la boîte Gmail connectée (trace fidèle)">sourcé</span>}
       <span className="tnum" style={{ fontSize: 12, color: "var(--muted)", marginLeft: "auto", textTransform: "capitalize" }}>{dt}</span>
     </div>
     <div style={{ background: "#f5f7fb", border: "1px solid var(--line)", borderRadius: 16, borderTopLeftRadius: 5, padding: "14px 16px" }}>
@@ -5100,7 +5156,7 @@ function InteractionThread({ interactions, data, onView, onEdit, onDelete, showC
         <div className="msg-head">
           <span style={{ fontWeight: 700, color: m.color, display: "inline-flex", alignItems: "center", gap: 4 }}><Ic size={12} />{m.label}</span>
           {inbound ? <ArrowDownLeft size={12} color="var(--green)" /> : <ArrowUpRight size={12} color="var(--blue)" />}
-          {it.source === "gmail" && <span className="gtag">Gmail</span>}
+          {it.source === "gmail" && <span className="gtag">Gmail</span>}{it.sourced && <span className="srctag" title="Importé automatiquement depuis la boîte Gmail connectée (trace fidèle)">sourcé</span>}
           <span className="tnum" style={{ color: "var(--muted)" }}>{it.date}</span>
           {ct && <span style={{ color: "var(--muted)" }}>· {fullName(ct)}</span>}
           <span className="msg-actions">
@@ -5612,6 +5668,27 @@ export default function App() {
       autoScanRef.current.running = false;
     })();
   }, [loading, data.interactions, persist]);
+  // Synchronisation automatique des courriels : peu après le chargement puis périodiquement (au plus
+  // une fois par heure), on journalise dans les échanges les e-mails de la boîte connectée échangés
+  // avec une adresse renseignée. Idempotent (gmailId) ; en cas d'erreur (Gmail non configuré), on
+  // n'insiste pas pour la session. Le bouton manuel (Intégrations) reste disponible.
+  const gmailRef = useRef({ running: false, failed: false });
+  const dataRef = useRef(data); dataRef.current = data;
+  useEffect(() => {
+    if (loading) return;
+    const tick = () => {
+      const g = gmailRef.current; if (g.running || g.failed) return;
+      const d = dataRef.current;
+      const last = (d.settings && d.settings.lastGmailSync) ? new Date(d.settings.lastGmailSync).getTime() : 0;
+      if (Date.now() - last < 55 * 60 * 1000) return;
+      if (!Object.keys(gmailAddressMap(d)).length) return;
+      g.running = true;
+      gmailSyncAll(d, persist).catch(() => { g.failed = true; }).finally(() => { g.running = false; });
+    };
+    const t0 = setTimeout(tick, 9000);
+    const iv = setInterval(tick, 20 * 60 * 1000);
+    return () => { clearTimeout(t0); clearInterval(iv); };
+  }, [loading, persist]);
   // Nettoyage durable des doublons : après le chargement, on réécrit une fois la version normalisée
   // (dédoublonnée) dans la base partagée, pour que les doublons disparaissent aussi côté serveur et
   // sur les autres appareils, pas seulement à l'affichage local.
