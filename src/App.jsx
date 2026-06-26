@@ -791,6 +791,54 @@ function downloadJSON(obj, filename) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// ===== Sauvegarde automatique horaire vers un dossier dédié du PC (File System Access API) =====
+// Le navigateur ne peut pas écrire librement sur le disque : l'utilisateur choisit UNE fois un dossier,
+// et l'app y écrit ensuite les sauvegardes. Le « handle » du dossier est conservé dans IndexedDB pour
+// survivre aux rechargements (impossible à stocker en localStorage). Disponible sur navigateurs
+// Chromium (Chrome / Edge) ; ailleurs, on retombe sur un téléchargement classique.
+const FS_ACCESS_OK = typeof window !== "undefined" && "showDirectoryPicker" in window;
+const BK_IDB = { name: "penup_backup", store: "handles", key: "backupDir" };
+function bkIdbOpen() {
+  return new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open(BK_IDB.name, 1);
+      req.onupgradeneeded = () => { try { req.result.createObjectStore(BK_IDB.store); } catch (e) {} };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    } catch (e) { reject(e); }
+  });
+}
+async function bkIdbGet(key) {
+  try { const db = await bkIdbOpen(); return await new Promise((res, rej) => { const tx = db.transaction(BK_IDB.store, "readonly"); const r = tx.objectStore(BK_IDB.store).get(key); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); }); }
+  catch (e) { return null; }
+}
+async function bkIdbSet(key, val) {
+  try { const db = await bkIdbOpen(); return await new Promise((res, rej) => { const tx = db.transaction(BK_IDB.store, "readwrite"); tx.objectStore(BK_IDB.store).put(val, key); tx.oncomplete = () => res(true); tx.onerror = () => rej(tx.error); }); }
+  catch (e) { return false; }
+}
+async function bkIdbDel(key) {
+  try { const db = await bkIdbOpen(); return await new Promise((res) => { const tx = db.transaction(BK_IDB.store, "readwrite"); tx.objectStore(BK_IDB.store).delete(key); tx.oncomplete = () => res(true); tx.onerror = () => res(false); }); }
+  catch (e) { return false; }
+}
+// Nom de fichier de sauvegarde, ex. « save_2026-06-26_17h00.json » (sans « / » ni « : », interdits
+// dans les noms de fichiers). On garde l'heure réelle d'écriture.
+function backupFileName(d) {
+  const dt = d || new Date(); const p = (n) => String(n).padStart(2, "0");
+  return `save_${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}_${p(dt.getHours())}h${p(dt.getMinutes())}.json`;
+}
+async function bkDirPermission(handle, write) {
+  if (!handle) return "denied";
+  const opts = { mode: write ? "readwrite" : "read" };
+  try { if ((await handle.queryPermission(opts)) === "granted") return "granted"; return await handle.requestPermission(opts); }
+  catch (e) { return "denied"; }
+}
+async function bkWriteToDir(handle, obj, filename) {
+  const fh = await handle.getFileHandle(filename, { create: true });
+  const w = await fh.createWritable();
+  await w.write(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
+  await w.close();
+}
+
 // Lit un fichier en base64 (pour pièces jointes en localStorage)
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -4674,7 +4722,7 @@ function EtatLogiciel({ data }) {
     </div>
   </div>);
 }
-function Connexions({ data, persist }) {
+function Connexions({ data, persist, autoBackup }) {
   const { settings, products } = data; const [email, setEmail] = useState(settings.myEmail); const [msg, setMsg] = useState(null);
   const saveEmail = () => { persist((p) => ({ ...p, settings: { ...p.settings, myEmail: email.trim() } })); setMsg("Adresse enregistrée."); setTimeout(() => setMsg(null), 1800); };
   // Diagnostic des connexions / variables (statuts uniquement, aucune valeur secrète).
@@ -4851,10 +4899,31 @@ function Connexions({ data, persist }) {
     </div>
 
     <Section note="sauvegarde & multi-utilisateurs">Données & stockage</Section>
+    {autoBackup && (() => { const ab = autoBackup; const lastTxt = ab.lastAt ? new Date(ab.lastAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : null; return (
+    <div className="card" style={{ marginBottom: 14, borderLeft: "4px solid " + (ab.enabled && ab.hasFolder ? "var(--green)" : "var(--blue)") }}>
+      <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Save size={16} style={{ color: ab.enabled && ab.hasFolder ? "var(--green)" : "var(--blue)" }} /> Sauvegarde automatique horaire</h3>{ab.hasFolder && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5 }}><label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontWeight: 700 }}><input type="checkbox" checked={ab.enabled} onChange={(e) => ab.setActive(e.target.checked)} style={{ width: "auto" }} /> {ab.enabled ? "Activée" : "En pause"}</label></span>}</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--muted)" }}>
+        Enregistre, <strong>au début de chaque heure</strong> tant que cet onglet reste ouvert, une sauvegarde complète des données dans un dossier de votre ordinateur (fichiers nommés <code>save_AAAA-MM-JJ_HHhMM.json</code>). La première sauvegarde de la journée couvre « tous les matins ».
+      </div>
+      {!ab.supported ? (
+        <div style={{ marginTop: 10, fontSize: 12.5, color: "var(--amber-d, #a06a06)", background: "#FFF6E5", border: "1px solid #F3D79B", borderRadius: 9, padding: "9px 11px" }}>
+          ⚠ L'écriture directe dans un dossier nécessite <strong>Google Chrome ou Microsoft Edge sur ordinateur</strong> (API File System Access). Sur ce navigateur, utilisez le bouton « Sauvegarde » en haut pour un téléchargement manuel.
+        </div>
+      ) : (<>
+        <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button className="btn btn-p btn-s" onClick={ab.chooseFolder}><Download size={14} /> {ab.hasFolder ? "Changer de dossier" : "Choisir le dossier de sauvegarde"}</button>
+          {ab.hasFolder && <button className="btn btn-g btn-s" onClick={ab.backupNow}><Save size={14} /> Sauvegarder maintenant</button>}
+          {ab.hasFolder && <button className="btn btn-g btn-s" style={{ color: "var(--red)" }} onClick={ab.forget}><Trash2 size={14} /> Oublier le dossier</button>}
+        </div>
+        {ab.hasFolder && <div style={{ marginTop: 9, fontSize: 12, color: "var(--muted)" }}>Dossier : <strong style={{ color: "var(--ink)" }}>{ab.dirName}</strong>{lastTxt ? <> · dernière sauvegarde : <strong style={{ color: "var(--ink)" }}>{lastTxt}</strong></> : " · aucune sauvegarde encore écrite"}</div>}
+        {ab.status && <div style={{ marginTop: 8, fontSize: 12, color: "var(--red)" }}>{ab.status}</div>}
+        <div style={{ marginTop: 9, fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>À noter : la sauvegarde ne tourne que pendant que l'application est <strong>ouverte</strong> dans ce navigateur (un site web ne peut pas s'exécuter en arrière-plan). Laissez l'onglet ouvert pour les sauvegardes de la journée. Le dossier choisi est mémorisé ; le navigateur peut redemander l'autorisation après une fermeture complète.</div>
+      </>)}
+    </div>); })()}
     <div>
       <div className="card">
         <div style={{ fontSize: 13, lineHeight: 1.55, color: "var(--muted)" }}>
-          <strong style={{ color: "var(--ink)" }}>Stockage.</strong> Les données sont mises en cache dans ce navigateur (localStorage) et, quand la base Supabase est configurée, synchronisées dans une base PostgreSQL partagée (hébergement européen) accessible à toute l'équipe authentifiée via Clerk. Si Supabase est indisponible, l'app continue de fonctionner en local. Faites tout de même des sauvegardes JSON régulières via le bouton « Sauvegarde » en haut.
+          <strong style={{ color: "var(--ink)" }}>Stockage.</strong> Les données sont mises en cache dans ce navigateur (localStorage) et, quand la base Supabase est configurée, synchronisées dans une base PostgreSQL partagée (hébergement européen) accessible à toute l'équipe authentifiée via Clerk. Si Supabase est indisponible, l'app continue de fonctionner en local. Faites tout de même des sauvegardes JSON régulières via le bouton « Sauvegarde » en haut, ou activez la sauvegarde automatique horaire ci-dessus.
           <br /><br />
           <strong style={{ color: "var(--ink)" }}>Synchronisation multi-utilisateurs.</strong> Quand Supabase est configuré (variables VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY côté Vercel), vous et Matthis-Anaël partagez les mêmes données, synchronisées entre appareils, avec authentification Clerk et règles d'accès appliquées côté base (RLS). Limite assumée de cette v1 : en cas d'édition simultanée, c'est la dernière sauvegarde qui prime. La découpe en tables relationnelles (édition par enregistrement, sans écrasement) est l'étape suivante.
           <br /><br />
@@ -5629,6 +5698,89 @@ function FilamentConfetti() {
     document.body
   );
 }
+
+// Sauvegarde automatique : choix d'un dossier dédié (persisté en IndexedDB) puis écriture d'une
+// sauvegarde au début de chaque heure tant que l'application est ouverte. Rattrapage immédiat de
+// l'heure courante si elle n'a pas encore été sauvegardée (couvre « tous les matins » même si l'app
+// est ouverte plus tard). getData() renvoie les données à jour au moment de l'écriture.
+function useAutoBackup(getData) {
+  const supported = FS_ACCESS_OK;
+  const [enabled, setEnabled] = useState(() => { try { return localStorage.getItem("penup_autobackup") === "1"; } catch { return false; } });
+  const [dirName, setDirName] = useState(() => { try { return localStorage.getItem("penup_autobackup_dir") || ""; } catch { return ""; } });
+  const [status, setStatus] = useState("");
+  const [lastAt, setLastAt] = useState(() => { try { return localStorage.getItem("penup_autobackup_last") || ""; } catch { return ""; } });
+  const handleRef = useRef(null);
+  const busyRef = useRef(false);
+
+  useEffect(() => {
+    if (!supported) return; let alive = true;
+    (async () => { const h = await bkIdbGet(BK_IDB.key); if (alive && h) { handleRef.current = h; if (h.name) setDirName(h.name); } })();
+    return () => { alive = false; };
+  }, [supported]);
+
+  const doBackup = useCallback(async (manual) => {
+    if (!supported || busyRef.current) return false;
+    const h = handleRef.current;
+    if (!h) { setStatus("Aucun dossier choisi pour le moment."); return false; }
+    busyRef.current = true;
+    try {
+      const perm = await bkDirPermission(h, true);
+      if (perm !== "granted") { setStatus("Autorisation du dossier requise : recliquez sur « Choisir le dossier »."); return false; }
+      const now = new Date();
+      await bkWriteToDir(h, { exportedAt: now.toISOString(), version: 1, auto: !manual, data: getData() }, backupFileName(now));
+      const stamp = now.toISOString();
+      setLastAt(stamp); setStatus("");
+      try { localStorage.setItem("penup_autobackup_last", stamp); } catch {}
+      try { localStorage.setItem("penup_lastBackup", stamp.slice(0, 10)); } catch {}
+      return true;
+    } catch (e) { setStatus("Échec de l'écriture : " + ((e && e.message) || "erreur") + "."); return false; }
+    finally { busyRef.current = false; }
+  }, [supported, getData]);
+
+  const chooseFolder = useCallback(async () => {
+    if (!supported) { setStatus("Fonction disponible sur Chrome ou Edge (ordinateur)."); return; }
+    try {
+      const h = await window.showDirectoryPicker({ id: "penup-backup", mode: "readwrite", startIn: "documents" });
+      const perm = await bkDirPermission(h, true);
+      if (perm !== "granted") { setStatus("Autorisation refusée sur ce dossier."); return; }
+      handleRef.current = h; await bkIdbSet(BK_IDB.key, h);
+      setDirName(h.name || "dossier"); setEnabled(true);
+      try { localStorage.setItem("penup_autobackup_dir", h.name || ""); localStorage.setItem("penup_autobackup", "1"); } catch {}
+      await doBackup(true); // sauvegarde immédiate de confirmation
+    } catch (e) { if (e && e.name !== "AbortError") setStatus("Sélection du dossier annulée."); }
+  }, [supported, doBackup]);
+
+  const setActive = useCallback((on) => {
+    setEnabled(on); try { localStorage.setItem("penup_autobackup", on ? "1" : "0"); } catch {}
+    if (on && !handleRef.current) chooseFolder();
+  }, [chooseFolder]);
+
+  const forget = useCallback(async () => {
+    handleRef.current = null; setEnabled(false); setDirName(""); setStatus("");
+    await bkIdbDel(BK_IDB.key);
+    try { localStorage.setItem("penup_autobackup", "0"); localStorage.removeItem("penup_autobackup_dir"); } catch {}
+  }, []);
+
+  // Planificateur : on vérifie souvent (30 s) pour ne pas rater le changement d'heure ; on n'écrit
+  // qu'une fois par heure grâce à une clé « année-mois-jour-heure » mémorisée (résiste aux rechargements).
+  useEffect(() => {
+    if (!supported || !enabled) return;
+    const hourKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+    const tick = async () => {
+      if (!handleRef.current || busyRef.current) return;
+      const now = new Date();
+      let last = ""; try { last = localStorage.getItem("penup_autobackup_hourkey") || ""; } catch {}
+      if (last === hourKey(now)) return;
+      if (await doBackup(false)) { try { localStorage.setItem("penup_autobackup_hourkey", hourKey(now)); } catch {} }
+    };
+    tick();
+    const iv = setInterval(tick, 30 * 1000);
+    return () => clearInterval(iv);
+  }, [supported, enabled, doBackup]);
+
+  return { supported, enabled, dirName, status, lastAt, hasFolder: !!dirName, chooseFolder, setActive, forget, backupNow: () => doBackup(true) };
+}
+
 export default function App() {
   const [data, setData] = useState(() => normalize(emptyData()));
   const undoRef = useRef(null); const [canUndo, setCanUndo] = useState(false);
@@ -5746,6 +5898,7 @@ export default function App() {
   // n'insiste pas pour la session. Le bouton manuel (Intégrations) reste disponible.
   const gmailRef = useRef({ running: false, failed: false });
   const dataRef = useRef(data); dataRef.current = data;
+  const autoBackup = useAutoBackup(useCallback(() => dataRef.current, []));
   useEffect(() => {
     if (loading) return;
     const tick = () => {
@@ -5966,7 +6119,7 @@ export default function App() {
       {tab === "reassort" && <Reassort key={"reassort-" + navKey} data={data} persist={persist} />}
       {tab === "sav" && <Sav key={"sav-" + navKey} data={data} persist={persist} />}
       {tab === "calc" && <Calculateur data={data} persist={persist} />}
-      {tab === "conn" && <Connexions key={"conn-" + navKey} data={data} persist={persist} />}
+      {tab === "conn" && <Connexions key={"conn-" + navKey} data={data} persist={persist} autoBackup={autoBackup} />}
       </div>
     </main>
     {cmdkOpen && <SearchPalette data={data} onClose={() => setCmdkOpen(false)} onPick={(target) => { setCmdkOpen(false); go(target.tab, target.id); }} />}
