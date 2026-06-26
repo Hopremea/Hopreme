@@ -10,7 +10,8 @@ import {
   Layers, ShoppingCart, Navigation, Copy, Sparkles, Camera, Image as ImageIcon, Palette, Mic, MessageSquare, Video, Archive, ArchiveRestore,
   Download, Paperclip, Moon, Sun, ChevronRight, CalendarDays,
   GitBranch, Save, FileDown, ArrowDown, ArrowUp,
-  Globe, Facebook, Instagram, Menu, Home
+  Globe, Facebook, Instagram, Menu, Home,
+  Filter as FunnelIcon, PieChart as PieIcon
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie,
@@ -1947,6 +1948,66 @@ function ActivityChart({ deals }) {
     {series.length === 0 ? <div className="empty" style={{ padding: 30 }}>Plage de dates invalide. La date de fin doit être après la date de début.</div> : <ResponsiveContainer width="100%" height={240}><AreaChart data={series} margin={{ left: 2, right: 12, top: 8 }}><defs><linearGradient id="gca" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3F60AA" stopOpacity={0.35} /><stop offset="100%" stopColor="#3F60AA" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef1f7" /><XAxis dataKey="label" tick={{ fontSize: 11, fill: "#6b7589" }} axisLine={false} tickLine={false} /><YAxis tick={{ fontSize: 11, fill: "#6b7589" }} axisLine={false} tickLine={false} width={46} tickFormatter={(v) => metric === "ca" ? (v >= 1000 ? v / 1000 + "k" : v) : v} /><Tooltip formatter={(v) => [fmt(v), metrics.find((m) => m.id === metric).label]} contentStyle={{ borderRadius: 12, border: "1px solid #e7ecf5" }} /><Area type="monotone" dataKey={metric} stroke="#3F60AA" strokeWidth={2.5} fill="url(#gca)" /></AreaChart></ResponsiveContainer>}
   </div>);
 }
+// Tuile interactive de l'entonnoir commercial : bascule entre une vue « entonnoir » (barres
+// centrées dégressives, nombre par niveau) et une vue « camembert » (parts + nombre par niveau).
+function FunnelTile({ accounts, go }) {
+  const [mode, setMode] = useState("funnel");
+  const rows = STAGES.map((s) => ({ ...s, count: (accounts || []).filter((a) => (a.stage || "prospect") === s.id).length }));
+  const total = rows.reduce((s, r) => s + r.count, 0);
+  const maxCount = Math.max(1, ...rows.map((r) => r.count));
+  const pct = (n) => total ? Math.round((n / total) * 100) : 0;
+  const pieData = rows.filter((r) => r.count > 0);
+  const seg = (id, Ic, label) => (
+    <button onClick={() => setMode(id)} title={"Vue " + label.toLowerCase()} style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", border: "1px solid var(--line)", background: mode === id ? "#7c5cf0" : "var(--card)", color: mode === id ? "#fff" : "var(--muted)", borderRadius: 8, padding: "5px 11px", fontWeight: 700, fontSize: 12, fontFamily: "inherit", transition: "background .25s, color .25s" }}><Ic size={14} /> {label}</button>
+  );
+  return (<div className="card" style={{ marginBottom: 18, borderLeft: "4px solid #7c5cf0" }}>
+    <div className="sec-h">
+      <h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><FunnelIcon size={17} style={{ color: "#7c5cf0" }} /> Entonnoir commercial</h3>
+      <div style={{ display: "inline-flex", gap: 6 }}>{seg("funnel", FunnelIcon, "Entonnoir")}{seg("pie", PieIcon, "Camembert")}</div>
+    </div>
+    {total === 0 ? <div className="empty">Aucun établissement enregistré.</div> : mode === "funnel" ? (
+      <div style={{ display: "flex", flexDirection: "column", gap: 9, padding: "6px 0 2px" }}>
+        {rows.map((r) => { const w = 34 + 66 * (r.count / maxCount); return (
+          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 130, flexShrink: 0, textAlign: "right", fontSize: 12.5, fontWeight: 700, color: "var(--ink)" }}>{r.label}</div>
+            <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+              <div title={r.count + " établissement(s) · " + pct(r.count) + "%"} style={{ width: w + "%", minWidth: 60, height: 42, borderRadius: 9, background: r.count ? r.color : "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: r.count ? onColor(r.color) : "var(--muted)", boxShadow: r.count ? "0 2px 8px " + r.color + "55" : "none", transition: "width .55s cubic-bezier(.22,1,.36,1)" }}>
+                <span className="pu-display tnum" style={{ fontSize: 18, fontWeight: 800 }}>{r.count}</span>
+                <span style={{ fontSize: 11, opacity: .85 }}>{pct(r.count)}%</span>
+              </div>
+            </div>
+          </div>); })}
+      </div>
+    ) : (
+      <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 240px", minWidth: 220 }}>
+          <ResponsiveContainer width="100%" height={244}>
+            <PieChart>
+              <Pie data={pieData} dataKey="count" nameKey="label" innerRadius={56} outerRadius={94} paddingAngle={2} label={({ value }) => value}>
+                {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
+              </Pie>
+              <Tooltip formatter={(v, n) => [v + " établissement(s)", n]} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{ flex: "1 1 200px", display: "flex", flexDirection: "column", gap: 7 }}>
+          {rows.map((r) => (
+            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5 }}>
+              <i style={{ background: r.color, width: 11, height: 11, borderRadius: 3, flexShrink: 0 }} />
+              <span style={{ flex: 1, fontWeight: 600 }}>{r.label}</span>
+              <span className="pu-display tnum" style={{ fontWeight: 800 }}>{r.count}</span>
+              <span style={{ color: "var(--muted)", width: 40, textAlign: "right" }}>{pct(r.count)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12 }}>
+      <span style={{ color: "var(--muted)" }}>{total} établissement(s), de prospect à client fidèle.</span>
+      <button className="lnk" style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }} onClick={() => go("accounts")}>Voir les établissements <ChevronRight size={14} /></button>
+    </div>
+  </div>);
+}
 function Dashboard({ data, go }) {
   const { accounts, deals, products, contacts } = data;
   const [allEx, setAllEx] = useState(false);
@@ -1968,8 +2029,20 @@ function Dashboard({ data, go }) {
     { lab: "Devis en attente", val: num(Math.round(cDev)), ic: <FileText size={18} />, bg: "#FFF1C6", fg: "var(--yellow-d)", sub: "À relancer" },
     { lab: "Alertes stock", val: num(Math.round(cAl)), ic: <AlertTriangle size={18} />, bg: "#FFE9E5", fg: "var(--red)", sub: "Entrepôt" },
   ];
+  // Entêtes de section : regroupent les cartes du tableau de bord par thème (synthèse, performance,
+  // activité commerciale, stock, à venir) pour une lecture plus claire.
+  const DashSection = ({ icon: Ic, color, title, note }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0 13px", paddingBottom: 7, borderBottom: "2px solid " + (color || "#9aa6bd") + "30" }}>
+      {Ic && <span style={{ width: 28, height: 28, borderRadius: 8, background: (color || "#9aa6bd") + "1c", color: color || "var(--muted)", display: "grid", placeItems: "center", flexShrink: 0 }}><Ic size={15} /></span>}
+      <h2 className="pu-display" style={{ fontSize: 15.5, margin: 0 }}>{title}</h2>
+      {note && <span style={{ fontSize: 11.5, color: "var(--muted)", marginLeft: "auto", textAlign: "right" }}>{note}</span>}
+    </div>
+  );
   return (<div className="fade">
+    <DashSection icon={LayoutDashboard} color="#3F60AA" title="Synthèse" note="indicateurs clés & entonnoir" />
     <div className="grid kpis" style={{ marginBottom: 18 }}>{kpis.map((k, i) => (<div className="card kpi" key={i} style={{ animationDelay: `${i * 80}ms` }}><div className="ic" style={{ background: k.bg, color: k.fg }}>{k.ic}</div><div className="lab">{k.lab}</div><div className="val pu-display tnum">{k.val}</div><div className="sub">{k.sub}</div></div>))}</div>
+    <FunnelTile accounts={accounts} go={go} />
+    <DashSection icon={TrendingUp} color="#5b8def" title="Performance & objectifs" note="modèle de récurrence & cibles du mois" />
     {(() => { const K = computeKPIs(data); const f2 = (x) => x == null ? "—" : x.toFixed(2); const fp = (x) => x == null ? "—" : x.toFixed(0) + "%"; const mini = [
       { lab: "Bobines / stylo", v: K.attach.state === "ok" ? "×" + f2(K.attach.v) : "—", ok: K.attach.state === "ok", hint: "taux d'attache" },
       { lab: "Réassort consommables", v: K.reassort.state === "ok" ? fp(K.reassort.v) : "—", ok: K.reassort.state === "ok", hint: "PDV qui recommandent" },
@@ -1980,7 +2053,6 @@ function Dashboard({ data, go }) {
         <div className="sec-h"><h3 className="pu-display" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><TrendingUp size={17} style={{ color: "var(--blue)" }} /> Performance du modèle rasoir / lame (logique de récurrence)</h3><button className="lnk" style={{ fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }} onClick={() => go("performance")}>Voir la performance <ChevronRight size={14} /></button></div>
         <div className="grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>{mini.map((m, i) => (<div key={i} className="calc-out" style={{ background: m.ok ? "var(--blue-l)" : "var(--bg)" }}><span className="l">{m.lab}</span><span className="b pu-display tnum" style={{ color: m.ok ? "var(--blue)" : "var(--muted)" }}>{m.v}</span><span style={{ fontSize: 10.5, color: "var(--muted)" }}>{m.hint}</span></div>))}</div>
       </div>); })()}
-    <ActivityChart deals={deals} />
     {(() => {
       const key = new Date().toISOString().slice(0, 7);
       const signedThis = deals.filter((d) => isCaSigne(d) && (d.date || "").startsWith(key));
@@ -1990,6 +2062,8 @@ function Dashboard({ data, go }) {
       const gauge = (label, val, obj, fmt) => { const pct = obj > 0 ? Math.min(100, Math.round(val / obj * 100)) : 0; const col = pct >= 100 ? "var(--green)" : pct >= 60 ? "var(--blue)" : "var(--amber)"; return (<div style={{ flex: 1, minWidth: 220 }}><div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}><span style={{ fontWeight: 700 }}>{label}</span><span className="tnum" style={{ color: "var(--muted)" }}>{fmt(val)} / {fmt(obj)} · {pct}%</span></div><div style={{ height: 10, borderRadius: 6, background: "var(--bg)", overflow: "hidden" }}><div style={{ width: pct + "%", height: "100%", background: col, transition: "width .5s" }} /></div></div>); };
       return (<div className="card" style={{ marginBottom: 18, borderLeft: "4px solid var(--green)" }}><div className="sec-h"><h3 className="pu-display">Objectifs du mois</h3><span style={{ textTransform: "capitalize" }}>{new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</span></div><div style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>{objCa > 0 && gauge("CA HT signé", caMois, objCa, eur)}{objCmd > 0 && gauge("Commandes signées", cmdMois, objCmd, (n) => num(n))}</div></div>);
     })()}
+    <DashSection icon={RefreshCw} color="#7c5cf0" title="Activité commerciale" note="échanges, relances & pipeline" />
+    <ActivityChart deals={deals} />
     {(() => {
       const ranked = accounts.map((a) => ({ a, p: priorityScore(a, data) })).filter((x) => x.p.score > 0).sort((x, y) => y.p.score - x.p.score).slice(0, 6);
       const relMail = (a) => { const cs = contacts.filter((c) => c.accountId === a.id); const pc = cs.find((c) => c.principal) || cs[0]; const to = pc && pc.email ? pc.email : ""; const subj = encodeURIComponent("PEN'UP 3D — suivi commercial" + (a.enseigne ? " · " + a.enseigne : "")); const body = encodeURIComponent("Bonjour" + (pc && pc.prenom ? " " + pc.prenom : "") + ",\n\nJe me permets de revenir vers vous concernant " + (a.enseigne || "votre établissement") + " et nos stylos 3D PEN'UP.\n\nSeriez-vous disponible pour un point rapide ?\n\nBien à vous,\n"); return "mailto:" + to + "?subject=" + subj + "&body=" + body; };
@@ -2003,11 +2077,11 @@ function Dashboard({ data, go }) {
         {list.length === 0 ? <div className="empty">Aucun échange enregistré.</div> : <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: allEx ? 360 : "none", overflowY: allEx ? "auto" : "visible" }}>{list.map((it) => { const m = INT_META[it.type] || INT_META.note; const Ic = m.icon; const ct = contacts.find((c) => c.id === it.contactId); const acc = accounts.find((a) => a.id === it.accountId); return (<div key={it.id} onClick={() => ct ? go("repertoire", ct.id) : (acc ? go("accounts", acc.id) : null)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0f3f9", cursor: (ct || acc) ? "pointer" : "default" }}><span style={{ width: 26, height: 26, borderRadius: 8, background: m.color + "18", color: m.color, display: "grid", placeItems: "center", flexShrink: 0 }}><Ic size={14} /></span><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it.sujet || m.label}</div><div style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{[acc && acc.enseigne, ct && fullName(ct)].filter(Boolean).join(" · ") || m.label}{it.resume ? " — " + it.resume : ""}</div></div><span className="tnum" style={{ fontSize: 11.5, color: "var(--muted)", flexShrink: 0 }}>{it.date}</span></div>); })}</div>}
       </div>);
     })()}
+    <div className="card" style={{ marginBottom: 18 }}><div className="sec-h"><h3 className="pu-display">CA HT en attente par compte</h3><span>devis non validés</span></div>{byEnseigne.length === 0 ? <div className="empty">Aucun devis en attente.</div> : <ResponsiveContainer width="100%" height={220}><BarChart data={byEnseigne} layout="vertical" margin={{ left: 8, right: 16 }}><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={84} tick={{ fontSize: 12, fill: "#6b7589" }} axisLine={false} tickLine={false} /><Tooltip formatter={(v) => eur(v)} cursor={{ fill: "#f4f6fb" }} /><Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={22}>{byEnseigne.map((e, i) => <Cell key={i} fill={e.color} />)}</Bar></BarChart></ResponsiveContainer>}</div>
+    <DashSection icon={Boxes} color="#F8B133" title="Stock & approvisionnement" note="valeur en stock & risques de rupture" />
     {pdvAlerts.length > 0 && (<div className="card" style={{ marginBottom: 18, borderLeft: "4px solid var(--amber)" }}><div className="sec-h"><h3 className="pu-display">Risques de rupture chez vos clients</h3><span>estimation, à calibrer dans Réassort clients</span></div><div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{pdvAlerts.map((f, i) => { const c = f.daysLeft <= 7 ? "var(--red)" : "var(--amber)"; return (<div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}><AlertTriangle size={16} style={{ color: c, flexShrink: 0 }} /><div style={{ fontSize: 13 }}><strong>{accName(f.accountId)}</strong> : risque de rupture <strong>{f.designation}</strong> {f.daysLeft <= 0 ? "imminente" : `dans ${f.daysLeft} j`}.</div></div>); })}</div></div>)}
-    <div className="grid" style={{ gridTemplateColumns: "1.4fr 1fr", marginBottom: 18 }}>
-      <div className="card"><div className="sec-h"><h3 className="pu-display">CA HT en attente par compte</h3><span>devis non validés</span></div>{byEnseigne.length === 0 ? <div className="empty">Aucun devis en attente.</div> : <ResponsiveContainer width="100%" height={220}><BarChart data={byEnseigne} layout="vertical" margin={{ left: 8, right: 16 }}><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={84} tick={{ fontSize: 12, fill: "#6b7589" }} axisLine={false} tickLine={false} /><Tooltip formatter={(v) => eur(v)} cursor={{ fill: "#f4f6fb" }} /><Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={22}>{byEnseigne.map((e, i) => <Cell key={i} fill={e.color} />)}</Bar></BarChart></ResponsiveContainer>}</div>
-      <div className="card"><div className="sec-h"><h3 className="pu-display">Valeur de stock</h3><span>par famille</span></div><ResponsiveContainer width="100%" height={220}><PieChart><Pie data={byFamille} dataKey="value" nameKey="name" innerRadius={52} outerRadius={86} paddingAngle={2}>{byFamille.map((e, i) => <Cell key={i} fill={e.color} />)}</Pie><Tooltip formatter={(v) => eur(v)} /></PieChart></ResponsiveContainer><div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>{byFamille.map((f) => <span key={f.name} style={{ fontSize: 11.5, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: f.color }} />{f.name}</span>)}</div></div>
-    </div>
+    <div className="card" style={{ marginBottom: 18 }}><div className="sec-h"><h3 className="pu-display">Valeur de stock</h3><span>par famille</span></div><ResponsiveContainer width="100%" height={220}><PieChart><Pie data={byFamille} dataKey="value" nameKey="name" innerRadius={52} outerRadius={86} paddingAngle={2}>{byFamille.map((e, i) => <Cell key={i} fill={e.color} />)}</Pie><Tooltip formatter={(v) => eur(v)} /></PieChart></ResponsiveContainer><div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>{byFamille.map((f) => <span key={f.name} style={{ fontSize: 11.5, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 5 }}><i className="dot" style={{ background: f.color }} />{f.name}</span>)}</div></div>
+    <DashSection icon={CalendarDays} color="#2bb673" title="À venir" note="prochaines actions planifiées" />
     <div className="card"><div className="sec-h"><h3 className="pu-display">Prochaines actions</h3><span>par échéance</span></div>{actions.length === 0 ? <div className="empty">Aucune action planifiée.</div> : actions.map((a) => (<div key={a.id} style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 0", borderBottom: "1px solid #f0f3f9" }}><div style={{ width: 30, height: 30, borderRadius: 9, background: "var(--blue-l)", color: "var(--blue)", display: "grid", placeItems: "center" }}><Calendar size={15} /></div><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 13 }}>{a.prochaineAction}</div><div className="lnk" style={{ fontSize: 11.5 }} onClick={() => go("accounts", a.id)}>{a.enseigne}</div></div>{(() => { const n = daysFromToday(a.dateAction); const late = n != null && n < 0; return <span style={{ fontSize: 11.5, color: late ? "var(--red)" : "var(--muted)", fontWeight: late ? 700 : 400, textAlign: "right" }} className="tnum">{a.dateAction ? relDate(a.dateAction) : "—"}{a.dateAction && <><br /><span style={{ fontSize: 10, opacity: .7, fontWeight: 400 }}>{a.dateAction}</span></>}</span>; })()}</div>))}</div>
   </div>);
 }
@@ -4147,7 +4221,7 @@ function Prospection({ data, persist, go }) {
       persist((d) => ({ ...d, prospects: add.length ? [...add, ...d.prospects] : d.prospects, claudeUsage: addUsage(d.claudeUsage, usage) }));
       if (add.length) { setQ(""); setFType("tous"); setFRegion("tous"); setFStatut("tous"); setFlashIds(new Set(add.map((a) => a.id))); }
       setAiMsg(add.length ? add.length + " prospect(s) ajouté(s) au listing, statut « À qualifier ». À vérifier avant action." : "Aucun nouveau prospect (déjà présents ou aucun résultat exploitable).");
-    } catch (e) { setAiErr("Recherche IA indisponible ici (" + (e.message || e) + "). L'agent web fonctionne dans l'aperçu Claude ; dans l'application exportée il faut un petit serveur relais (voir l'encart)."); }
+    } catch (e) { const m = String((e && e.message) || e); const slow = /50[24]|delai|timeout|aborted|abort/i.test(m); setAiErr(slow ? "La recherche IA a mis trop de temps à répondre (elle interroge le web et les registres officiels en direct). Réessaie, ou précise une zone plus petite / un établissement précis pour accélérer." : ("Recherche IA momentanément indisponible (" + m + "). Réessaie dans un instant.")); }
     finally { setBusy(false); }
   };
   const hasFilter = q || fType !== "tous" || fRegion !== "tous" || fStatut !== "tous";
