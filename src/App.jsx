@@ -4282,6 +4282,25 @@ function Prospection({ data, persist, go }) {
   if (dir === "desc") groups = groups.slice().reverse().map((g) => ({ ...g, items: g.items.slice().reverse() }));
   const save = (p) => { persist((d) => ({ ...d, prospects: d.prospects.some((x) => x.id === p.id) ? d.prospects.map((x) => x.id === p.id ? p : x) : [p, ...d.prospects] })); setEdit(null); };
   const del = (id) => { persist((d) => ({ ...d, prospects: d.prospects.filter((x) => x.id !== id) })); setEdit(null); };
+  // Déduplication : regroupe les prospects par SIRET (si renseigné) ou par nom + ville normalisés,
+  // garde la fiche la plus complète de chaque groupe (et déjà convertie en compte si applicable),
+  // supprime les autres. Demande confirmation et indique le nombre supprimé.
+  const dedupeProspects = () => {
+    const norm = (s) => normStr(s || "");
+    const keyOf = (p) => { const sr = String(p.siret || "").replace(/\s/g, ""); return sr.length >= 9 ? ("siret:" + sr) : ("nv:" + norm(p.nom) + "|" + norm(p.ville)); };
+    const groups = {};
+    prospects.forEach((p) => { const k = keyOf(p); if (!norm(p.nom) && !String(p.siret || "").trim()) return; (groups[k] = groups[k] || []).push(p); });
+    const removable = Object.values(groups).reduce((n, g) => n + Math.max(0, g.length - 1), 0);
+    if (removable === 0) { setAiMsg(null); setAiErr("Aucun doublon détecté dans le listing."); setTimeout(() => setAiErr(null), 3500); return; }
+    appConfirm("Supprimer " + removable + " doublon(s) de prospects ? Pour chaque groupe (même SIRET, ou même nom + ville), on conserve la fiche la plus complète.", { title: "Supprimer les doublons ?", confirmLabel: "Supprimer les doublons" }).then((ok) => {
+      if (!ok) return;
+      const score = (p) => (p.accountId ? 1000 : 0) + ["siren", "siret", "raisonSociale", "formeJuridique", "contactNom", "contactEmail", "contactTel", "telephone", "site", "adresse", "email", "potentiel", "notes"].reduce((n, k) => n + (p[k] ? 1 : 0), 0);
+      const keep = new Set();
+      Object.values(groups).forEach((g) => { keep.add(g.slice().sort((a, b) => score(b) - score(a))[0].id); });
+      persist((d) => ({ ...d, prospects: d.prospects.filter((p) => { const sr = String(p.siret || "").replace(/\s/g, ""); const k = sr.length >= 9 ? ("siret:" + sr) : ("nv:" + norm(p.nom) + "|" + norm(p.ville)); return !groups[k] || groups[k].length <= 1 || keep.has(p.id); }) }));
+      setAiErr(null); setAiMsg(removable + " doublon(s) supprimé(s) du listing."); setTimeout(() => setAiMsg(null), 4000);
+    });
+  };
   const NATURE_FROM_TYPE = { cooperative: "CA", chaine: "CA", franchise: "FC", independant: "MI", specialiste: "MI", gss: "CA", autre: "DV" };
   const convert = (p) => {
     const grp = findGroupForProspect(data.accounts, p);
@@ -4343,7 +4362,7 @@ function Prospection({ data, persist, go }) {
       {(p.contactNom || p.siren || p.siret) && <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", flexWrap: "wrap", gap: 10, marginTop: 2 }}>{p.contactNom && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><User size={13} />{[p.contactPrenom, p.contactNom].filter(Boolean).join(" ")}{p.contactFonction ? (" · " + p.contactFonction) : ""}</span>}{p.siren && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Building2 size={12} />SIREN {p.siren}</span>}{p.siret && <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }} title="SIRET de l'établissement"><MapPin size={12} />SIRET {p.siret}</span>}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 4, alignItems: "center", flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
         <a className="iconbtn" href={mapsUrl(p)} target="_blank" rel="noreferrer" title="Voir sur Google Maps"><MapPin size={15} /></a>
-        {p.site && <a className="iconbtn" href={p.site} target="_blank" rel="noreferrer" title="Site web"><ExternalLink size={15} /></a>}
+        {p.site && <a className="iconbtn" href={ensureHttp(p.site)} target="_blank" rel="noreferrer" title={"Site web : " + cleanDomain(p.site)}><ExternalLink size={15} /></a>}
         {p.telephone && <a className="iconbtn" href={"tel:" + p.telephone.replace(/\s/g, "")} title={p.telephone}><Phone size={15} /></a>}
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 11, color: "var(--muted)" }}>{p.source}</span>
@@ -4374,7 +4393,10 @@ function Prospection({ data, persist, go }) {
         </div>
         {hasFilter && <button className="btn btn-ghost btn-s" onClick={() => { setQ(""); setFType("tous"); setFRegion("tous"); setFStatut("tous"); }}><X size={13} /> Effacer</button>}
       </div>
-      <button className="btn btn-p" onClick={() => setEdit({ id: "p_" + Date.now(), nom: "", enseigne: "", type: "autre", format: "", adresse: "", ville: "", cp: "", departement: "", region: "", telephone: "", site: "", email: "", statut: "a_qualifier", potentiel: "", notes: "", source: "Saisie manuelle", accountId: null, createdAt: TODAY() })}><Plus size={16} /> Ajouter un prospect</button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="btn btn-ghost" onClick={dedupeProspects} title="Détecter et supprimer les prospects en double (même SIRET, ou même nom + ville) en gardant la fiche la plus complète"><Copy size={16} /> Supprimer les doublons</button>
+        <button className="btn btn-p" onClick={() => setEdit({ id: "p_" + Date.now(), nom: "", enseigne: "", type: "autre", format: "", adresse: "", ville: "", cp: "", departement: "", region: "", telephone: "", site: "", email: "", statut: "a_qualifier", potentiel: "", notes: "", source: "Saisie manuelle", accountId: null, createdAt: TODAY() })}><Plus size={16} /> Ajouter un prospect</button>
+      </div>
     </div>
     <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>{list.length} prospect(s) sur {prospects.length} · groupés par {gd.label.toLowerCase()}</div>
     {list.length === 0 ? <div className="card empty">Aucun prospect ne correspond.</div> : groups.map((g) => { const m = gd.meta ? gd.meta(g.key) : null; const lbl = m ? m.label : g.key; const col = m ? m.color : "#9aa6bd"; return (
@@ -4392,7 +4414,7 @@ function Prospection({ data, persist, go }) {
       <div className="fld"><label>Adresse postale</label><AddrInput value={edit.adresse} onChange={(v) => upE("adresse", v)} known={collectKnownAddresses(data)} rows={2} placeholder="Tapez une adresse et choisissez une suggestion" /></div>
       <div className="row2"><div className="fld"><label>Code postal</label><input value={edit.cp} onChange={(e) => upE("cp", e.target.value)} /></div><div className="fld"><label>Ville</label><input value={edit.ville} onChange={(e) => upE("ville", e.target.value)} /></div></div>
       <div className="row2"><div className="fld"><label>Département</label><input value={edit.departement} onChange={(e) => upE("departement", e.target.value)} placeholder="82 Tarn-et-Garonne" /></div><div className="fld"><label>Région</label><input value={edit.region} onChange={(e) => upE("region", e.target.value)} placeholder="Occitanie" /></div></div>
-      <div className="row2"><div className="fld"><label>Téléphone</label><input value={edit.telephone} onChange={(e) => upE("telephone", e.target.value)} /></div><div className="fld"><label>Site web</label><input value={edit.site} onChange={(e) => upE("site", e.target.value)} placeholder="https://…" /></div></div>
+      <div className="row2"><div className="fld"><label>Téléphone</label><input value={edit.telephone} onChange={(e) => upE("telephone", e.target.value)} /></div><div className="fld"><label>Site web</label><input value={edit.site} onChange={(e) => upE("site", e.target.value)} placeholder="https://…" />{edit.site && edit.site.trim() && <a className="lnk" href={ensureHttp(edit.site)} target="_blank" rel="noreferrer" style={{ fontSize: 11.5, marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4 }}><ExternalLink size={12} /> Ouvrir {cleanDomain(edit.site) || "le site"}</a>}</div></div>
       <div className="row2"><div className="fld"><label>Statut de prospection</label><select value={edit.statut} onChange={(e) => upE("statut", e.target.value)}>{Object.entries(PROSPECT_STATUT).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div><div className="fld"><label>Potentiel</label><select value={edit.potentiel} onChange={(e) => upE("potentiel", e.target.value)}><option value="">— à évaluer —</option>{Object.entries(POTENTIEL_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div></div>
       <div className="fld"><label>Notes</label><textarea rows={3} value={edit.notes} onChange={(e) => upE("notes", e.target.value)} /></div>
       <div style={{ borderTop: "1px solid var(--line)", margin: "4px 0 2px", paddingTop: 10, fontSize: 11, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em" }}>Identité légale (sources officielles, à vérifier)</div>
