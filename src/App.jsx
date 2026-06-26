@@ -1117,6 +1117,20 @@ function useCountUp(value, duration = 850) {
   useEffect(() => { let raf, start; const from = fromRef.current; const to = Number(value) || 0; const tick = (t) => { if (start === undefined) start = t; const p = Math.min(1, (t - start) / duration); setN(from + (to - from) * (1 - Math.pow(1 - p, 3))); if (p < 1) raf = requestAnimationFrame(tick); else fromRef.current = to; }; raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf); }, [value, duration]);
   return n;
 }
+// Chronomètre : renvoie les secondes écoulées (mm:ss au-delà de 60 s) tant que `running` est vrai,
+// remis à zéro à chaque relance. Sert à afficher un minuteur dans les boutons de recherche IA.
+function useElapsed(running) {
+  const [sec, setSec] = useState(0);
+  useEffect(() => {
+    if (!running) { setSec(0); return; }
+    setSec(0);
+    const startedAt = performance.now();
+    const iv = setInterval(() => setSec(Math.floor((performance.now() - startedAt) / 1000)), 250);
+    return () => clearInterval(iv);
+  }, [running]);
+  return sec;
+}
+const fmtElapsed = (s) => s < 60 ? s + " s" : Math.floor(s / 60) + " min " + String(s % 60).padStart(2, "0") + " s";
 
 // Motifs SVG de fond (data URIs) pour les thèmes de page.
 const _encSvg = (svg) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
@@ -1677,16 +1691,44 @@ let _modalGuards = 0; // nombre de fenêtres d'édition ouvertes : sert à prév
 function Modal({ title, onClose, children, wide, xl, guard = true }) {
   const w = xl ? "min(820px,100%)" : wide ? "min(640px,100%)" : "min(560px,100%)";
   const ref = useRef(null);
-  // Accessibilité : Échap pour fermer, focus initial sur la fenêtre.
+  const sigRef = useRef(null);
+  // Signature des champs du formulaire (valeurs des inputs/textarea/select) pour détecter une saisie
+  // non enregistrée. On compare l'état initial (au montage) à l'état au moment de la fermeture.
+  const formSig = () => {
+    const root = ref.current; if (!root) return "";
+    let s = "";
+    root.querySelectorAll("input, textarea, select").forEach((el) => {
+      if (el.type === "checkbox" || el.type === "radio") s += (el.checked ? "1" : "0") + "";
+      else if (el.type === "file") s += (el.value ? "f" : "") + "";
+      else s += (el.value || "") + "";
+    });
+    return s;
+  };
+  // Fermeture protégée : si des champs ont changé depuis l'ouverture, on demande confirmation avant
+  // de quitter (évite de perdre une saisie : devis, fiche établissement, etc.).
+  const requestClose = async () => {
+    if (guard && sigRef.current != null) {
+      let cur = ""; try { cur = formSig(); } catch (e) { cur = sigRef.current; }
+      if (cur !== sigRef.current) {
+        const ok = await appConfirm("Des modifications ne sont pas enregistrées dans ce formulaire. Êtes-vous sûr de vouloir quitter sans enregistrer ?", { title: "Quitter sans enregistrer ?", confirmLabel: "Quitter sans enregistrer" });
+        if (!ok) return;
+      }
+    }
+    onClose && onClose();
+  };
+  const closeRef = useRef(requestClose); closeRef.current = requestClose;
+  // Accessibilité : Échap pour fermer (via la fermeture protégée), focus initial, et capture de la
+  // signature initiale du formulaire une fois rendu.
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose && onClose(); };
+    const onKey = (e) => { if (e.key === "Escape") closeRef.current(); };
     window.addEventListener("keydown", onKey);
     const t = setTimeout(() => { try { ref.current && ref.current.focus(); } catch (e) { } }, 0);
-    return () => { window.removeEventListener("keydown", onKey); clearTimeout(t); };
-  }, [onClose]);
+    const t2 = setTimeout(() => { try { sigRef.current = formSig(); } catch (e) { sigRef.current = ""; } }, 40);
+    return () => { window.removeEventListener("keydown", onKey); clearTimeout(t); clearTimeout(t2); };
+  }, []);
   // Garde anti-perte : compte cette fenêtre comme « édition ouverte » le temps de son affichage.
   useEffect(() => { if (!guard) return; _modalGuards++; return () => { _modalGuards = Math.max(0, _modalGuards - 1); }; }, [guard]);
-  return (<div className="ov no-print" onClick={onClose}><div className="modal" ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined} style={{ width: w, outline: "none" }} onClick={(e) => e.stopPropagation()}><div className="modal-h"><h3 className="pu-display">{title}</h3><button className="iconbtn" onClick={onClose} aria-label="Fermer"><X size={18} /></button></div><div className="modal-b">{children}</div></div></div>);
+  return (<div className="ov no-print" onClick={() => closeRef.current()}><div className="modal" ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined} style={{ width: w, outline: "none" }} onClick={(e) => e.stopPropagation()}><div className="modal-h"><h3 className="pu-display">{title}</h3><button className="iconbtn" onClick={() => closeRef.current()} aria-label="Fermer"><X size={18} /></button></div><div className="modal-b">{children}</div></div></div>);
 }
 
 // Popup intégrant la fiche Google (carte interactive) d'un établissement, sans quitter le logiciel.
@@ -2343,7 +2385,7 @@ function Accounts({ data, persist, go, focus }) {
   const nq = normStr(q);
   const visibleRows = pdvRows.filter((r) => !nq || rowHay(r).includes(nq)).sort((x, y) => sortPdv === "enseigne" ? (ensName(x).localeCompare(ensName(y)) || storeName(x).localeCompare(storeName(y))) : sortPdv === "ville" ? (adrName(x).localeCompare(adrName(y)) || storeName(x).localeCompare(storeName(y))) : sortPdv === "etape" ? (stageRank(x) - stageRank(y) || storeName(x).localeCompare(storeName(y))) : storeName(x).localeCompare(storeName(y)));
   return (<div className="fade">
-    <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}><button className={cx("btn", "btn-s", view === "actifs" ? "btn-p" : "btn-g")} onClick={() => setView("actifs")}>Actifs</button><button className={cx("btn", "btn-s", view === "archive" ? "btn-p" : "btn-g")} onClick={() => setView("archive")}><Archive size={14} /> Archivés ({archivedAccounts.length})</button></div>
+    <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}><button className={cx("btn", "btn-s", view === "actifs" ? "btn-p" : "btn-g")} onClick={() => setView("actifs")}>Actifs ({accounts.length - archivedAccounts.length})</button><button className={cx("btn", "btn-s", view === "archive" ? "btn-p" : "btn-g")} onClick={() => setView("archive")}><Archive size={14} /> Archivés ({archivedAccounts.length})</button></div>
     {view === "archive" ? (<div>
       <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>Établissements et groupes archivés (parcours commercial arrêté). Ouvrez la fiche, modifiez le motif, ou réactivez.</div>
       {archivedAccounts.length === 0 ? <div className="empty">Aucun établissement archivé. Depuis une fiche, utilisez « Archiver » pour y placer un établissement dont le parcours commercial s'est arrêté.</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>{archivedAccounts.slice().sort((a, b) => (b.archiveDate || "").localeCompare(a.archiveDate || "")).map((a) => (
@@ -2416,6 +2458,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
   const doArchive = (info) => { if (!acc) return; persist((p) => ({ ...p, accounts: p.accounts.map((x) => x.id === acc.id ? { ...x, archived: true, archiveReason: info.reason, archiveDate: info.date || TODAY(), archiveNote: info.note || "" } : x) })); setArchiveOpen(false); if (onBack) onBack(); };
   const unArchive = () => { if (!acc) return; persist((p) => ({ ...p, accounts: p.accounts.map((x) => x.id === acc.id ? { ...x, archived: false } : x) })); };
   const [aiBusy, setAiBusy] = useState(false); const [aiMsg, setAiMsg] = useState(null);
+  const aiElapsed = useElapsed(aiBusy);
   // Recherche IA sur la fiche établissement : trouve en ligne le site web (et réseaux) de
   // l'établissement / de son enseigne, et complète les champs encore vides.
   const runSiteAI = async () => {
@@ -2469,7 +2512,7 @@ function SiteDetail({ site, data, persist, go, onBack, onGoAccount }) {
           {s.site && <div style={{ fontSize: 13, marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6 }}><Globe size={14} style={{ color: "var(--muted)" }} /><a className="lnk" href={ensureHttp(s.site)} target="_blank" rel="noreferrer" title="Site internet de l'établissement">{cleanDomain(s.site) || s.site}</a></div>}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9, alignItems: "center" }}>{s.typeSurface && <Badge color="#3F60AA">{s.typeSurface}</Badge>}{s.siret && <span className="tnum" style={{ fontSize: 12, color: "var(--muted)" }}>SIRET {s.siret}</span>}{!s.lat && <Badge color="#c0392b">à géolocaliser</Badge>}</div>
         </div>
-        <div className="tile-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="btn btn-ai" onClick={runSiteAI} disabled={aiBusy} title="Rechercher en ligne le site web (et réseaux) de l'établissement"><Sparkles size={15} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Recherche IA"}</button><button className="btn btn-g" onClick={() => setChatOpen(true)} title="Conseil IA : discuter de ce compte (analyse, prochaine action, arguments de vente)"><MessageSquare size={15} /> Conseil IA</button><button className="btn btn-g" onClick={() => setGmapOpen(true)} title="Voir la fiche Google de cet établissement dans le logiciel"><MapPin size={15} /> Fiche Google</button>{s.lat != null && <button className="btn btn-g" onClick={() => go("carte", s.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-g" onClick={() => openPrint("Fiche " + (s.label || ""), ficheBody(s.label || "Établissement", [acc ? acc.enseigne : "Indépendant", s.adresse].filter(Boolean).join(" · "), [s.type === "decision" ? "Siège" : "Établissement", s.typeSurface].filter(Boolean), [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(siteContacts.length) }, { l: "Documents", v: num(deals.length) }], siteContacts, deals, ints, acc))}><Printer size={15} /> PDF</button>{indep && acc && (acc.archived ? <button className="btn btn-g" onClick={unArchive} title="Réactiver : remettre dans les listes actives"><ArchiveRestore size={15} /> Désarchiver</button> : <button className="btn btn-g" onClick={() => setArchiveOpen(true)} title="Archiver : parcours commercial arrêté"><Archive size={15} /> Archiver</button>)}<button className="btn btn-g" onClick={() => setEdit({ ...s })}><Pencil size={15} /> Modifier</button>{indep && <button className="btn btn-p" onClick={promoteIndepToGroup} title="Faire de cet établissement une chaîne / un groupe, pour y rattacher d'autres établissements"><GitBranch size={15} /> Transformer en groupe</button>}<button className="btn btn-g" style={{ color: "var(--red)" }} onClick={delThis}><Trash2 size={15} /> Supprimer</button></div>
+        <div className="tile-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button className="btn btn-ai" onClick={runSiteAI} disabled={aiBusy} title="Rechercher en ligne le site web (et réseaux) de l'établissement"><Sparkles size={15} className={aiBusy ? "spin" : ""} /> {aiBusy ? ("Recherche… " + fmtElapsed(aiElapsed)) : "Recherche IA"}</button><button className="btn btn-g" onClick={() => setChatOpen(true)} title="Conseil IA : discuter de ce compte (analyse, prochaine action, arguments de vente)"><MessageSquare size={15} /> Conseil IA</button><button className="btn btn-g" onClick={() => setGmapOpen(true)} title="Voir la fiche Google de cet établissement dans le logiciel"><MapPin size={15} /> Fiche Google</button>{s.lat != null && <button className="btn btn-g" onClick={() => go("carte", s.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-g" onClick={() => openPrint("Fiche " + (s.label || ""), ficheBody(s.label || "Établissement", [acc ? acc.enseigne : "Indépendant", s.adresse].filter(Boolean).join(" · "), [s.type === "decision" ? "Siège" : "Établissement", s.typeSurface].filter(Boolean), [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(siteContacts.length) }, { l: "Documents", v: num(deals.length) }], siteContacts, deals, ints, acc))}><Printer size={15} /> PDF</button>{indep && acc && (acc.archived ? <button className="btn btn-g" onClick={unArchive} title="Réactiver : remettre dans les listes actives"><ArchiveRestore size={15} /> Désarchiver</button> : <button className="btn btn-g" onClick={() => setArchiveOpen(true)} title="Archiver : parcours commercial arrêté"><Archive size={15} /> Archiver</button>)}<button className="btn btn-g" onClick={() => setEdit({ ...s })}><Pencil size={15} /> Modifier</button>{indep && <button className="btn btn-p" onClick={promoteIndepToGroup} title="Faire de cet établissement une chaîne / un groupe, pour y rattacher d'autres établissements"><GitBranch size={15} /> Transformer en groupe</button>}<button className="btn btn-g" style={{ color: "var(--red)" }} onClick={delThis}><Trash2 size={15} /> Supprimer</button></div>
       </div>
       <div style={{ display: "flex", gap: 26, marginTop: 16, flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 14 }}><Stat label="Contacts" value={num(siteContacts.length)} />{caAttente > 0 && <Stat label="CA HT en attente" value={eur(caAttente)} />}<Stat label="CA HT signé" value={eur(caSigne)} /><Stat label="Échanges" value={num(ints.length)} /><Stat label="Documents" value={num(deals.length)} /></div>
       {aiMsg && <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>{aiMsg}</div>}
@@ -2542,6 +2585,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
   // Recherche IA sur la fiche (comme la prospection) : trouve la présence en ligne (site, Facebook,
   // Instagram) et l'identité légale (SIREN, raison sociale, forme juridique, adresse), et complète
   // les champs encore vides sans écraser ce qui est déjà renseigné à la main.
+  const aiElapsed = useElapsed(aiBusy);
   const runFicheAI = async () => {
     setAiBusy(true); setAiMsg(null);
     const usage = (u) => persist((p) => ({ ...p, claudeUsage: addUsage(p.claudeUsage, u) }));
@@ -2595,7 +2639,7 @@ function AccountDetail({ account, data, persist, go, onBack, onEdit, onAddContac
         <div style={{ flex: 1, minWidth: 220 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><h2 className="pu-display" style={{ margin: 0, fontSize: 23 }}>{a.enseigne}</h2>{a.code && <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: ".04em", background: "var(--bg)", border: "1px solid var(--line)", borderRadius: 8, padding: "3px 9px", color: "var(--ink)" }} className="tnum">{a.code}</span>}<Badge color={st.color}>{st.label}</Badge>{isGroupe(a) ? <Badge color="#3F60AA">Groupe</Badge> : <Badge color="#7a8699">Établissement</Badge>}</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9 }}><Badge color={(NATURE_META[a.nature] || NATURE_META.DV).color}>{(NATURE_META[a.nature] || NATURE_META.DV).label}</Badge><Badge color={seg.color}>{seg.label}</Badge>{a.ville && <span style={{ color: "var(--muted)", fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={13} />{a.ville}</span>}</div>
           {(a.siren || a.formeJuridique) && <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 6, display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}><Building2 size={13} />{[a.formeJuridique, a.siren && ("SIREN " + a.siren)].filter(Boolean).join(" · ")}</div>}</div>
-        <div className="tile-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{(() => { const sl = smartLink(a); const SI = sl.Icon; return <a className="btn btn-g" href={sl.url} target="_blank" rel="noreferrer" title={a.site || a.facebook || a.instagram ? sl.url : "Rechercher cet établissement sur Google"}><SI size={15} /> {sl.label}</a>; })()}<button className="btn btn-ai" onClick={runFicheAI} disabled={aiBusy} title="Rechercher en ligne le site, les réseaux sociaux et l'identité légale (comme la prospection)"><Sparkles size={15} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Recherche IA"}</button><button className="btn btn-g" onClick={() => setChatOpen(true)} title="Conseil IA : discuter de ce compte (analyse, prochaine action, arguments de vente)"><MessageSquare size={15} /> Conseil IA</button><button className="btn btn-g" onClick={() => setGmapOpen(true)} title="Voir la fiche Google de cet établissement dans le logiciel"><MapPin size={15} /> Fiche Google</button>{a.lat && <button className="btn btn-g" onClick={() => go("carte", a.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-g" onClick={() => openPrint("Fiche " + (a.enseigne || ""), ficheBody(a.enseigne || "Établissement", [a.code, (NATURE_META[a.nature] || {}).label, a.ville].filter(Boolean).join(" · "), [isGroupe(a) ? "Groupe" : "Établissement", stageMeta(a.stage).label], [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(conts.length) }, { l: "Documents", v: num(deals.length) }], conts, deals, accInteractions, a))}><Printer size={15} /> PDF</button>{a.archived ? <button className="btn btn-g" onClick={unArchive} title="Réactiver : remettre dans les listes actives"><ArchiveRestore size={15} /> Désarchiver</button> : <button className="btn btn-g" onClick={() => setArchiveOpen(true)} title="Archiver : parcours commercial arrêté"><Archive size={15} /> Archiver</button>}<button className="btn btn-g" onClick={onEdit}><Pencil size={15} /> Modifier</button>{onDelete && <button className="btn btn-g" style={{ color: "var(--red)" }} onClick={onDelete}><Trash2 size={15} /> Supprimer</button>}</div>
+        <div className="tile-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{(() => { const sl = smartLink(a); const SI = sl.Icon; return <a className="btn btn-g" href={sl.url} target="_blank" rel="noreferrer" title={a.site || a.facebook || a.instagram ? sl.url : "Rechercher cet établissement sur Google"}><SI size={15} /> {sl.label}</a>; })()}<button className="btn btn-ai" onClick={runFicheAI} disabled={aiBusy} title="Rechercher en ligne le site, les réseaux sociaux et l'identité légale (comme la prospection)"><Sparkles size={15} className={aiBusy ? "spin" : ""} /> {aiBusy ? ("Recherche… " + fmtElapsed(aiElapsed)) : "Recherche IA"}</button><button className="btn btn-g" onClick={() => setChatOpen(true)} title="Conseil IA : discuter de ce compte (analyse, prochaine action, arguments de vente)"><MessageSquare size={15} /> Conseil IA</button><button className="btn btn-g" onClick={() => setGmapOpen(true)} title="Voir la fiche Google de cet établissement dans le logiciel"><MapPin size={15} /> Fiche Google</button>{a.lat && <button className="btn btn-g" onClick={() => go("carte", a.id)}><MapIcon size={15} /> Carte</button>}<button className="btn btn-g" onClick={() => openPrint("Fiche " + (a.enseigne || ""), ficheBody(a.enseigne || "Établissement", [a.code, (NATURE_META[a.nature] || {}).label, a.ville].filter(Boolean).join(" · "), [isGroupe(a) ? "Groupe" : "Établissement", stageMeta(a.stage).label], [{ l: "CA HT en attente", v: eur(caAttente) }, { l: "CA HT signé", v: eur(caSigne) }, { l: "Contacts", v: num(conts.length) }, { l: "Documents", v: num(deals.length) }], conts, deals, accInteractions, a))}><Printer size={15} /> PDF</button>{a.archived ? <button className="btn btn-g" onClick={unArchive} title="Réactiver : remettre dans les listes actives"><ArchiveRestore size={15} /> Désarchiver</button> : <button className="btn btn-g" onClick={() => setArchiveOpen(true)} title="Archiver : parcours commercial arrêté"><Archive size={15} /> Archiver</button>}<button className="btn btn-g" onClick={onEdit}><Pencil size={15} /> Modifier</button>{onDelete && <button className="btn btn-g" style={{ color: "var(--red)" }} onClick={onDelete}><Trash2 size={15} /> Supprimer</button>}</div>
       </div>
       <div style={{ display: "flex", gap: 26, marginTop: 16, flexWrap: "wrap", borderTop: "1px solid var(--line)", paddingTop: 14 }}><Stat label="Établissements suivis" value={num(pdvSites.length)} />{(a.magasins || 0) > pdvSites.length && <Stat label="Établissements du groupe" value={num(a.magasins)} />}<Stat label="CA HT en attente" value={eur(caAttente)} /><Stat label="CA HT signé" value={eur(caSigne)} /><Stat label="Contacts" value={conts.length} /><Stat label="Échanges" value={accInteractions.length} /><Stat label="Documents" value={deals.length} /></div>
       {a.prochaineAction && <div style={{ marginTop: 14, fontSize: 13, display: "flex", gap: 8, alignItems: "center", color: "var(--muted)", flexWrap: "wrap" }}><Calendar size={14} /> Prochaine action : <strong style={{ color: "var(--ink)" }}>{a.prochaineAction}</strong>{a.dateAction && (() => { const n = daysFromToday(a.dateAction); const late = n != null && n < 0; return <span style={{ color: late ? "var(--red)" : "var(--muted)", fontWeight: late ? 700 : 400 }}>· {relDate(a.dateAction)} ({a.dateAction}){late ? " — en retard" : ""}</span>; })()}</div>}
@@ -2910,7 +2954,7 @@ function MessageComposer({ account, site, contacts, contact, defaultContactId, i
   const recMobile = recipient && (recipient.mobile || recipient.fixe);
   const smsHref = recMobile ? ("sms:" + String(recMobile).replace(/[^+\d]/g, "") + "?body=" + encodeURIComponent(out)) : null;
   const mailHref = recMail ? ("mailto:" + recipient.email + "?subject=" + encodeURIComponent(subject || "") + "&body=" + encodeURIComponent(out)) : null;
-  return (<Modal title={"Message IA — " + (recipient ? fullName(recipient) : estabName)} onClose={onClose} xl>
+  return (<Modal title={"Message IA — " + (recipient ? fullName(recipient) : estabName)} onClose={onClose} xl guard={false}>
     <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>{MSG_CANALS.map((c) => { const Ic = c.Icon; const on = canal === c.key; return (<button key={c.key} type="button" onClick={() => setCanal(c.key)} style={{ flex: 1, minWidth: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "9px 10px", borderRadius: 11, border: "1px solid " + (on ? c.color : "var(--line)"), boxShadow: on ? "inset 0 0 0 1px " + c.color : "none", background: on ? c.color + "14" : "var(--card)", color: on ? c.color : "var(--muted)", fontWeight: 700, fontFamily: "inherit", fontSize: 13, cursor: "pointer" }}><Ic size={16} /> {c.label}</button>); })}</div>
     <div className="row2">
       <div className="fld"><label>Destinataire</label>{list.length > 1 ? <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)}>{list.map((c) => <option key={c.id} value={c.id}>{fullName(c)}{c.fonction ? " — " + c.fonction : ""}</option>)}</select> : <input readOnly value={recipient ? fullName(recipient) : "—"} />}<span style={{ fontSize: 11, color: "var(--muted)" }}>{canal === "sms" ? (recMobile ? "📱 " + recMobile : "Aucun mobile renseigné") : canal === "email" ? (recMail ? "✉️ " + recipient.email : "Aucune adresse e-mail") : (recipient && recipient.linkedin ? "Profil LinkedIn renseigné" : "Recherche LinkedIn")}</span></div>
@@ -2992,7 +3036,7 @@ function EstablishmentChat({ account, site, contacts = [], interactions = [], de
     finally { setBusy(false); }
   };
   const quick = ["Quelle est la prochaine action à mener ?", "Résume notre relation en 3 points", "Quels arguments pour référencer ce magasin ?", "Rédige une relance courte"];
-  return (<Modal title={"Chat IA — " + titre} onClose={onClose} wide>
+  return (<Modal title={"Chat IA — " + titre} onClose={onClose} wide guard={false}>
     <div ref={scrollRef} style={{ height: 360, maxHeight: "55vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: "4px 2px 8px" }}>
       {msgs.map((m, i) => (<div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "88%" }}>
         <div style={{ padding: "9px 12px", borderRadius: 14, fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap", background: m.role === "user" ? "var(--blue)" : "var(--bg)", color: m.role === "user" ? "#fff" : "var(--ink)", border: m.role === "user" ? "none" : "1px solid var(--line)" }}>{m.text}</div>
@@ -3103,6 +3147,7 @@ function AccountForm({ acc, accounts, onSave, known = [], onUsage }) {
   const indepList = (accounts || []).filter((a) => !isGroupe(a)).sort((a, b) => (a.enseigne || "").localeCompare(b.enseigne || ""));
   const [attachSel, setAttachSel] = useState([]);
   const toggleAttach = (id) => setAttachSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
+  const aiElapsed = useElapsed(aiBusy);
   const autofill = async () => {
     if (!f.enseigne) { setAiMsg({ ok: false, t: "Renseignez d'abord le nom du compte." }); return; }
     setAiBusy(true); setAiMsg(null);
@@ -3128,7 +3173,7 @@ function AccountForm({ acc, accounts, onSave, known = [], onUsage }) {
     <div className="fld"><label>Nom (groupe ou établissement)</label><Combo value={f.enseigne} onChange={(v) => up("enseigne", v)} options={ENSEIGNES_SUGG} placeholder="Cultura, L'Atelier Chez Soi…" /></div>
     {dup && <div className="dup-warn"><AlertTriangle size={15} /> Un compte nommé « {dup.enseigne} » existe déjà. Vérifiez avant d'enregistrer pour éviter un doublon.</div>}
     <div className="fld"><label>Étape de l'entonnoir</label><select value={f.stage} disabled={f.stageAuto !== false} onChange={(e) => { up("stage", e.target.value); up("stageAuto", false); }}>{STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select><label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--muted)", marginTop: 7, fontWeight: 600, cursor: "pointer" }}><input type="checkbox" checked={f.stageAuto !== false} onChange={(e) => up("stageAuto", !!e.target.checked)} style={{ width: "auto" }} /> Classer automatiquement selon l'avancement (échanges, RDV, commandes)</label>{f.stageAuto !== false && <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>L'étape avance toute seule (jamais en arrière) et se met à jour à chaque enregistrement. Décochez pour la fixer à la main.</span>}</div>
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button type="button" className="btn btn-ai btn-s" onClick={autofill} disabled={aiBusy || !f.enseigne} title="Compléter forme juridique, SIREN, ville et adresse à partir des registres officiels (ne remplit que les champs vides)"><Sparkles size={14} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Compléter les champs vides avec l'IA"}</button></div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button type="button" className="btn btn-ai btn-s" onClick={autofill} disabled={aiBusy || !f.enseigne} title="Compléter forme juridique, SIREN, ville et adresse à partir des registres officiels (ne remplit que les champs vides)"><Sparkles size={14} className={aiBusy ? "spin" : ""} /> {aiBusy ? ("Recherche… " + fmtElapsed(aiElapsed)) : "Compléter les champs vides avec l'IA"}</button></div>
     {aiMsg && <div style={{ fontSize: 12, lineHeight: 1.5, padding: "8px 11px", borderRadius: 9, background: aiMsg.ok ? "#eef6ee" : "#fbf0ee", border: "1px solid " + (aiMsg.ok ? "#bfe0c0" : "#f0c8c0") }}>{aiMsg.t}</div>}
     <div className="row2"><div className="fld"><label>Nature du client (définit le code)</label><select value={f.nature || ""} onChange={(e) => up("nature", e.target.value)}><option value="">— à préciser —</option>{NATURE_ORDER.map((k) => <option key={k} value={k}>{k} · {NATURE_META[k].label}</option>)}</select></div><div className="fld"><label>Code client</label><div style={{ display: "flex", gap: 6, alignItems: "center" }}><input value={f.code || ""} readOnly placeholder={isClientCode(f.code) ? "" : "attribué à l'enregistrement"} style={{ fontWeight: 700, letterSpacing: ".04em", background: "var(--bg)" }} />{isClientCode(f.code) && <button type="button" className="btn btn-g btn-s" onClick={regen} title="Recalculer le code à partir de la nature actuelle (à n'utiliser que pour corriger une erreur de classification)"><RefreshCw size={13} /></button>}</div><span style={{ fontSize: 11, color: "var(--muted)" }}>Figé à la création. Modifier la nature ne change pas le code, sauf via le bouton de recalcul.</span></div></div>
     <div className="row2"><div className="fld"><label>Forme juridique</label><Combo value={f.formeJuridique || ""} onChange={(v) => up("formeJuridique", v)} options={FORMES_JURIDIQUES} placeholder="SAS, SARL, association loi 1901…" /></div><div className="fld"><label>SIREN (entité juridique, 9 chiffres)</label><input value={f.siren || ""} onChange={(e) => up("siren", e.target.value)} placeholder="9 chiffres, ou n° RNA (W + 9 chiffres) pour une association" /><span style={{ fontSize: 11, color: "var(--muted)" }}>Identité de la personne morale, reprise sur les documents. Le SIRET (établissement) se renseigne au niveau de l'établissement.</span></div></div>
@@ -4065,6 +4110,7 @@ function SiteForm({ site, accounts, onSave, known = [], contacts = [], onOpenCon
   const [geo, setGeo] = useState(false); const [msg, setMsg] = useState(null);
   const parentAcc = (accounts || []).find((x) => x.id === f.accountId) || null;
   const [aiBusy, setAiBusy] = useState(false); const [aiMsg, setAiMsg] = useState(null); const [cMsg, setCMsg] = useState(null);
+  const aiElapsed = useElapsed(aiBusy);
   const autofill = async () => {
     const ens = f.label || (parentAcc && parentAcc.enseigne) || "";
     if (!ens) { setAiMsg({ ok: false, t: "Renseignez d'abord le libellé du site, ou rattachez un groupe ou un établissement." }); return; }
@@ -4111,7 +4157,7 @@ function SiteForm({ site, accounts, onSave, known = [], contacts = [], onOpenCon
   return (<>
     <div className="fld"><label>Libellé du site</label><input value={f.label} onChange={(e) => up("label", e.target.value)} placeholder="Cultura Montauban, King Jouet Cahors…" /></div>
     <div className="row2"><div className="fld"><label>Rôle</label><select value={f.type} onChange={(e) => up("type", e.target.value)}>{roleChoices.map((k) => <option key={k} value={k}>{ROLE_LABELS[k]}</option>)}</select></div>{(parentAcc && !isGroupe(parentAcc)) ? <div className="fld"><label>Rattachement</label><div style={{ fontSize: 12, color: "var(--muted)", border: "1px solid var(--line)", borderRadius: 8, padding: "8px 10px", lineHeight: 1.4 }}>Établissement indépendant. Pour le rattacher à un groupe, utilisez le sélecteur « Rattachement » en haut de sa fiche (évite tout doublon).</div></div> : <div className="fld"><label>Groupe de rattachement (facultatif)</label><select value={f.accountId || ""} onChange={(e) => up("accountId", e.target.value || null)}><option value="">— Indépendant (aucun groupe) —</option>{accounts.filter((a) => isGroupe(a)).map((a) => <option key={a.id} value={a.id}>{a.enseigne}</option>)}</select></div>}</div>
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button type="button" className="btn btn-ai btn-s" onClick={autofill} disabled={aiBusy || !(f.label || parentAcc)} title="Compléter type d'établissement, SIRET, adresse, note et coordonnées (ne remplit que les champs vides)"><Sparkles size={14} className={aiBusy ? "spin" : ""} /> {aiBusy ? "Recherche…" : "Compléter les champs vides avec l'IA"}</button></div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><button type="button" className="btn btn-ai btn-s" onClick={autofill} disabled={aiBusy || !(f.label || parentAcc)} title="Compléter type d'établissement, SIRET, adresse, note et coordonnées (ne remplit que les champs vides)"><Sparkles size={14} className={aiBusy ? "spin" : ""} /> {aiBusy ? ("Recherche… " + fmtElapsed(aiElapsed)) : "Compléter les champs vides avec l'IA"}</button></div>
     {aiMsg && <div style={{ fontSize: 12, lineHeight: 1.5, padding: "8px 11px", borderRadius: 9, background: aiMsg.ok ? "#eef6ee" : "#fbf0ee", border: "1px solid " + (aiMsg.ok ? "#bfe0c0" : "#f0c8c0") }}>{aiMsg.t}</div>}
     {(f.type === "pdv" || f.type === "decision") && <div className="fld"><label>Type d'établissement</label><select value={f.typeSurface || ""} onChange={(e) => up("typeSurface", e.target.value)}><option value="">— à préciser —</option>{TYPE_SURFACE.map((t) => <option key={t} value={t}>{t}</option>)}</select></div>}
     {(f.type === "pdv" || f.type === "decision") && <div className="fld"><label>SIRET de l'établissement (14 chiffres)</label><input value={f.siret || ""} onChange={(e) => up("siret", e.target.value)} placeholder="14 chiffres (SIREN + NIC), ou n° RNA (W + 9 chiffres) pour une association" /><span style={{ fontSize: 11, color: "var(--muted)" }}>Identifie ce point de vente précis ; les 9 premiers chiffres reprennent le SIREN du compte. Le SIRET sert d'adresse de facturation/livraison fiable.</span></div>}
@@ -4209,6 +4255,7 @@ function Prospection({ data, persist, go }) {
   const [q, setQ] = useState(""); const [fType, setFType] = useState("tous"); const [fRegion, setFRegion] = useState("tous"); const [fStatut, setFStatut] = useState("tous"); const [sort, setSort] = useState("type"); const [dir, setDir] = useState("asc");
   const [edit, setEdit] = useState(null);
   const [zone, setZone] = useState("Occitanie"); const [kind, setKind] = useState("toutes"); const [busy, setBusy] = useState(false); const [aiMsg, setAiMsg] = useState(null); const [aiErr, setAiErr] = useState(null);
+  const aiElapsed = useElapsed(busy);
   const [flashIds, setFlashIds] = useState(null); const cardRefs = useRef({});
   // Met en avant les prospects fraîchement trouvés : clignotement lent + défilement vers la 1re tuile.
   useEffect(() => {
@@ -4308,7 +4355,7 @@ function Prospection({ data, persist, go }) {
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
         <div className="fld" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}><label>Zone ou établissement précis</label><input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Ex. Occitanie, Bordeaux… ou « L'Atelier chez soi »" onKeyDown={(e) => { if (e.key === "Enter" && !busy) runAI(); }} /></div>
         <div className="fld" style={{ minWidth: 170, marginBottom: 0 }}><label>Cible</label><select value={kind} onChange={(e) => setKind(e.target.value)}><option value="toutes">Tous</option><option value="chaine">Chaînes & franchises</option><option value="independant">Indépendants & concept stores</option></select></div>
-        <button className="btn-save" disabled={busy} onClick={runAI} style={busy ? { opacity: .7, cursor: "wait" } : {}}>{busy ? "Recherche en cours…" : (<><Sparkles size={15} /> Lancer la recherche IA</>)}</button>
+        <button className="btn-save" disabled={busy} onClick={runAI} style={busy ? { opacity: .7, cursor: "wait" } : {}}>{busy ? (<><Sparkles size={15} className="spin" /> Recherche en cours… {fmtElapsed(aiElapsed)}</>) : (<><Sparkles size={15} /> Lancer la recherche IA</>)}</button>
       </div>
       {aiMsg && <div style={{ fontSize: 12.5, color: "var(--green)", marginTop: 10, display: "flex", alignItems: "center", gap: 6, fontWeight: 600 }}><CheckCircle2 size={14} /> {aiMsg}</div>}
       {aiErr && <div style={{ fontSize: 12.5, color: "var(--red)", marginTop: 10, lineHeight: 1.5 }}>{aiErr}</div>}
