@@ -620,15 +620,17 @@ function deriveStage(account, d) {
   if (ints.some((i) => i.type !== "note" && i.direction !== "entrant" && i.direction !== "sortant_rejete")) return "contact";
   return "prospect";
 }
-// Reclasse les comptes (sauf ceux figés à la main) : avance l'étape vers la valeur déduite si elle est
-// plus avancée que l'actuelle, et journalise la transition dans stageLog. Idempotent.
+// Reclasse les comptes en classement automatique (sauf ceux figés à la main, stageAuto === false) :
+// l'étape SUIT la valeur déduite des signaux, en avant comme en arrière. Ainsi, si l'on retire ou
+// downgrade un signal (ex. un appel sortant passé en « rejeté » ne compte plus comme un démarchage),
+// le compte revient à l'étape correcte (ici « Prospect »). Les étapes fixées à la main ne bougent pas.
 function autoClassifyStages(d) {
   const today = TODAY();
   return (d.accounts || []).map((a) => {
     if (a.stageAuto === false) return a;
     const want = deriveStage(a, d);
-    const wi = STAGE_ORDER.indexOf(want), ci = STAGE_ORDER.indexOf(a.stage);
-    if (wi < 0 || wi <= ci) return a; // on n'avance que vers le haut
+    const wi = STAGE_ORDER.indexOf(want);
+    if (wi < 0 || want === a.stage) return a; // déjà à l'étape déduite
     const log = Array.isArray(a.stageLog) ? a.stageLog : [];
     return { ...a, stage: want, stageLog: [...log, { stage: want, date: today, auto: true }] };
   });
@@ -4421,7 +4423,7 @@ function Prospection({ data, persist, go }) {
       </div>
     </div>); };
   return (<div className="fade">
-    <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}><button className={cx("btn", "btn-s", view === "actifs" ? "btn-p" : "btn-g")} onClick={() => setView("actifs")}>Prospects actifs ({prospects.filter((p) => !p.archived && !p.accountId && p.statut !== "converti").length})</button><button className={cx("btn", "btn-s", view === "archive" ? "btn-p" : "btn-g")} onClick={() => setView("archive")}><Archive size={14} /> Archivés ({archivedProspects.length})</button></div>
+    <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}><button className={cx("btn", "btn-s", view === "actifs" ? "btn-p" : "btn-g")} onClick={() => setView("actifs")}>Prospects actifs ({prospects.filter((p) => !p.archived && !p.accountId && p.statut !== "converti").length})</button><button className={cx("btn", "btn-s", view === "archive" ? "btn-p" : "btn-g")} onClick={() => setView("archive")}><Archive size={14} /> Archivés ({archivedProspects.length})</button><span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--muted)", fontWeight: 600 }} title={prospects.filter((p) => !p.archived && !p.accountId && p.statut !== "converti").length + " actifs · " + prospects.filter((p) => p.accountId || p.statut === "converti").length + " convertis en compte · " + archivedProspects.length + " archivés"}><Sparkles size={12} style={{ opacity: .55, color: "var(--orange)" }} />{prospects.length} prospect{prospects.length > 1 ? "s" : ""} sourcé{prospects.length > 1 ? "s" : ""} au total</span></div>
     {view === "archive" ? (<div>
       <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12 }}>Prospects archivés (suivi arrêté avant conversion). Ouvrez la fiche, modifiez le motif, ou réactivez pour les remettre dans le listing.</div>
       {archivedProspects.length === 0 ? <div className="empty">Aucun prospect archivé. Depuis une fiche prospect (« Modifier »), utilisez « Archiver » pour y placer un prospect que vous ne suivez plus.</div> : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>{archivedProspects.slice().sort((a, b) => (b.archiveDate || "").localeCompare(a.archiveDate || "")).map((a) => (
